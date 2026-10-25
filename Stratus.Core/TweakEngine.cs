@@ -7,8 +7,13 @@ namespace Stratus.Core;
 public sealed class TweakEngine
 {
     private readonly ScoreService _score = new();
+    private readonly HistoryStore? _history;
 
-    public TweakEngine(IReadOnlyList<Tweak> tweaks) => Tweaks = tweaks;
+    public TweakEngine(IReadOnlyList<Tweak> tweaks, HistoryStore? history = null)
+    {
+        Tweaks = tweaks;
+        _history = history;
+    }
 
     public IReadOnlyList<Tweak> Tweaks { get; }
 
@@ -19,9 +24,27 @@ public sealed class TweakEngine
 
     public Tweak? Find(string id) => Tweaks.FirstOrDefault(t => t.Id == id);
 
+    /// <summary>Appends to the change timeline. Never allowed to break a real change.</summary>
+    private void Record(Tweak tweak, string action, TweakResult result)
+    {
+        try
+        {
+            _history?.Append(new HistoryEntry
+            {
+                TweakId = tweak.Id,
+                TweakName = tweak.Name,
+                Action = action,
+                Success = result.Success,
+                Error = result.Error
+            });
+        }
+        catch { /* timeline is informational only */ }
+    }
+
     public Task<TweakResult> ApplyAsync(Tweak tweak) => Task.Run(() =>
     {
         var result = tweak.Apply();
+        Record(tweak, "Applied", result);
         if (result.Success)
             StateChanged?.Invoke();
         return result;
@@ -30,6 +53,7 @@ public sealed class TweakEngine
     public Task<TweakResult> RevertAsync(Tweak tweak) => Task.Run(() =>
     {
         var result = tweak.Revert();
+        Record(tweak, "Reverted", result);
         if (result.Success)
             StateChanged?.Invoke();
         return result;

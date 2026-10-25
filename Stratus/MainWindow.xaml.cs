@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
             "tweaks" => typeof(TweaksPage),
             "debloat" => typeof(DebloatPage),
             "cleanup" => typeof(CleanupPage),
+            "history" => typeof(HistoryPage),
             "tools" => typeof(ToolsPage),
             _ => null,
         };

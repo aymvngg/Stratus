@@ -7,5 +7,6 @@ public static class Vm
     public static readonly TweaksViewModel Tweaks = new();
     public static readonly DebloatViewModel Debloat = new();
     public static readonly CleanupViewModel Cleanup = new();
+    public static readonly HistoryViewModel History = new();
     public static readonly ToolsViewModel Tools = new();
 }

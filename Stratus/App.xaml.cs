@@ -22,6 +22,7 @@ public partial class App : Application
         {
             Vm.Dashboard.RequestScoreRefresh();
             Vm.Tweaks.RequestStateRefresh();
+            Vm.History.RequestRefresh();
         });
 
         Window = new MainWindow();

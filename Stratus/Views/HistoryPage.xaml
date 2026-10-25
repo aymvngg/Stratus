@@ -1,0 +1,182 @@
+<Page
+    x:Class="Stratus.Views.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Stratus.ViewModels">
+
+    <ScrollViewer>
+        <StackPanel Margin="32,24,32,32" Spacing="14" MaxWidth="1120" HorizontalAlignment="Stretch">
+
+            <StackPanel Spacing="3">
+                <TextBlock Text="History" Style="{StaticResource PageHeader}"/>
+                <TextBlock Text="Every change Stratus made, newest first. Undo puts the exact previous value back."
+                           Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+
+            <InfoBar
+                IsOpen="{x:Bind VM.StatusOpen, Mode=TwoWay}"
+                Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
+                Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
+
+            <!-- ============ Change timeline ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE81C;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Recent changes" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="{x:Bind VM.ChangesText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Refresh" Click="OnRefresh"/>
+                            <Button Content="Clear history" Click="OnClearHistory"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Nothing recorded yet. Apply a tweak and it shows up here with an Undo button."
+                               Style="{StaticResource PageSubtitle}"
+                               Visibility="{x:Bind vm:Conv.Vis(VM.EmptyHistory), Mode=OneWay}"/>
+
+                    <ItemsControl ItemsSource="{x:Bind VM.Changes, Mode=OneWay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HistoryRow">
+                                <Border Style="{StaticResource RowCard}">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="76"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Bind TimeText}" FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="{x:Bind TweakName}" FontSize="13" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{x:Bind DetailText}" FontSize="11" TextWrapping="Wrap"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ActionText}" FontSize="10"
+                                                   FontWeight="SemiBold" VerticalAlignment="Center"
+                                                   Foreground="{x:Bind ActionBrush}"/>
+
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center">
+                                            <ProgressRing Width="16" Height="16" IsActive="{x:Bind IsBusy, Mode=OneWay}"/>
+                                            <Button Content="Undo" Click="OnUndo" FontSize="11" Padding="10,4"
+                                                    IsEnabled="{x:Bind CanUndo, Mode=OneWay}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ Backup viewer ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE74E;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Backup snapshots" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="{x:Bind VM.BackupsText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Open backups.json" Click="OnOpenBackupFile"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="No backups stored yet. Stratus saves every value before it changes it."
+                               Style="{StaticResource PageSubtitle}"
+                               Visibility="{x:Bind vm:Conv.Vis(VM.EmptyBackups), Mode=OneWay}"/>
+
+                    <ItemsControl ItemsSource="{x:Bind VM.Backups, Mode=OneWay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BackupGroupRow">
+                                <Border Style="{StaticResource RowCard}" Padding="14,12">
+                                    <StackPanel Spacing="8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Text="{x:Bind TweakName}" FontSize="13" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{x:Bind CountText}" FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                <ProgressRing Width="16" Height="16" IsActive="{x:Bind IsBusy, Mode=OneWay}"/>
+                                                <Button Content="Restore" Click="OnRestoreGroup" FontSize="11"
+                                                        Padding="10,4" IsEnabled="{x:Bind CanRestore, Mode=OneWay}"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{x:Bind Values}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:BackupValueRow">
+                                                    <Grid Margin="0,3" ColumnSpacing="10">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock Text="{x:Bind TargetText}" FontSize="11"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <TextBlock Text="{x:Bind NameText}" FontSize="11" FontWeight="SemiBold"/>
+                                                                <Border Style="{StaticResource Chip}" Padding="5,1">
+                                                                    <TextBlock Text="{x:Bind KindText}" Style="{StaticResource ChipText}"/>
+                                                                </Border>
+                                                                <TextBlock Text="{x:Bind ValueText}" FontSize="11"
+                                                                           FontFamily="Consolas"
+                                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <TextBlock Grid.Column="1" Text="{x:Bind SavedText}" FontSize="10"
+                                                                   VerticalAlignment="Top"
+                                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

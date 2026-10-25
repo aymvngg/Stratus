@@ -9,11 +9,12 @@ namespace Stratus.ViewModels;
 public static class AppServices
 {
     public static readonly BackupStore Backup = new(AppPaths.BackupFile);
+    public static readonly HistoryStore History = new(AppPaths.HistoryFile);
     public static readonly RegistryService Registry = new(Backup);
     public static readonly SettingsStore Settings = new(AppPaths.SettingsFile);
     public static readonly PowerPlanService Power = new();
 
-    public static readonly TweakEngine Engine = new(TweakCatalog.Build(Registry, Power, Settings, Backup));
+    public static readonly TweakEngine Engine = new(TweakCatalog.Build(Registry, Power, Settings, Backup), History);
 
     public static readonly CleanupService Cleanup = new();
     public static readonly DebloatService Debloat = new();

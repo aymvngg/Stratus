@@ -9,6 +9,7 @@ public interface IBackupStore
     bool HasEntries(string tweakId);
     BackupEntry? GetLatest(string tweakId, string scopeType, string scopeId, string key);
     List<BackupEntry> LatestPerKey(string tweakId);
+    List<BackupEntry> All();
     void Remove(string tweakId);
 }
 
@@ -97,5 +98,12 @@ public sealed class BackupStore : IBackupStore
             _entries.RemoveAll(e => e.TweakId == tweakId);
             Save();
         }
+    }
+
+    /// <summary>Every stored entry, newest first. Used by the backup viewer.</summary>
+    public List<BackupEntry> All()
+    {
+        lock (_lock)
+            return _entries.OrderByDescending(e => e.SavedAtUtc).ToList();
     }
 }

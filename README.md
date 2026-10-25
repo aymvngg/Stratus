@@ -21,6 +21,9 @@ Double-click it (UAC prompt is expected - the manifest requires administrator).
 dotnet run --project Stratus.Cli -c Release -- list
 dotnet run --project Stratus.Cli -c Release -- score
 dotnet run --project Stratus.Cli -c Release -- info
+dotnet run --project Stratus.Cli -c Release -- presets
+dotnet run --project Stratus.Cli -c Release -- history
+dotnet run --project Stratus.Cli -c Release -- backups
 dotnet run --project Stratus.Cli -c Release -- apply <tweak-id>
 dotnet run --project Stratus.Cli -c Release -- revert <tweak-id>
 ```
@@ -51,6 +54,10 @@ Full reference with every registry key, default and reasoning: [docs/tweaks.md](
 ## Presets
 
 The Dashboard ships three curated one-click sets: **Gaming PC**, **Balanced** and **Max Privacy**. Presets only ever apply Safe and Recommended tweaks; Advanced ones stay opt-in on the Tweaks page. Each preset card shows live progress read from the system, not from what the app changed.
+
+## History and undo
+
+Every apply and revert lands in `%ProgramData%\Stratus\history.json` (newest first, capped at 500 entries). The History page shows that timeline with an Undo button on changes still in effect, plus a viewer for every backed-up value (key path, value name, type, old value) with a Restore button per tweak.
 
 ## Where things live
 

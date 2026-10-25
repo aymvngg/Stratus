@@ -17,16 +17,17 @@ internal static class Program
 
         var backup = new BackupStore(AppPaths.BackupFile);
         var settings = new SettingsStore(AppPaths.SettingsFile);
+        var history = new HistoryStore(AppPaths.HistoryFile);
         var registry = new RegistryService(backup);
         var power = new PowerPlanService();
-        var engine = new TweakEngine(TweakCatalog.Build(registry, power, settings, backup));
+        var engine = new TweakEngine(TweakCatalog.Build(registry, power, settings, backup), history);
 
         Console.WriteLine($"Stratus CLI - elevated: {SystemInfoService.IsElevated()}");
         Console.WriteLine();
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|apply <id>|revert <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|history|backups|apply <id>|revert <id>]");
             return 0;
         }
 
@@ -73,6 +74,47 @@ internal static class Program
                     }
                     Console.WriteLine($"{preset.Name,-12} {applied}/{total} applied{(applied == total && total > 0 ? "  (complete)" : "")}");
                     Console.WriteLine($"  {preset.Description}");
+                }
+                return 0;
+
+            case "history":
+                var entries = history.All();
+                if (entries.Count == 0)
+                {
+                    Console.WriteLine("No changes recorded yet.");
+                    return 0;
+                }
+                foreach (var e in entries.Take(20))
+                {
+                    var status = e.Success ? "ok" : "FAILED: " + (e.Error ?? "unknown");
+                    Console.WriteLine($"{e.TimestampUtc.ToLocalTime():yyyy-MM-dd HH:mm}  {e.Action,-9} {e.TweakName,-38} {status}");
+                }
+                if (entries.Count > 20)
+                    Console.WriteLine($"... {entries.Count - 20} older entries (open the app to see all)");
+                return 0;
+
+            case "backups":
+                var all = backup.All();
+                if (all.Count == 0)
+                {
+                    Console.WriteLine("No backups stored yet.");
+                    return 0;
+                }
+                foreach (var group in all.GroupBy(e => e.TweakId).OrderBy(g => g.Key))
+                {
+                    var name = engine.Find(group.Key)?.Name ?? group.Key;
+                    var values = group.ToList();
+                    Console.WriteLine($"{name}  ({group.Key}, {values.Count} value{(values.Count == 1 ? "" : "s")})");
+                    foreach (var v in values)
+                    {
+                        var target = v.ScopeType == "service"
+                            ? "service " + v.ScopeId
+                            : v.ScopeId.Replace("|", "\\");
+                        var old = v.Existed ? (v.ValueJson ?? "") : "(did not exist)";
+                        if (old.Length > 60)
+                            old = old[..57] + "...";
+                        Console.WriteLine($"  {target} = {old}");
+                    }
                 }
                 return 0;
 
