@@ -19,7 +19,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Publish
-        run: dotnet publish Stratus/Stratus.csproj -c Release -p:Platform=x64 -o publish/Stratus-win-x64
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet publish Stratus/Stratus.csproj -c Release -p:Platform=x64 -p:Version=$version -o publish/Stratus-win-x64
 
       - name: Zip
         shell: pwsh

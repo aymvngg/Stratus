@@ -27,5 +27,22 @@ public partial class App : Application
 
         Window = new MainWindow();
         Window.Activate();
+
+        // v1.4: drop leftovers from earlier updates, then look for a newer build in the background.
+        _ = Task.Run(UpdateService.CleanupOld);
+        _ = StartupUpdateCheckAsync();
+    }
+
+    private static async Task StartupUpdateCheckAsync()
+    {
+        try
+        {
+            Vm.Tools.LoadUpdateState();
+            await Vm.Tools.StartupCheckAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Startup update check failed: " + ex.Message);
+        }
     }
 }

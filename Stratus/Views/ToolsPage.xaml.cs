@@ -312,4 +312,45 @@ public sealed partial class ToolsPage : Page
         var message = await VM.CreateReportAsync();
         VM.ShowStatus(message, message.StartsWith("System report saved") ? InfoBarSeverity.Success : InfoBarSeverity.Error);
     }
+
+    // ================= v1.4: updates =================
+
+    private async void OnUpdateAction(object sender, RoutedEventArgs e)
+    {
+        if (!VM.IsUpdateReady)
+        {
+            var message = await VM.CheckForUpdatesAsync();
+            VM.ShowStatus(message,
+                message.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Warning
+                    : InfoBarSeverity.Success);
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Restart to finish the update?",
+            Content = new TextBlock
+            {
+                Text = "Stratus closes, replaces its own files and starts the new version. Your tweaks and history are untouched.",
+                TextWrapping = TextWrapping.Wrap,
+            },
+            PrimaryButtonText = "Restart",
+            CloseButtonText = "Later",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        if (VM.RestartToUpdate(out var status))
+        {
+            VM.ShowStatus(status, InfoBarSeverity.Success);
+            App.Window?.ForceClose();
+            return;
+        }
+
+        VM.ShowStatus(status, InfoBarSeverity.Error);
+    }
 }

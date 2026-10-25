@@ -300,6 +300,50 @@
                 </Border>
             </Grid>
 
+            <!-- ============ Updates ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBadge}">
+                            <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE895;"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="Updates" Style="{StaticResource CardTitle}"/>
+                            <TextBlock Text="{x:Bind VM.CurrentVersionText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                Content="{x:Bind VM.UpdateButtonText, Mode=OneWay}"
+                                Click="OnUpdateAction"
+                                IsEnabled="{x:Bind VM.CanCheckForUpdates, Mode=OneWay}"
+                                Style="{StaticResource AccentButtonStyle}"/>
+                    </Grid>
+
+                    <TextBlock Text="{x:Bind VM.UpdateStatusText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"
+                               TextWrapping="Wrap"/>
+
+                    <ProgressBar Value="{x:Bind VM.UpdateProgress, Mode=OneWay}" Maximum="100" Height="4"
+                                 Visibility="{x:Bind vm:Conv.Vis(VM.IsDownloading), Mode=OneWay}"/>
+
+                    <Expander Header="What's new" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                              Visibility="{x:Bind vm:Conv.Vis(VM.HasUpdateNotes), Mode=OneWay}">
+                        <TextBox Text="{x:Bind VM.UpdateNotes, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="Wrap" Height="160" FontSize="12"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                    </Expander>
+
+                    <ToggleSwitch Header="Check for updates automatically" OnContent="On" OffContent="Off"
+                                  IsOn="{x:Bind VM.AutoCheck, Mode=TwoWay}"/>
+                    <TextBlock Text="{x:Bind VM.AutoCheckHint, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                </StackPanel>
+            </Border>
+
             <!-- ============ Preferences ============ -->
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="12">

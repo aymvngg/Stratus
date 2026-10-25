@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.0
+
+Stratus now updates itself: it checks GitHub once a day, downloads a newer build in the background and swaps it in on the next restart.
+
+### Updates
+- **Update checker**: the Tools page shows the running version, checks GitHub on demand and reports when you are already on the latest release
+- **Background download**: a newer release is fetched silently into `ProgramData\Stratus\updates`, with a progress bar when you start the check yourself
+- **Restart to update**: one button confirms, closes Stratus, replaces its own files and starts the new version. The previous install is kept as `Stratus.old-<timestamp>` until the next launch, then removed
+- **Release notes in the app**: the "What's new" section shows the notes published with the release
+- **Automatic checks** can be switched off; the daily check is throttled to one request per 24 hours
+
+### Packaging
+- Release builds are stamped with the tag version, so the app knows what it is running. Local builds report a development version and skip automatic checks
+
 ## v1.3.0
 
 Advanced tools: the repair and diagnostic actions that used to need a dozen terminal commands, in one place.

@@ -353,6 +353,183 @@ public sealed class ToolsViewModel : ObservableObject
         }
     }
 
+    // ================= v1.4: updates =================
+
+    public const string AutoCheckKey = "update.autoCheck";
+    public const string LastCheckKey = "update.lastCheck";
+
+    private bool _autoCheck = true;
+    private UpdateInfo? _updateInfo;
+    private bool _hasUpdate;
+    private bool _isDownloading;
+    private double _updateProgress;
+    private bool _isUpdateReady;
+    private string _updateStatusText = "";
+    private string _updateNotes = "";
+
+    /// <summary>Version of the running build, or "development build" when the CI tag was not stamped.</summary>
+    public string CurrentVersionText =>
+        UpdateService.IsDevBuild ? "development build" : $"v{UpdateService.CurrentVersion}";
+
+    public bool AutoCheck
+    {
+        get => _autoCheck;
+        set
+        {
+            if (!Set(ref _autoCheck, value))
+                return;
+            AppServices.Settings.Set(AutoCheckKey, value ? "true" : "false");
+            Raise(nameof(AutoCheckHint));
+        }
+    }
+
+    public string AutoCheckHint => AutoCheck
+        ? "Stratus checks GitHub once a day and downloads a newer build in the background."
+        : "Automatic checks are off. Use the button to check by hand.";
+
+    public bool HasUpdate { get => _hasUpdate; private set { if (Set(ref _hasUpdate, value)) Raise(nameof(UpdateTitleText)); } }
+    public bool IsDownloading { get => _isDownloading; private set => Set(ref _isDownloading, value); }
+    public bool IsUpdateReady { get => _isUpdateReady; private set { if (Set(ref _isUpdateReady, value)) Raise(nameof(UpdateButtonText), nameof(CanCheckForUpdates)); } }
+    public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
+    public string UpdateStatusText { get => _updateStatusText; private set => Set(ref _updateStatusText, value); }
+    public string UpdateNotes { get => _updateNotes; private set { if (Set(ref _updateNotes, value)) Raise(nameof(HasUpdateNotes)); } }
+    public bool HasUpdateNotes => !string.IsNullOrWhiteSpace(_updateNotes);
+
+    public string UpdateTitleText =>
+        _updateInfo is null ? "Updates" : $"Stratus {_updateInfo.Tag} is available";
+
+    public string UpdateButtonText =>
+        IsUpdateReady ? "Restart to update" : "Check for updates";
+
+    public bool CanCheckForUpdates => !IsBusy && !IsDownloading && !IsUpdateReady;
+
+    /// <summary>Restores the persisted auto-check preference.</summary>
+    public void LoadUpdateState()
+    {
+        AutoCheck = AppServices.Settings.Get(AutoCheckKey) is not { } value || value != "false";
+        if (UpdateService.IsDevBuild)
+            UpdateStatusText = "Development build: automatic checks are off, use the button to test the updater.";
+    }
+
+    /// <summary>Silent startup check, throttled to once a day, followed by a background download.</summary>
+    public async Task StartupCheckAsync()
+    {
+        if (!AutoCheck || UpdateService.IsDevBuild || HasUpdate || IsUpdateReady)
+            return;
+
+        if (AppServices.Settings.Get(LastCheckKey) is { } stamp &&
+            long.TryParse(stamp, out var ticks) &&
+            DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc) < TimeSpan.FromHours(24))
+            return;
+
+        AppServices.Settings.Set(LastCheckKey, DateTime.UtcNow.Ticks.ToString());
+
+        var (info, _) = await UpdateService.CheckAsync();
+        if (info is null || !UpdateService.IsNewer(info.Version))
+            return;
+
+        _updateInfo = info;
+        UpdateNotes = info.Notes;
+        HasUpdate = true;
+        UpdateStatusText = $"Downloading {info.Tag} ({info.SizeText})…";
+        await DownloadUpdateAsync(info, silent: true);
+    }
+
+    /// <summary>Manual check. Returns a status line for the InfoBar.</summary>
+    public async Task<string> CheckForUpdatesAsync()
+    {
+        IsBusy = true;
+        BusyText = "Checking GitHub for a newer release…";
+        try
+        {
+            AppServices.Settings.Set(LastCheckKey, DateTime.UtcNow.Ticks.ToString());
+            var (info, error) = await UpdateService.CheckAsync();
+
+            if (info is null)
+            {
+                UpdateStatusText = error ?? "Could not reach GitHub.";
+                return $"Update check failed: {UpdateStatusText}";
+            }
+
+            if (!UpdateService.IsNewer(info.Version))
+            {
+                HasUpdate = false;
+                _updateInfo = null;
+                UpdateNotes = "";
+                UpdateStatusText = $"You are on the latest version ({info.Tag}).";
+                return $"Stratus is up to date ({info.Tag}).";
+            }
+
+            _updateInfo = info;
+            UpdateNotes = info.Notes;
+            HasUpdate = true;
+
+            if (UpdateService.IsDevBuild)
+            {
+                UpdateStatusText = $"{info.Tag} is available. Development builds cannot update themselves: publish a release to test the swap.";
+                return $"Development build: {info.Tag} is available, updates are disabled.";
+            }
+
+            UpdateStatusText = $"Downloading {info.Tag} ({info.SizeText})…";
+            await DownloadUpdateAsync(info, silent: true);
+
+            return IsUpdateReady
+                ? $"{info.Tag} is downloaded and ready to install."
+                : $"Found {info.Tag} but the download failed: {UpdateStatusText}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    private async Task DownloadUpdateAsync(UpdateInfo info, bool silent)
+    {
+        IsDownloading = true;
+        UpdateProgress = 0;
+        var progress = new Progress<double>(fraction => UpdateProgress = Math.Round(fraction * 100));
+
+        try
+        {
+            var (ok, error) = await UpdateService.DownloadAsync(info, progress);
+            if (!ok)
+            {
+                UpdateStatusText = $"Download failed: {error}";
+                if (!silent)
+                    ShowStatus(UpdateStatusText, InfoBarSeverity.Warning);
+                return;
+            }
+
+            IsUpdateReady = true;
+            UpdateProgress = 100;
+            UpdateStatusText = $"{info.Tag} is downloaded. Restart to finish the update.";
+        }
+        finally
+        {
+            IsDownloading = false;
+        }
+    }
+
+    /// <summary>Hands the swap to the detached script. The caller closes the app when this returns true.</summary>
+    public bool RestartToUpdate(out string message)
+    {
+        if (_updateInfo is null)
+        {
+            message = "No update is staged.";
+            return false;
+        }
+
+        if (!UpdateService.ApplyAndRestart(_updateInfo, out var error))
+        {
+            message = $"Could not start the update: {error}";
+            return false;
+        }
+
+        message = $"Restarting into {_updateInfo.Tag}.";
+        return true;
+    }
+
     private static T Safe<T>(Func<T> read, T fallback)
     {
         try { return read(); }

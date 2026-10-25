@@ -18,6 +18,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <!-- Local builds report 0.0.0 (auto-update off). CI stamps the release tag with -p:Version. -->
+    <Version>0.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
