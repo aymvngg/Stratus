@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Stratus.Core\Stratus.Core.csproj" />
+    <ProjectReference Include="..\Stratus.Tray\Stratus.Tray.csproj" />
   </ItemGroup>
 
 </Project>

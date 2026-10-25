@@ -91,6 +91,11 @@ The Dashboard graphs the score over time from `%ProgramData%\Stratus\score-histo
 
 Every apply and revert lands in `%ProgramData%\Stratus\history.json` (newest first, capped at 500 entries). The History page shows that timeline with an Undo button on changes still in effect, plus a viewer for every backed-up value (key path, value name, type, old value) with a Restore button per tweak.
 
+## Tray and theme
+
+- Closing the window hides Stratus in the notification area (toggle in Tools > Preferences); the tray tooltip shows the live score. Use Exit in the tray menu to quit for real.
+- Theme follows your system by default; Dark or Light can be pinned in Tools > Preferences.
+
 ## Where things live
 
 - Tweak backups: `%ProgramData%\Stratus\backups.json` (every pre-change registry value / service startup state)

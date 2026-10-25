@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stratus.Cli", "Stratus.Cli\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stratus", "Stratus\Stratus.csproj", "{84A7217A-B91E-4385-A302-634375E81AD7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stratus.Tray", "Stratus.Tray\Stratus.Tray.csproj", "{F4B34744-929C-42A0-9E5A-F849F30FA965}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{84A7217A-B91E-4385-A302-634375E81AD7}.Debug|Any CPU.Build.0 = Debug|x64
 		{84A7217A-B91E-4385-A302-634375E81AD7}.Release|Any CPU.ActiveCfg = Release|x64
 		{84A7217A-B91E-4385-A302-634375E81AD7}.Release|Any CPU.Build.0 = Release|x64
+		{F4B34744-929C-42A0-9E5A-F849F30FA965}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4B34744-929C-42A0-9E5A-F849F30FA965}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4B34744-929C-42A0-9E5A-F849F30FA965}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4B34744-929C-42A0-9E5A-F849F30FA965}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

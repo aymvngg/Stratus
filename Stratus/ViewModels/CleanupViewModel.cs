@@ -18,10 +18,11 @@ public sealed class CleanupRow : ObservableObject
         : "not present";
 
     private bool _isChecked;
-    private Brush _sizeBrush = DimBrush;
 
     public bool IsChecked { get => _isChecked; set => Set(ref _isChecked, value); }
-    public Brush SizeBrush { get => _sizeBrush; private set => Set(ref _sizeBrush, value); }
+
+    /// <summary>Full strength when the target holds data, dimmed when empty or missing. Lets the color come from the active theme.</summary>
+    public double SizeOpacity => Target.Exists && Target.SizeBytes > 0 ? 1.0 : 0.55;
 
     internal Action? Changed;
 
@@ -33,8 +34,7 @@ public sealed class CleanupRow : ObservableObject
 
     public void RefreshVisual()
     {
-        SizeBrush = Target.Exists && Target.SizeBytes > 0 ? BrightBrush : DimBrush;
-        Raise(nameof(SizeText));
+        Raise(nameof(SizeOpacity), nameof(SizeText));
     }
 
     protected override void OnPropertyChanged(string propertyName)
@@ -42,9 +42,6 @@ public sealed class CleanupRow : ObservableObject
         if (propertyName == nameof(IsChecked))
             Changed?.Invoke();
     }
-
-    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush DimBrush = new(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x9A, 0x9A, 0x9A));
-    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush BrightBrush = new(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
 }
 
 public sealed class CleanupViewModel : ObservableObject

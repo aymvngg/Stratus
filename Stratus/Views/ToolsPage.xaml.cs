@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Stratus.Services;
 using Stratus.ViewModels;
 using Stratus.Core.Services;
 
@@ -23,8 +24,23 @@ public sealed partial class ToolsPage : Page
         if (_loadedOnce)
             return;
         _loadedOnce = true;
+
+        // Reflect the persisted preferences (set after InitializeComponent so no mid-parse events fire).
+        ThemeBox.SelectedIndex = ThemeHelper.GetMode() switch { "dark" => 1, "light" => 2, _ => 0 };
+        TrayToggle.IsOn = ThemeHelper.GetCloseToTray();
+
         await VM.LoadAsync();
     }
+
+    private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeBox.SelectedIndex < 0)
+            return;
+        ThemeHelper.SetMode(ThemeBox.SelectedIndex switch { 1 => "dark", 2 => "light", _ => "system" });
+    }
+
+    private void OnTrayToggled(object sender, RoutedEventArgs e) =>
+        ThemeHelper.SetCloseToTray(TrayToggle.IsOn);
 
     private async void OnReload(object sender, RoutedEventArgs e) => await VM.LoadAsync();
 

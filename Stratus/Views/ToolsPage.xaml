@@ -151,6 +151,48 @@
                 </Border>
             </Grid>
 
+            <!-- ============ Preferences ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Style="{StaticResource IconBadge}">
+                            <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE713;"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="Preferences" Style="{StaticResource CardTitle}"/>
+                            <TextBlock Text="Appearance and background behaviour" Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Theme" VerticalAlignment="Center" Style="{StaticResource SummaryValue}"/>
+                        <ComboBox x:Name="ThemeBox" Grid.Column="1" MinWidth="200" HorizontalAlignment="Left"
+                                  SelectionChanged="OnThemeChanged">
+                            <ComboBoxItem Content="Follow system"/>
+                            <ComboBoxItem Content="Dark"/>
+                            <ComboBoxItem Content="Light"/>
+                        </ComboBox>
+
+                        <ToggleSwitch x:Name="TrayToggle" Grid.Row="1" Grid.ColumnSpan="2"
+                                      Header="Keep running in the tray when closed"
+                                      OnContent="On" OffContent="Off"
+                                      Toggled="OnTrayToggled"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource PageSubtitle}"
+                               Text="With tray mode on, closing the window hides Stratus in the notification area and the score keeps tracking. Use Exit in the tray menu to quit."/>
+                </StackPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </Page>

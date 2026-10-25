@@ -90,7 +90,8 @@
 
                                     <TextBlock Grid.Column="2" Text="{x:Bind SizeText, Mode=OneWay}" FontSize="12"
                                                FontWeight="SemiBold" VerticalAlignment="Center"
-                                               Foreground="{x:Bind SizeBrush, Mode=OneWay}"/>
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               Opacity="{x:Bind SizeOpacity, Mode=OneWay}"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
