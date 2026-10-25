@@ -29,4 +29,24 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" "publish/Stratus-${{ github.ref_name }}-win-x64.zip" --title "Stratus ${{ github.ref_name }}" --generate-notes
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notesFile = "publish/notes.md"
+          $useNotes = $false
+          if (Test-Path CHANGELOG.md) {
+            $content = Get-Content CHANGELOG.md -Raw
+            $pattern = "(?s)##\s+$([regex]::Escape($tag))\r?\n(.*?)(?=\r?\n##\s|\z)"
+            if ($content -match $pattern) {
+              $section = $Matches[1].Trim()
+              if (-not [string]::IsNullOrWhiteSpace($section)) {
+                Set-Content -Path $notesFile -Value $section -NoNewline
+                $useNotes = $true
+              }
+            }
+          }
+          if ($useNotes) {
+            gh release create "$tag" "publish/Stratus-$tag-win-x64.zip" --title "Stratus $tag" --notes-file "$notesFile"
+          } else {
+            Write-Warning "No '## $tag' section found in CHANGELOG.md, falling back to generated notes."
+            gh release create "$tag" "publish/Stratus-$tag-win-x64.zip" --title "Stratus $tag" --generate-notes
+          }
