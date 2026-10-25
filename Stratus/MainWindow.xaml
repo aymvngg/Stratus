@@ -52,6 +52,9 @@
                         <FontIcon Glyph="&#xE80F;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+
+                <NavigationViewItemSeparator/>
+                <NavigationViewItemHeader Content="Optimize"/>
                 <NavigationViewItem Content="Tweaks" Tag="tweaks">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE945;"/>
@@ -72,6 +75,9 @@
                         <FontIcon Glyph="&#xE74D;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+
+                <NavigationViewItemSeparator/>
+                <NavigationViewItemHeader Content="Maintain"/>
                 <NavigationViewItem Content="Cleanup" Tag="cleanup">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xEA99;"/>
@@ -102,13 +108,19 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="v1.0 · every change is revertible" FontSize="10"
+                    <TextBlock Text="v1.2 · every change is revertible" FontSize="10"
                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                TextWrapping="Wrap"/>
                 </StackPanel>
             </NavigationView.PaneFooter>
 
-            <Frame x:Name="ContentFrame"/>
+            <Frame x:Name="ContentFrame">
+                <Frame.ContentTransitions>
+                    <TransitionCollection>
+                        <NavigationThemeTransition/>
+                    </TransitionCollection>
+                </Frame.ContentTransitions>
+            </Frame>
         </NavigationView>
     </Grid>
 </Window>

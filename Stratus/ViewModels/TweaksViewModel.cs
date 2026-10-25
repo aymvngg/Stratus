@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Stratus.Core.Models;
+using Stratus.Core.Services;
+using Stratus.Services;
 
 namespace Stratus.ViewModels;
 
@@ -21,6 +23,7 @@ public sealed class TweakItemViewModel : ObservableObject
 
     public Brush RiskForeground { get; }
     public Brush RiskBackground { get; }
+    public Brush Accent { get; }
 
     private bool _isApplied;
     private bool _notApplicable;
@@ -35,6 +38,7 @@ public sealed class TweakItemViewModel : ObservableObject
     {
         T = tweak;
         (RiskForeground, RiskBackground) = RiskStyles.For(tweak.Risk);
+        Accent = CategoryStyle.For(tweak.Category);
     }
 
     public void SetState(bool notApplicable, bool isApplied)
@@ -44,29 +48,52 @@ public sealed class TweakItemViewModel : ObservableObject
     }
 }
 
-/// <summary>One category section on the Tweaks page.</summary>
-public sealed class TweakGroup
+/// <summary>One expandable category section on the Tweaks page.</summary>
+public sealed class TweakGroup : ObservableObject
 {
+    public TweakCategory Category { get; }
     public string Title { get; }
-    public string Header { get; }
     public string Subtitle { get; }
     public List<TweakItemViewModel> Items { get; }
+    public Brush Accent { get; }
 
-    public TweakGroup(string title, List<TweakItemViewModel> items)
+    private int _applied;
+    private int _pendingSafe;
+
+    /// <summary>Initial expansion only: groups with pending safe tweaks open on first filter.</summary>
+    public bool HasPendingItems { get; }
+
+    public string AppliedText => $"{_applied} of {Items.Count} applied";
+    public string PendingSafeText => $"Apply safe ({_pendingSafe})";
+    public bool CanApplySafe => _pendingSafe > 0;
+
+    public TweakGroup(TweakCategory category, List<TweakItemViewModel> items)
     {
-        Title = title;
+        Category = category;
+        Title = category.ToString();
         Items = items;
-        Header = $"{title} · {items.Count} tweak{(items.Count == 1 ? "" : "s")}";
-        Subtitle = title switch
+        Accent = CategoryStyle.For(category);
+        Subtitle = category switch
         {
-            "Gaming" => "Frame pacing, input latency and background capture.",
-            "Visuals" => "Shell animation and rendering overhead.",
-            "Network" => "Latency, throttling and background traffic.",
-            "Services" => "Background services you almost certainly don't need.",
-            "Privacy" => "Telemetry, suggestions and data collection.",
-            "Power" => "CPU/GPU scheduling and power plans.",
+            TweakCategory.Gaming => "Frame pacing, input latency and background capture.",
+            TweakCategory.Visuals => "Shell animation and rendering overhead.",
+            TweakCategory.Network => "Latency, throttling and background traffic.",
+            TweakCategory.Services => "Background services you almost certainly don't need.",
+            TweakCategory.Privacy => "Telemetry, suggestions and data collection.",
+            TweakCategory.Power => "CPU/GPU scheduling and power plans.",
             _ => "",
         };
+
+        Refresh();
+        HasPendingItems = _pendingSafe > 0;
+    }
+
+    /// <summary>Recomputes counters after item states changed. Does not touch HasPendingItems so expand state survives.</summary>
+    public void Refresh()
+    {
+        _applied = Items.Count(i => i.IsApplied);
+        _pendingSafe = Items.Count(i => !i.NotApplicable && !i.IsApplied && i.T.Risk <= RiskLevel.Recommended);
+        Raise(nameof(AppliedText), nameof(CanApplySafe), nameof(PendingSafeText));
     }
 }
 
@@ -157,7 +184,7 @@ public sealed class TweaksViewModel : ObservableObject
                      .GroupBy(i => i.T.Category)
                      .OrderBy(g => g.Key))
         {
-            Groups.Add(new TweakGroup(group.Key.ToString(), group.ToList()));
+            Groups.Add(new TweakGroup(group.Key, group.ToList()));
         }
 
         Raise(nameof(CountText), nameof(NoResults), nameof(AppliedCountText), nameof(SummaryText));
@@ -183,7 +210,42 @@ public sealed class TweaksViewModel : ObservableObject
         NotifyItemChanged();
     }
 
-    /// <summary>Re-computes the summary chips after a toggle changed an item's state.</summary>
-    public void NotifyItemChanged() =>
+    /// <summary>Re-computes the summary chips and group counters after a toggle changed an item's state.</summary>
+    public void NotifyItemChanged()
+    {
+        foreach (var g in Groups)
+            g.Refresh();
         Raise(nameof(AppliedCountText), nameof(SummaryText));
+    }
+
+    /// <summary>Applies every pending Safe/Recommended tweak in one category. Mirrors ApplyRecommendedAsync.</summary>
+    public async Task<string> ApplyCategoryAsync(TweakGroup group, bool createRestorePoint)
+    {
+        var pending = group.Items
+            .Where(i => !i.NotApplicable && !i.IsApplied && i.T.Risk <= RiskLevel.Recommended)
+            .Select(i => i.Id)
+            .ToList();
+
+        if (pending.Count == 0)
+            return "Nothing to do: every safe tweak in this category is already applied.";
+
+        if (createRestorePoint)
+        {
+            var (ok, error) = await Task.Run(RestorePointService.Create);
+            if (!ok)
+                return $"Restore point failed: {error} - nothing was changed.";
+        }
+
+        var results = await AppServices.Engine.ApplyIdsAsync(pending);
+        await RefreshStatesAsync();
+
+        var failed = results.Where(kv => !kv.Value.Success).ToList();
+        if (failed.Count == 0)
+            return $"{group.Title}: applied {pending.Count} tweak{(pending.Count == 1 ? "" : "s")}.";
+
+        var summary = $"{group.Title}: applied {pending.Count - failed.Count} of {pending.Count}. Failed: {string.Join(", ", failed.Select(f => f.Key))}.";
+        if (failed.First().Value.Error is { Length: > 0 } first)
+            summary += $" First error: {first}";
+        return summary;
+    }
 }

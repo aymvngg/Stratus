@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.2.0
+
+A full interface revamp: the same engine and the same revertible changes, in a shell that finally looks the part.
+
+### Dashboard
+- Gradient hero with the live score ring, the system summary and four stat tiles: applied, pending, restart and session
+- Restart banner appears only when Windows actually flags a pending reboot, with a **Restart now** button
+- Category scores now use a fixed colour per category instead of a health colour
+- **Apply recommended** shows how many tweaks it will apply and disables itself when nothing is pending
+- The preset review dialog lists the tweaks that would actually change
+
+### Tweaks
+- Categories are expandable sections with a colour dot, an applied counter and a per-category **Apply safe** button
+- Rows keep the risk, restart and N/A chips; the row stripe now carries the category colour
+- Lists are virtualized, so long categories scroll smoothly
+
+### Debloat and History
+- Search boxes filter apps by name or publisher, and changes by tweak name or detail
+
+### Cleanup
+- A session chip shows everything freed since the app started
+
+### Shell
+- Navigation is grouped into Optimize and Maintain sections
+- Page transitions animate on navigation
+- Window size, position and maximized state are remembered between launches and clamped to the current screen setup
+
+### Fixes
+- Restart detection reads CBS, Windows Update and pending file renames directly from the registry
+
 ## v1.1.0
 
 The first feature update: three new pages, presets, a bigger cleanup engine, and diagnostics.

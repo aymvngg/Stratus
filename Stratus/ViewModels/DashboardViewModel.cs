@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
 using Stratus.Core.Tweaks;
+using Stratus.Services;
 
 namespace Stratus.ViewModels;
 
@@ -65,6 +66,18 @@ public sealed class DashboardViewModel : ObservableObject
     public string PendingText => _pending == 0
         ? "All recommended tweaks applied"
         : $"{_pending} recommended tweak{(_pending == 1 ? "" : "s")} pending";
+
+    public string ApplyRecommendedButtonText => $"Apply recommended ({_pending})";
+    public bool CanApplyRecommended => _pending > 0 && !IsBusy;
+
+    private bool _rebootPending;
+    public bool RebootPending
+    {
+        get => _rebootPending;
+        private set { if (Set(ref _rebootPending, value)) Raise(nameof(RebootText)); }
+    }
+
+    public string RebootText => RebootPending ? "Restart required" : "No restart pending";
 
     /// <summary>Snapshots behind the Dashboard graph, oldest first.</summary>
     public IReadOnlyList<ScoreSnapshot> ScoreHistory
@@ -142,13 +155,15 @@ public sealed class DashboardViewModel : ObservableObject
         _pending = report.States.Count(s =>
             s.IsApplicable && !s.IsApplied && s.Tweak.Risk <= RiskLevel.Recommended);
         ApplyReport(report);
+        RebootPending = SystemInfoService.RebootPending();
         if (activePlan is not null)
         {
             _powerPlan = activePlan;
             Raise(nameof(PowerPlan));
         }
         SyncPresets(BuildPresetRows(report.States));
-        Raise(nameof(PendingRecommended), nameof(PendingText));
+        Raise(nameof(PendingRecommended), nameof(PendingText),
+              nameof(ApplyRecommendedButtonText), nameof(CanApplyRecommended));
     }
 
     public async Task RescanAsync()
@@ -191,7 +206,7 @@ public sealed class DashboardViewModel : ObservableObject
                 c.Category.ToString(),
                 $"{c.AppliedCount}/{c.TotalCount} applied",
                 c.Score,
-                RiskStyles.HealthBrush(c.Score)));
+                CategoryStyle.For(c.Category)));
         }
     }
 
@@ -293,6 +308,16 @@ public sealed class DashboardViewModel : ObservableObject
         }
         return count;
     }
+
+    /// <summary>Names of the tweaks a preset apply would change, for the review dialog.</summary>
+    public List<string> PendingPresetNames(Preset preset) =>
+        Report is null
+            ? []
+            : Report.States
+                .Where(s => s.IsApplicable && !s.IsApplied &&
+                            preset.TweakIds.Contains(s.Tweak.Id, StringComparer.OrdinalIgnoreCase))
+                .Select(s => s.Tweak.Name)
+                .ToList();
 
     public async Task<string> ApplyPresetAsync(Preset preset, bool createRestorePoint)
     {

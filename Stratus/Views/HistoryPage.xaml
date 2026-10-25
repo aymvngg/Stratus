@@ -18,6 +18,9 @@
                 Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
                 Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
 
+            <TextBox PlaceholderText="Search changes…" Width="320" HorizontalAlignment="Left"
+                     TextChanged="OnSearchChanged"/>
+
             <!-- ============ Change timeline ============ -->
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="12">
@@ -47,8 +50,13 @@
                                Style="{StaticResource PageSubtitle}"
                                Visibility="{x:Bind vm:Conv.Vis(VM.EmptyHistory), Mode=OneWay}"/>
 
-                    <ItemsControl ItemsSource="{x:Bind VM.Changes, Mode=OneWay}">
-                        <ItemsControl.ItemTemplate>
+                    <ListView ItemsSource="{x:Bind VM.Changes, Mode=OneWay}" SelectionMode="None"
+                              ItemContainerStyle="{StaticResource FlatItem}"
+                              ScrollViewer.HorizontalScrollMode="Disabled"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollMode="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:HistoryRow">
                                 <Border Style="{StaticResource RowCard}">
                                     <Grid ColumnSpacing="12">
@@ -81,8 +89,8 @@
                                     </Grid>
                                 </Border>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </ListView.ItemTemplate>
+                    </ListView>
                 </StackPanel>
             </Border>
 

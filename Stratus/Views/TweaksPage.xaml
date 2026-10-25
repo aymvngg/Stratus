@@ -70,77 +70,104 @@
                 <ItemsControl ItemsSource="{x:Bind VM.Groups, Mode=OneWay}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:TweakGroup">
-                            <StackPanel Margin="0,0,0,14">
-                                <StackPanel Margin="2,8,0,6" Spacing="1">
-                                    <TextBlock Text="{x:Bind Header}" FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    <TextBlock Text="{x:Bind Subtitle}" FontSize="10"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                </StackPanel>
+                            <Expander HorizontalAlignment="Stretch"
+                                      HorizontalContentAlignment="Stretch"
+                                      Margin="0,0,0,10"
+                                      IsExpanded="{x:Bind HasPendingItems, Mode=OneWay}">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,2">
+                                        <Ellipse Width="10" Height="10" Fill="{x:Bind Accent}"
+                                                 VerticalAlignment="Center"/>
+                                        <TextBlock Text="{x:Bind Title}" FontSize="14" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{x:Bind AppliedText, Mode=OneWay}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Subtitle}" FontSize="11.5" TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <Button Grid.Column="1" Click="OnApplyCategory" Tag="{x:Bind}"
+                                                IsEnabled="{x:Bind CanApplySafe, Mode=OneWay}"
+                                                Content="{x:Bind PendingSafeText, Mode=OneWay}"/>
+                                    </Grid>
 
-                                <ItemsControl ItemsSource="{x:Bind Items}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:TweakItemViewModel">
-                                            <Border Style="{StaticResource RowCard}">
-                                                <Grid ColumnSpacing="12">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
+                                    <ListView ItemsSource="{x:Bind Items}" SelectionMode="None"
+                                              ItemContainerStyle="{StaticResource FlatItem}"
+                                              ScrollViewer.HorizontalScrollMode="Disabled"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                              ScrollViewer.VerticalScrollMode="Disabled"
+                                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:TweakItemViewModel">
+                                                <Border Style="{StaticResource RowCard}">
+                                                    <Grid ColumnSpacing="12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
 
-                                                    <Border Width="3" CornerRadius="2"
-                                                            Background="{x:Bind RiskForeground}"
-                                                            VerticalAlignment="Stretch"/>
+                                                        <Border Width="3" CornerRadius="2"
+                                                                Background="{x:Bind Accent}"
+                                                                VerticalAlignment="Stretch"/>
 
-                                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                                        <StackPanel Orientation="Horizontal" Spacing="7">
-                                                            <TextBlock Text="{x:Bind Name}" FontSize="13.5"
-                                                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                            <Border Style="{StaticResource Chip}"
-                                                                    Background="{x:Bind RiskBackground}">
-                                                                <TextBlock Text="{x:Bind RiskText}"
-                                                                           Style="{StaticResource ChipText}"
-                                                                           Foreground="{x:Bind RiskForeground}"/>
-                                                            </Border>
-                                                            <Border Style="{StaticResource CountChip}"
-                                                                    Visibility="{x:Bind vm:Conv.Vis(RequiresReboot)}">
-                                                                <TextBlock Text="RESTART"
-                                                                           Style="{StaticResource ChipText}"
-                                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                                            </Border>
-                                                            <Border Style="{StaticResource CountChip}"
-                                                                    Visibility="{x:Bind vm:Conv.Vis(NotApplicable), Mode=OneWay}">
-                                                                <TextBlock Text="N/A"
-                                                                           Style="{StaticResource ChipText}"
-                                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                                            </Border>
+                                                        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                                <TextBlock Text="{x:Bind Name}" FontSize="13.5"
+                                                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                                <Border Style="{StaticResource Chip}"
+                                                                        Background="{x:Bind RiskBackground}">
+                                                                    <TextBlock Text="{x:Bind RiskText}"
+                                                                               Style="{StaticResource ChipText}"
+                                                                               Foreground="{x:Bind RiskForeground}"/>
+                                                                </Border>
+                                                                <Border Style="{StaticResource CountChip}"
+                                                                        Visibility="{x:Bind vm:Conv.Vis(RequiresReboot)}">
+                                                                    <TextBlock Text="RESTART"
+                                                                               Style="{StaticResource ChipText}"
+                                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                                </Border>
+                                                                <Border Style="{StaticResource CountChip}"
+                                                                        Visibility="{x:Bind vm:Conv.Vis(NotApplicable), Mode=OneWay}">
+                                                                    <TextBlock Text="N/A"
+                                                                               Style="{StaticResource ChipText}"
+                                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{x:Bind Description}" FontSize="11.5"
+                                                                       TextWrapping="Wrap" LineHeight="16"
+                                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                            <HyperlinkButton Content="Learn more" NavigateUri="{x:Bind DocsUrl}"
+                                                                             FontSize="11" Padding="0,0,0,4" Margin="0,-4,0,0"
+                                                                             HorizontalAlignment="Left"/>
                                                         </StackPanel>
-                                                        <TextBlock Text="{x:Bind Description}" FontSize="11.5"
-                                                                   TextWrapping="Wrap" LineHeight="16"
-                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                                        <HyperlinkButton Content="Learn more" NavigateUri="{x:Bind DocsUrl}"
-                                                                         FontSize="11" Padding="0,0,0,4" Margin="0,-4,0,0"
-                                                                         HorizontalAlignment="Left"/>
-                                                    </StackPanel>
 
-                                                    <Grid Grid.Column="2" Width="46" VerticalAlignment="Center">
-                                                        <ProgressRing IsActive="{x:Bind IsBusy, Mode=OneWay}"
-                                                                      Width="20" Height="20"
-                                                                      HorizontalAlignment="Right"
-                                                                      Visibility="{x:Bind vm:Conv.Vis(IsBusy), Mode=OneWay}"/>
-                                                        <ToggleSwitch IsOn="{x:Bind IsApplied, Mode=OneWay}"
-                                                                      IsEnabled="{x:Bind ToggleEnabled, Mode=OneWay}"
-                                                                      OnContent="" OffContent=""
-                                                                      Toggled="OnToggleToggled"
-                                                                      Visibility="{x:Bind vm:Conv.NotVis(IsBusy), Mode=OneWay}"/>
+                                                        <Grid Grid.Column="2" Width="46" VerticalAlignment="Center">
+                                                            <ProgressRing IsActive="{x:Bind IsBusy, Mode=OneWay}"
+                                                                          Width="20" Height="20"
+                                                                          HorizontalAlignment="Right"
+                                                                          Visibility="{x:Bind vm:Conv.Vis(IsBusy), Mode=OneWay}"/>
+                                                            <ToggleSwitch IsOn="{x:Bind IsApplied, Mode=OneWay}"
+                                                                          IsEnabled="{x:Bind ToggleEnabled, Mode=OneWay}"
+                                                                          OnContent="" OffContent=""
+                                                                          Toggled="OnToggleToggled"
+                                                                          Visibility="{x:Bind vm:Conv.NotVis(IsBusy), Mode=OneWay}"/>
+                                                        </Grid>
                                                     </Grid>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                </StackPanel>
+                            </Expander>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

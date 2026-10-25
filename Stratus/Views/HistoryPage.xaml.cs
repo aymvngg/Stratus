@@ -31,6 +31,9 @@ public sealed partial class HistoryPage : Page
 
     private async void OnRefresh(object sender, RoutedEventArgs e) => await VM.RefreshAsync();
 
+    private void OnSearchChanged(object sender, TextChangedEventArgs e) =>
+        VM.SearchText = ((TextBox)sender).Text;
+
     private async void OnUndo(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: HistoryRow row })

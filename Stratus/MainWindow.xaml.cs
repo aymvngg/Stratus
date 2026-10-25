@@ -1,3 +1,4 @@
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -14,6 +15,8 @@ public sealed partial class MainWindow : Window
 {
     private TrayIconManager? _tray;
     private bool _forceClose;
+    private RectInt32 _normalBounds;
+    private bool _haveNormalBounds;
 
     public MainWindow()
     {
@@ -28,8 +31,22 @@ public sealed partial class MainWindow : Window
         // Apply the persisted theme preference (system / dark / light) before first render.
         ThemeHelper.ApplyToWindow();
 
-        // A comfortable default size for a 5-section dashboard app.
-        AppWindow.Resize(new SizeInt32(1300, 860));
+        // Reopen where the user left us, clamped to the current virtual desktop.
+        if (WindowPlacement.Load() is { } placement)
+        {
+            AppWindow.MoveAndResize(new RectInt32(placement.X, placement.Y, placement.Width, placement.Height));
+            if (placement.Maximized && AppWindow.Presenter is OverlappedPresenter presenter)
+                presenter.Maximize();
+        }
+        else
+        {
+            // A comfortable default size for a 5-section dashboard app.
+            AppWindow.Resize(new SizeInt32(1300, 860));
+        }
+
+        // Track normal (non-maximized) bounds so closing while maximized restores the
+        // pre-maximize size next launch instead of the maximized rectangle.
+        AppWindow.Changed += OnAppWindowChanged;
 
         var elevated = SystemInfoService.IsElevated();
         ElevationText.Text = elevated ? "Running as administrator" : "Standard user - writes will fail";
@@ -66,8 +83,43 @@ public sealed partial class MainWindow : Window
             _tray?.UpdateTooltip(Vm.Dashboard.Score);
     }
 
+    private void OnAppWindowChanged(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowChangedEventArgs args)
+    {
+        try
+        {
+            if (sender.Presenter is OverlappedPresenter presenter &&
+                presenter.State != OverlappedPresenterState.Maximized)
+            {
+                _normalBounds = new RectInt32(sender.Position.X, sender.Position.Y, sender.Size.Width, sender.Size.Height);
+                _haveNormalBounds = true;
+            }
+        }
+        catch
+        {
+            // Presenter access can race during teardown; placement just stays as-is.
+        }
+    }
+
+    private void SavePlacement()
+    {
+        try
+        {
+            var maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
+            var bounds = maximized && _haveNormalBounds
+                ? _normalBounds
+                : new RectInt32(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+            WindowPlacement.Save(new WindowPlacement.Placement(bounds.X, bounds.Y, bounds.Width, bounds.Height, maximized));
+        }
+        catch
+        {
+            // Never let persistence break closing.
+        }
+    }
+
     private void OnAppWindowClosing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
     {
+        SavePlacement();
+
         if (_forceClose || !ThemeHelper.GetCloseToTray())
             return;
 

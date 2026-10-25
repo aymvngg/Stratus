@@ -106,4 +106,32 @@ public static class SystemInfoService
     }
 
     public static string GetOsBuild() => _osBuild ??= $"Build {Environment.OSVersion.Version.Build}";
+
+    /// <summary>
+    /// True when Windows itself flags a pending restart: Component Based Servicing,
+    /// Windows Update, or queued file rename operations. Read live, never cached.
+    /// </summary>
+    public static bool RebootPending()
+    {
+        try
+        {
+            using var cbs = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending");
+            if (cbs is not null)
+                return true;
+
+            using var wu = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired");
+            if (wu is not null)
+                return true;
+
+            using var session = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Session Manager");
+            return session?.GetValue("PendingFileRenameOperations") is string[] { Length: > 0 };
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

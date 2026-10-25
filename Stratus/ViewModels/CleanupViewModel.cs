@@ -62,6 +62,10 @@ public sealed class CleanupViewModel : ObservableObject
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
     public string SelectedText { get => _selectedText; private set => Set(ref _selectedText, value); }
 
+    private long _sessionFreed;
+    public string SessionText => _sessionFreed > 0 ? $"Session total: {Format.Bytes(_sessionFreed)} freed" : "";
+    public bool HasSession => _sessionFreed > 0;
+
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
     public InfoBarSeverity StatusSeverity { get => _statusSeverity; private set => Set(ref _statusSeverity, value); }
     public bool StatusOpen { get => _statusOpen; set => Set(ref _statusOpen, value); }
@@ -145,6 +149,8 @@ public sealed class CleanupViewModel : ObservableObject
         try
         {
             var result = await Task.Run(() => AppServices.Cleanup.Clean(selected, includeRecycleBin));
+            _sessionFreed += result.FreedBytes;
+            Raise(nameof(SessionText), nameof(HasSession));
             await ScanAsync();
             return $"Freed {Format.Bytes(result.FreedBytes)} - {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped.";
         }

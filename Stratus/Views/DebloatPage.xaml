@@ -9,6 +9,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -29,12 +30,15 @@
             </StackPanel>
         </Grid>
 
-        <InfoBar Grid.Row="1"
+        <TextBox Grid.Row="1" PlaceholderText="Search apps and publishers…" Width="320"
+                 HorizontalAlignment="Left" TextChanged="OnSearchChanged"/>
+
+        <InfoBar Grid.Row="2"
                  IsOpen="{x:Bind VM.StatusOpen, Mode=TwoWay}"
                  Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
                  Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
 
-        <ScrollViewer Grid.Row="2">
+        <ScrollViewer Grid.Row="3">
             <StackPanel Spacing="14">
 
                 <TextBlock Text="Run a scan to see what's installed." Style="{StaticResource PageSubtitle}"
@@ -58,8 +62,13 @@
                         <TextBlock Text="Nothing left in this group." Style="{StaticResource PageSubtitle}"
                                    Visibility="{x:Bind vm:Conv.Vis(VM.RecommendedEmpty), Mode=OneWay}"/>
 
-                        <ItemsControl ItemsSource="{x:Bind VM.Recommended, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <ListView ItemsSource="{x:Bind VM.Recommended, Mode=OneWay}" SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource FlatItem}"
+                                  ScrollViewer.HorizontalScrollMode="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="vm:UwpRow">
                                     <Grid ColumnSpacing="10" Padding="2,3">
                                         <Grid.ColumnDefinitions>
@@ -73,8 +82,8 @@
                                                    VerticalAlignment="Center"/>
                                     </Grid>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </StackPanel>
                 </Border>
 
@@ -96,8 +105,13 @@
                         <TextBlock Text="Nothing left in this group." Style="{StaticResource PageSubtitle}"
                                    Visibility="{x:Bind vm:Conv.Vis(VM.OtherMicrosoftEmpty), Mode=OneWay}"/>
 
-                        <ItemsControl ItemsSource="{x:Bind VM.OtherMicrosoft, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <ListView ItemsSource="{x:Bind VM.OtherMicrosoft, Mode=OneWay}" SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource FlatItem}"
+                                  ScrollViewer.HorizontalScrollMode="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="vm:UwpRow">
                                     <Grid ColumnSpacing="10" Padding="2,3">
                                         <Grid.ColumnDefinitions>
@@ -111,8 +125,8 @@
                                                    VerticalAlignment="Center"/>
                                     </Grid>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </StackPanel>
                 </Border>
 
@@ -134,8 +148,13 @@
                         <TextBlock Text="Nothing left in this group." Style="{StaticResource PageSubtitle}"
                                    Visibility="{x:Bind vm:Conv.Vis(VM.ThirdPartyEmpty), Mode=OneWay}"/>
 
-                        <ItemsControl ItemsSource="{x:Bind VM.ThirdParty, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <ListView ItemsSource="{x:Bind VM.ThirdParty, Mode=OneWay}" SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource FlatItem}"
+                                  ScrollViewer.HorizontalScrollMode="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="vm:UwpRow">
                                     <StackPanel Orientation="Horizontal" Spacing="10" Padding="2,3">
                                         <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
@@ -144,8 +163,8 @@
                                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                     </StackPanel>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </StackPanel>
                 </Border>
 
@@ -161,8 +180,13 @@
                         <TextBlock Text="No desktop programs found." Style="{StaticResource PageSubtitle}"
                                    Visibility="{x:Bind vm:Conv.Vis(VM.Win32Empty), Mode=OneWay}"/>
 
-                        <ItemsControl ItemsSource="{x:Bind VM.Win32, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <ListView ItemsSource="{x:Bind VM.Win32, Mode=OneWay}" SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource FlatItem}"
+                                  ScrollViewer.HorizontalScrollMode="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="svc:Win32AppItem">
                                     <Grid ColumnSpacing="10" Padding="2,4">
                                         <Grid.ColumnDefinitions>
@@ -181,8 +205,8 @@
                                                 FontSize="11.5" VerticalAlignment="Center"/>
                                     </Grid>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </StackPanel>
                 </Border>
 

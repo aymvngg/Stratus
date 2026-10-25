@@ -44,12 +44,25 @@ public sealed class DebloatViewModel : ObservableObject
     public ObservableCollection<UwpRow> ThirdParty { get; } = new();
     public ObservableCollection<Win32AppItem> Win32 { get; } = new();
 
+    // Full scan results; the observable collections above show the filtered view.
+    private List<UwpRow> _allRecommended = new();
+    private List<UwpRow> _allOtherMicrosoft = new();
+    private List<UwpRow> _allThirdParty = new();
+    private List<Win32AppItem> _allWin32 = new();
+
+    private string _searchText = "";
     private bool _hasScanned;
     private bool _isBusy;
     private string _busyText = "";
     private string _statusMessage = "";
     private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
     private bool _statusOpen;
+
+    public string SearchText
+    {
+        get => _searchText;
+        set { _searchText = value; Refilter(); }
+    }
 
     public bool HasScanned { get => _hasScanned; private set { if (Set(ref _hasScanned, value)) Raise(nameof(NotScannedHint)); } }
     public bool NotScannedHint => !HasScanned;
@@ -115,17 +128,13 @@ public sealed class DebloatViewModel : ObservableObject
             var uwp = await uwpTask;
             var win32 = await win32Task;
 
-            Fill(Recommended, uwp.Where(i => i.Group == DebloatGroup.Recommended));
-            Fill(OtherMicrosoft, uwp.Where(i => i.Group == DebloatGroup.OtherMicrosoft));
-            Fill(ThirdParty, uwp.Where(i => i.Group == DebloatGroup.ThirdParty));
-
-            Win32.Clear();
-            foreach (var app in win32)
-                Win32.Add(app);
+            _allRecommended = Rows(uwp.Where(i => i.Group == DebloatGroup.Recommended));
+            _allOtherMicrosoft = Rows(uwp.Where(i => i.Group == DebloatGroup.OtherMicrosoft));
+            _allThirdParty = Rows(uwp.Where(i => i.Group == DebloatGroup.ThirdParty));
+            _allWin32 = win32;
 
             HasScanned = true;
-            RaiseCounts();
-            Raise(nameof(TotalSelected), nameof(RemoveButtonText));
+            Refilter();
         }
         finally
         {
@@ -134,12 +143,48 @@ public sealed class DebloatViewModel : ObservableObject
         }
     }
 
-    private void Fill(ObservableCollection<UwpRow> target, IEnumerable<UwpAppItem> items)
+    private static List<UwpRow> Rows(IEnumerable<UwpAppItem> items)
+    {
+        var list = new List<UwpRow>();
+        foreach (var item in items)
+            list.Add(new UwpRow(item));
+        return list;
+    }
+
+    /// <summary>Rebuilds the visible collections from the backing lists using the current search text.</summary>
+    private void Refilter()
+    {
+        // Keep row subscriptions alive even when a row is filtered out.
+        foreach (var row in _allRecommended.Concat(_allOtherMicrosoft).Concat(_allThirdParty))
+            row.PropertyChanged -= OnRowChanged;
+
+        var query = _searchText.Trim();
+        FillVisible(Recommended, Filter(_allRecommended, query));
+        FillVisible(OtherMicrosoft, Filter(_allOtherMicrosoft, query));
+        FillVisible(ThirdParty, Filter(_allThirdParty, query));
+
+        Win32.Clear();
+        foreach (var app in string.IsNullOrEmpty(query)
+                     ? _allWin32
+                     : _allWin32.Where(a => Match(a.DisplayName, a.Publisher, query)))
+            Win32.Add(app);
+
+        RaiseCounts();
+        Raise(nameof(TotalSelected), nameof(RemoveButtonText));
+
+        static IEnumerable<UwpRow> Filter(List<UwpRow> source, string q) =>
+            string.IsNullOrEmpty(q) ? source : source.Where(r => Match(r.Name, r.Publisher, q));
+
+        static bool Match(string name, string publisher, string q) =>
+            name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            publisher.Contains(q, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void FillVisible(ObservableCollection<UwpRow> target, IEnumerable<UwpRow> rows)
     {
         target.Clear();
-        foreach (var item in items)
+        foreach (var row in rows)
         {
-            var row = new UwpRow(item);
             row.PropertyChanged += OnRowChanged;
             target.Add(row);
         }

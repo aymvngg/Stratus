@@ -29,6 +29,9 @@ public sealed partial class DebloatPage : Page
 
     private async void OnScan(object sender, RoutedEventArgs e) => await VM.ScanAsync();
 
+    private void OnSearchChanged(object sender, TextChangedEventArgs e) =>
+        VM.SearchText = ((TextBox)sender).Text;
+
     private async void OnRemoveSelected(object sender, RoutedEventArgs e)
     {
         var count = VM.TotalSelected;

@@ -209,6 +209,35 @@ public sealed partial class DashboardPage : Page
             : InfoBarSeverity.Success);
     }
 
+    private async void OnRestartNow(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Restart now?",
+            Content = new TextBlock
+            {
+                Text = "Windows will restart in 5 seconds. Close anything you are working on first: all applied tweaks stay applied, they just need one restart to take effect.",
+                TextWrapping = TextWrapping.Wrap,
+            },
+            PrimaryButtonText = "Restart",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        try
+        {
+            await Task.Run(() => Stratus.Core.Services.ProcessRunner.Run("shutdown.exe", "/r /t 5", 15_000));
+        }
+        catch (Exception ex)
+        {
+            VM.ShowStatus($"Restart failed: {ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
     private async void OnApplyPreset(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: Preset preset })
@@ -230,6 +259,14 @@ public sealed partial class DashboardPage : Page
             IsChecked = true,
         };
 
+        // Reviewable preset: list the tweaks that would actually change.
+        var names = VM.PendingPresetNames(preset);
+        var listPanel = new StackPanel { Spacing = 2 };
+        foreach (var name in names.Take(8))
+            listPanel.Children.Add(new TextBlock { Text = name, FontSize = 12, Opacity = 0.8 });
+        if (names.Count > 8)
+            listPanel.Children.Add(new TextBlock { Text = $"and {names.Count - 8} more", FontSize = 12, Opacity = 0.8, FontStyle = Windows.UI.Text.FontStyle.Italic });
+
         var dialog = new ContentDialog
         {
             Title = $"Apply the {preset.Name} preset?",
@@ -243,6 +280,7 @@ public sealed partial class DashboardPage : Page
                         Text = $"Applies the {pending} remaining tweak{(pending == 1 ? "" : "s")} from the '{preset.Name}' set. Only Safe and Recommended tweaks are included, and each one can be reverted individually from the Tweaks page.",
                         TextWrapping = TextWrapping.Wrap,
                     },
+                    listPanel,
                     restorePointCheck,
                 },
             },

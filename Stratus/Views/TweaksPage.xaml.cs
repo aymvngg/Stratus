@@ -63,6 +63,52 @@ public sealed partial class TweaksPage : Page
         };
     }
 
+    private async void OnApplyCategory(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: TweakGroup group } || !group.CanApplySafe)
+            return;
+
+        var pending = group.Items.Count(i => !i.NotApplicable && !i.IsApplied && i.T.Risk <= RiskLevel.Recommended);
+        if (pending == 0)
+            return;
+
+        var restorePointCheck = new CheckBox
+        {
+            Content = "Create a restore point first (recommended)",
+            IsChecked = true,
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = $"Apply {pending} safe tweak{(pending == 1 ? "" : "s")} in {group.Title}?",
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "Only Safe and Recommended tweaks in this category are applied. Advanced ones stay opt-in, one by one.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    restorePointCheck,
+                },
+            },
+            PrimaryButtonText = "Apply",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var message = await VM.ApplyCategoryAsync(group, restorePointCheck.IsChecked == true);
+        VM.ShowStatus(message, message.Contains("failed")
+            ? InfoBarSeverity.Warning
+            : InfoBarSeverity.Success);
+    }
+
     private async void OnToggleToggled(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch toggle || toggle.DataContext is not TweakItemViewModel item)

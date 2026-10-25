@@ -46,6 +46,11 @@
                     <TextBlock Text="{x:Bind VM.SelectedText, Mode=OneWay}" FontSize="30" FontWeight="SemiBold"
                                CharacterSpacing="-15"/>
                     <TextBlock Text="{x:Bind VM.AllText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                    <Border Style="{StaticResource CountChip}" Padding="8,3" HorizontalAlignment="Left"
+                            Margin="0,6,0,0" Visibility="{x:Bind vm:Conv.Vis(VM.HasSession), Mode=OneWay}">
+                        <TextBlock Text="{x:Bind VM.SessionText, Mode=OneWay}" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Border>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">

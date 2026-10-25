@@ -171,9 +171,17 @@ public sealed class HistoryViewModel : ObservableObject
     private string _backupsText = "No backups stored";
     private bool _emptyHistory = true;
     private bool _emptyBackups = true;
+    private string _searchText = "";
+    private List<HistoryRow> _allChanges = new();
 
     public ObservableCollection<HistoryRow> Changes { get; } = [];
     public ObservableCollection<BackupGroupRow> Backups { get; } = [];
+
+    public string SearchText
+    {
+        get => _searchText;
+        set { _searchText = value; RefilterChanges(); }
+    }
 
     public bool IsBusy { get => _isBusy; set => Set(ref _isBusy, value); }
     public string BusyText { get => _busyText; set => Set(ref _busyText, value); }
@@ -221,9 +229,10 @@ public sealed class HistoryViewModel : ObservableObject
 
         AppServices.OnUi(() =>
         {
-            Changes.Clear();
-            foreach (var (entry, tweak) in snapshot.history)
-                Changes.Add(new HistoryRow(entry, tweak));
+            _allChanges = snapshot.history
+                .Select(t => new HistoryRow(t.Entry, t.Tweak))
+                .ToList();
+            RefilterChanges();
 
             Backups.Clear();
             foreach (var group in snapshot.backups)
@@ -233,15 +242,30 @@ public sealed class HistoryViewModel : ObservableObject
             }
 
             var totalValues = snapshot.backups.Sum(g => g.Values.Count);
-            ChangesText = Changes.Count == 0
+            ChangesText = _allChanges.Count == 0
                 ? "No changes yet"
-                : $"{Changes.Count} recorded change{(Changes.Count == 1 ? "" : "s")}, newest first";
+                : $"{_allChanges.Count} recorded change{(_allChanges.Count == 1 ? "" : "s")}, newest first";
             BackupsText = Backups.Count == 0
                 ? "No backups stored"
                 : $"{Backups.Count} tweak{(Backups.Count == 1 ? "" : "s")}, {totalValues} value{(totalValues == 1 ? "" : "s")}";
             EmptyHistory = Changes.Count == 0;
             EmptyBackups = Backups.Count == 0;
         });
+    }
+
+    /// <summary>Rebuilds the visible change rows from the backing list using the current search text.</summary>
+    private void RefilterChanges()
+    {
+        var query = _searchText.Trim();
+        Changes.Clear();
+        foreach (var row in string.IsNullOrEmpty(query)
+                     ? _allChanges
+                     : _allChanges.Where(r =>
+                         r.TweakName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                         r.DetailText.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            Changes.Add(row);
+
+        EmptyHistory = Changes.Count == 0;
     }
 
     public async Task UndoAsync(HistoryRow row)
