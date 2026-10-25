@@ -22,12 +22,8 @@ public partial class App : Application
         AppServices.Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         // Any successful apply/revert (from any page or the engine) refreshes the live views.
-        AppServices.Engine.StateChanged += () => AppServices.OnUi(() =>
-        {
-            Vm.Dashboard.RequestScoreRefresh();
-            Vm.Tweaks.RequestStateRefresh();
-            Vm.History.RequestRefresh();
-        });
+        // Bulk operations coalesce into a single refresh (see TweakEngine.BeginBulk).
+        AppServices.Engine.StateChanged += () => _ = AppServices.RefreshFromEngineAsync();
 
         Window = new MainWindow();
         Window.Activate();

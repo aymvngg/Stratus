@@ -29,7 +29,17 @@ public static class SystemInfoService
         return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
     }
 
-    public static string GetCpu()
+    private static string? _cpu;
+    private static string? _gpu;
+    private static string? _ram;
+    private static string? _osName;
+    private static string? _osBuild;
+
+    // Hardware and OS identity never change during a session: read once, cache for the process.
+
+    public static string GetCpu() => _cpu ??= ReadCpu();
+
+    private static string ReadCpu()
     {
         try
         {
@@ -39,7 +49,9 @@ public static class SystemInfoService
         catch { return "Unknown CPU"; }
     }
 
-    public static string GetGpu()
+    public static string GetGpu() => _gpu ??= ReadGpu();
+
+    private static string ReadGpu()
     {
         var gpus = new List<string>();
         try
@@ -64,7 +76,9 @@ public static class SystemInfoService
         return gpus.Count == 0 ? "Unknown GPU" : string.Join(" + ", gpus.Distinct());
     }
 
-    public static string GetRam()
+    public static string GetRam() => _ram ??= ReadRam();
+
+    private static string ReadRam()
     {
         var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
         if (!GlobalMemoryStatusEx(ref status))
@@ -74,7 +88,9 @@ public static class SystemInfoService
         return $"{Math.Round(gb, gb < 32 ? 1 : 0)} GB";
     }
 
-    public static string GetOsDisplayName()
+    public static string GetOsDisplayName() => _osName ??= ReadOsName();
+
+    private static string ReadOsName()
     {
         try
         {
@@ -89,5 +105,5 @@ public static class SystemInfoService
         catch { return Environment.OSVersion.VersionString; }
     }
 
-    public static string GetOsBuild() => $"Build {Environment.OSVersion.Version.Build}";
+    public static string GetOsBuild() => _osBuild ??= $"Build {Environment.OSVersion.Version.Build}";
 }

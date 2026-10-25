@@ -23,6 +23,21 @@ public static class AppServices
     public static readonly StartupService Startup = new(Registry);
     public static readonly ScheduledTaskService ScheduledTasks = new(AppPaths.TasksFile);
 
+    /// <summary>
+    /// One engine snapshot for every listener: StateChanged, bulk operations and the Tools page
+    /// plan switch all funnel here, so each tweak's registry state is read once per change.
+    /// </summary>
+    public static async Task RefreshFromEngineAsync()
+    {
+        var (report, plan) = await Task.Run(() => (Engine.Rescore(), Power.GetActivePlan()));
+        OnUi(() =>
+        {
+            Vm.Dashboard.ApplySnapshot(report, plan?.Name);
+            Vm.Tweaks.ApplyStates(report.States);
+            Vm.History.RequestRefresh();
+        });
+    }
+
     /// <summary>Set on the UI thread at launch; lets background events marshal back.</summary>
     public static DispatcherQueue? Dispatcher { get; set; }
 

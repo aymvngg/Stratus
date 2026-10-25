@@ -128,11 +128,26 @@ public sealed class DashboardViewModel : ObservableObject
 
     public async Task RefreshScoreAsync()
     {
-        var (report, pending, presets) = await Task.Run(() => (AppServices.Engine.Rescore(), PendingRecommendedCount(), BuildPresetRows()));
-        _pending = pending;
-        ApplyReport(report);
+        var report = await Task.Run(() => AppServices.Engine.Rescore());
+        ApplySnapshot(report);
         ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
-        SyncPresets(presets);
+    }
+
+    /// <summary>
+    /// Applies one engine snapshot on the UI thread: score, category rows, pending count,
+    /// presets and (optionally) the active plan name. No registry reads happen here.
+    /// </summary>
+    public void ApplySnapshot(ScoreReport report, string? activePlan = null)
+    {
+        _pending = report.States.Count(s =>
+            s.IsApplicable && !s.IsApplied && s.Tweak.Risk <= RiskLevel.Recommended);
+        ApplyReport(report);
+        if (activePlan is not null)
+        {
+            _powerPlan = activePlan;
+            Raise(nameof(PowerPlan));
+        }
+        SyncPresets(BuildPresetRows(report.States));
         Raise(nameof(PendingRecommended), nameof(PendingText));
     }
 
@@ -151,18 +166,13 @@ public sealed class DashboardViewModel : ObservableObject
                 SystemInfoService.GetOsBuild(),
                 SystemInfoService.IsElevated()));
             var planTask = Task.Run(() => AppServices.Power.GetActivePlan());
-            var pendingTask = Task.Run(PendingRecommendedCount);
-            var presetTask = Task.Run(BuildPresetRows);
 
             var report = await reportTask;
-            ApplyReport(report);
-            ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
-            _pending = await pendingTask;
             _summary = await summaryTask;
             _powerPlan = (await planTask)?.Name ?? "Unknown";
-            SyncPresets(await presetTask);
-            Raise(nameof(Cpu), nameof(Gpu), nameof(Ram), nameof(Os), nameof(ElevatedText), nameof(PowerPlan),
-                  nameof(PendingRecommended), nameof(PendingText));
+            ApplySnapshot(report);
+            ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
+            Raise(nameof(Cpu), nameof(Gpu), nameof(Ram), nameof(Os), nameof(ElevatedText), nameof(PowerPlan));
         }
         finally
         {
@@ -194,22 +204,8 @@ public sealed class DashboardViewModel : ObservableObject
     }
 
     /// <summary>Number of pending tweaks "Apply recommended" would touch (Safe + Recommended risk).</summary>
-    public int PendingRecommendedCount()
-    {
-        var count = 0;
-        foreach (var t in AppServices.Engine.Tweaks)
-        {
-            if (t.Risk > RiskLevel.Recommended)
-                continue;
-            try
-            {
-                if (t.IsApplicable && !t.IsApplied)
-                    count++;
-            }
-            catch { /* unreadable state - skip */ }
-        }
-        return count;
-    }
+    public int PendingRecommendedCount() => Report?.States.Count(s =>
+        s.IsApplicable && !s.IsApplied && s.Tweak.Risk <= RiskLevel.Recommended) ?? 0;
 
     public async Task<string> ApplyRecommendedAsync(bool createRestorePoint)
     {
@@ -249,9 +245,22 @@ public sealed class DashboardViewModel : ObservableObject
             Presets.Add(row);
     }
 
-    /// <summary>Per-preset progress read from live system state (unknown and n/a tweaks excluded).</summary>
-    private List<PresetRow> BuildPresetRows()
+    /// <summary>Applicable tweak ids mapped to their applied state, from one engine snapshot.</summary>
+    private static Dictionary<string, bool> AppliedMap(IReadOnlyList<TweakState> states)
     {
+        var map = new Dictionary<string, bool>(states.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var s in states)
+        {
+            if (s.IsApplicable)
+                map[s.Tweak.Id] = s.IsApplied;
+        }
+        return map;
+    }
+
+    /// <summary>Per-preset progress derived from a snapshot (unknown and n/a tweaks excluded).</summary>
+    private static List<PresetRow> BuildPresetRows(IReadOnlyList<TweakState> states)
+    {
+        var appliedById = AppliedMap(states);
         var rows = new List<PresetRow>();
         foreach (var preset in PresetCatalog.All)
         {
@@ -259,13 +268,10 @@ public sealed class DashboardViewModel : ObservableObject
             var applied = 0;
             foreach (var id in preset.TweakIds)
             {
-                var t = AppServices.Engine.Find(id);
-                if (t is null || !t.IsApplicable)
+                if (!appliedById.TryGetValue(id, out var isApplied))
                     continue;
                 total++;
-                bool a;
-                try { a = t.IsApplied; } catch { a = false; }
-                if (a)
+                if (isApplied)
                     applied++;
             }
             rows.Add(new PresetRow(preset, preset.Name, preset.Description, preset.Glyph, applied, total));
@@ -273,21 +279,17 @@ public sealed class DashboardViewModel : ObservableObject
         return rows;
     }
 
-    /// <summary>How many tweaks "Apply" on this preset card would actually change.</summary>
+    /// <summary>How many tweaks "Apply" on this preset card would actually change, from the latest snapshot.</summary>
     public int PresetPendingCount(Preset preset)
     {
+        if (Report is null)
+            return 0;
+        var appliedById = AppliedMap(Report.States);
         var count = 0;
         foreach (var id in preset.TweakIds)
         {
-            var t = AppServices.Engine.Find(id);
-            if (t is null || !t.IsApplicable)
-                continue;
-            try
-            {
-                if (!t.IsApplied)
-                    count++;
-            }
-            catch { /* unreadable state - skip */ }
+            if (appliedById.TryGetValue(id, out var isApplied) && !isApplied)
+                count++;
         }
         return count;
     }

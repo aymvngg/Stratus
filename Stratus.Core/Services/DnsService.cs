@@ -16,14 +16,24 @@ public sealed class DnsService
 
     public List<string> GetConnectedAdapters()
     {
-        var result = ProcessRunner.PowerShell(
-            "Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.HardwareInterface } | Select-Object -ExpandProperty Name", 30_000);
-
-        return result.StdOut
-            .Split('\n')
-            .Select(s => s.Trim())
-            .Where(s => s.Length > 0)
-            .ToList();
+        // Win32_NetworkAdapter with NetEnabled+PhysicalAdapter mirrors Get-NetAdapter's
+        // "Up and HardwareInterface" filter without spawning a PowerShell process.
+        var names = new List<string>();
+        try
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                "SELECT NetConnectionID FROM Win32_NetworkAdapter WHERE NetEnabled = TRUE AND PhysicalAdapter = TRUE");
+            foreach (var adapter in searcher.Get())
+            {
+                if (adapter["NetConnectionID"] is string name && name.Length > 0)
+                    names.Add(name);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Adapter enumeration failed: " + ex.Message);
+        }
+        return names;
     }
 
     public (bool Success, string Message) Apply(DnsProfile profile)

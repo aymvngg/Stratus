@@ -100,9 +100,8 @@ public sealed class ToolsViewModel : ObservableObject
                 return "powercfg failed to switch the plan.";
 
             ActivePlanText = $"{SelectedPlan.Name} ({SelectedPlan.Guid:B})";
-            // The power-ultimate tweak's state depends on the active plan.
-            Vm.Dashboard.RequestScoreRefresh();
-            Vm.Tweaks.RequestStateRefresh();
+            // The power-ultimate tweak's state depends on the active plan: rescore through the shared hub.
+            await AppServices.RefreshFromEngineAsync();
             return $"Active plan: {SelectedPlan.Name}.";
         }
         finally
@@ -190,6 +189,8 @@ public sealed class ToolsViewModel : ObservableObject
             var failed = new List<string>();
             foreach (var tweak in toRevert)
             {
+                // Coalesced: one rescoring pass for the whole batch, not one per tweak.
+                using var _bulk = AppServices.Engine.BeginBulk();
                 var result = await AppServices.Engine.RevertAsync(tweak);
                 if (result.Success)
                     reverted++;
@@ -197,8 +198,7 @@ public sealed class ToolsViewModel : ObservableObject
                     failed.Add($"{tweak.Id}: {result.Error}");
             }
 
-            Vm.Dashboard.RequestScoreRefresh();
-            Vm.Tweaks.RequestStateRefresh();
+            await AppServices.RefreshFromEngineAsync();
 
             return failed.Count == 0
                 ? $"Reverted {Format.Count(reverted, "tweak")} to default settings."

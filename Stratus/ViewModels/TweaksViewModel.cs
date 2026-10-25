@@ -167,16 +167,18 @@ public sealed class TweaksViewModel : ObservableObject
 
     public async Task RefreshStatesAsync()
     {
-        var snapshot = await Task.Run(() => All.Select(i =>
-        {
-            bool na = true, applied = false;
-            try { na = !i.T.IsApplicable; } catch { }
-            try { applied = i.T.IsApplied; } catch { }
-            return (Item: i, Na: na, Applied: applied);
-        }).ToList());
+        var states = await Task.Run(() => AppServices.Engine.Rescore().States);
+        ApplyStates(states);
+    }
 
-        foreach (var s in snapshot)
-            s.Item.SetState(s.Na, s.Applied);
+    /// <summary>Pushes an engine snapshot (registry state read once) into the rows. UI thread.</summary>
+    public void ApplyStates(IReadOnlyList<TweakState> states)
+    {
+        foreach (var s in states)
+        {
+            var item = All.FirstOrDefault(i => i.T == s.Tweak);
+            item?.SetState(!s.IsApplicable, s.IsApplied);
+        }
 
         NotifyItemChanged();
     }

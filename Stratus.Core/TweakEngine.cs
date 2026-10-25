@@ -17,8 +17,42 @@ public sealed class TweakEngine
 
     public IReadOnlyList<Tweak> Tweaks { get; }
 
-    /// <summary>Raised on the background thread after any successful apply/revert.</summary>
+    /// <summary>Raised on the background thread after any successful apply/revert (once per batch).</summary>
     public event Action? StateChanged;
+
+    private int _bulkDepth;
+    private bool _stateDirty;
+
+    /// <summary>Wrap a run of apply/reverts so listeners rescore once at the end instead of per tweak.</summary>
+    public IDisposable BeginBulk() => new BulkScope(this);
+
+    private sealed class BulkScope : IDisposable
+    {
+        private readonly TweakEngine _engine;
+
+        public BulkScope(TweakEngine engine)
+        {
+            _engine = engine;
+            Interlocked.Increment(ref _engine._bulkDepth);
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Decrement(ref _engine._bulkDepth) == 0 && _engine._stateDirty)
+            {
+                _engine._stateDirty = false;
+                _engine.StateChanged?.Invoke();
+            }
+        }
+    }
+
+    private void RaiseStateChanged()
+    {
+        if (Volatile.Read(ref _bulkDepth) > 0)
+            _stateDirty = true;
+        else
+            StateChanged?.Invoke();
+    }
 
     public ScoreReport Rescore() => _score.Compute(Tweaks);
 
@@ -56,7 +90,7 @@ public sealed class TweakEngine
         Record(tweak, "Applied", result);
         LogResult("Applied", tweak, result);
         if (result.Success)
-            StateChanged?.Invoke();
+            RaiseStateChanged();
         return result;
     });
 
@@ -66,7 +100,7 @@ public sealed class TweakEngine
         Record(tweak, "Reverted", result);
         LogResult("Reverted", tweak, result);
         if (result.Success)
-            StateChanged?.Invoke();
+            RaiseStateChanged();
         return result;
     });
 
@@ -74,6 +108,7 @@ public sealed class TweakEngine
     public async Task<Dictionary<string, TweakResult>> ApplyBulkAsync(RiskLevel maxRisk)
     {
         var results = new Dictionary<string, TweakResult>();
+        using var _bulk = BeginBulk();
         foreach (var tweak in Tweaks.Where(t => t.IsApplicable && t.Risk <= maxRisk))
         {
             bool applied;
@@ -90,6 +125,7 @@ public sealed class TweakEngine
     public async Task<Dictionary<string, TweakResult>> ApplyIdsAsync(IEnumerable<string> ids)
     {
         var results = new Dictionary<string, TweakResult>();
+        using var _bulk = BeginBulk();
         foreach (var id in ids)
         {
             var tweak = Find(id);

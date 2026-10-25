@@ -218,9 +218,17 @@ public sealed class CleanupService
 
         foreach (var service in services)
         {
-            var status = ProcessRunner.PowerShell($"(Get-Service -Name '{service}' -ErrorAction SilentlyContinue).Status", 30_000);
-            if (!status.StdOut.Contains("Running", StringComparison.OrdinalIgnoreCase))
-                continue;
+            try
+            {
+                // ServiceController reads the status in-process: no PowerShell spawn per service.
+                using var controller = new System.ServiceProcess.ServiceController(service);
+                if (controller.Status != System.ServiceProcess.ServiceControllerStatus.Running)
+                    continue;
+            }
+            catch
+            {
+                continue; // not installed or not readable
+            }
 
             if (ProcessRunner.Run("net.exe", $"stop {service}", 60_000).Success)
                 running.Add(service);
