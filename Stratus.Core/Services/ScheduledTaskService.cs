@@ -112,10 +112,12 @@ public sealed class ScheduledTaskService
             }
 
             session.Set(path, enabled);
+            Log.Info((enabled ? "Enabled" : "Disabled") + " scheduled task: " + path);
             return TweakResult.Ok;
         }
         catch (Exception ex)
         {
+            Log.Warn("Scheduled task toggle failed for " + path + ": " + ex.Message);
             return TweakResult.Fail(ex.Message);
         }
     }

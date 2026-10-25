@@ -48,10 +48,14 @@ public sealed class DnsService
             }
 
             if (!result.Success)
+            {
+                Log.Warn("DNS apply failed on '" + adapter + "': " + result.StdErr.Trim());
                 return (false, $"netsh failed for '{adapter}': {result.StdErr.Trim()}");
+            }
         }
 
         ProcessRunner.Run("ipconfig.exe", "/flushdns");
+        Log.Info("DNS applied: " + profile.Id + " on " + adapters.Count + " adapter(s).");
         return (true, $"DNS set to {profile.Label} on {adapters.Count} adapter(s).");
     }
 }

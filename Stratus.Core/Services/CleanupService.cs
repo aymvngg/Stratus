@@ -145,6 +145,8 @@ public sealed class CleanupService
             ProcessRunner.PowerShell("Clear-RecycleBin -Force -ErrorAction SilentlyContinue", 60_000);
         }
 
+        Log.Info($"Cleanup freed {freed} bytes ({deleted} files deleted, {failed} in use and skipped)"
+            + (includeRecycleBin ? ", recycle bin emptied" : "") + ".");
         return new CleanResult(freed, deleted, failed);
     }
 

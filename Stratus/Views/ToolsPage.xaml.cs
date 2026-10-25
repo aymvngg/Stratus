@@ -100,6 +100,23 @@ public sealed partial class ToolsPage : Page
         }
     }
 
+    private void OnOpenLogs(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Log.Init();
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Log.LogDir,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            VM.ShowStatus($"Could not open the logs folder: {ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
     private async void OnRevertAll(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog

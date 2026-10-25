@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish
+        run: dotnet publish Stratus/Stratus.csproj -c Release -p:Platform=x64 -o publish/Stratus-win-x64
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/Stratus-win-x64/* -DestinationPath "publish/Stratus-${{ github.ref_name }}-win-x64.zip" -CompressionLevel Optimal
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" "publish/Stratus-${{ github.ref_name }}-win-x64.zip" --title "Stratus ${{ github.ref_name }}" --generate-notes

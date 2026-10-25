@@ -29,11 +29,16 @@ public static class RestorePointService
         var output = (result.StdOut + result.StdErr).Trim();
 
         if (output.Contains("STRATUS_OK"))
+        {
+            Log.Info("Restore point created.");
             return (true, "Restore point created.");
+        }
 
         var reason = output.Contains("STRATUS_FAIL")
             ? output[(output.IndexOf("STRATUS_FAIL") + 13)..].Trim()
             : output;
-        return (false, string.IsNullOrEmpty(reason) ? "Unknown failure." : reason);
+        var message = string.IsNullOrEmpty(reason) ? "Unknown failure." : reason;
+        Log.Error("Restore point failed: " + message);
+        return (false, message);
     }
 }

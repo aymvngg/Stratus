@@ -41,8 +41,15 @@ public sealed class PowerPlanService
             : ListPlans().FirstOrDefault(p => p.IsActive);
     }
 
-    public bool SetActive(Guid guid) =>
-        ProcessRunner.Run("powercfg.exe", $"/setactive {guid:D}").Success;
+    public bool SetActive(Guid guid)
+    {
+        var ok = ProcessRunner.Run("powercfg.exe", $"/setactive {guid:D}").Success;
+        if (ok)
+            Log.Info("Power plan activated: " + guid);
+        else
+            Log.Warn("Power plan activation failed: " + guid);
+        return ok;
+    }
 
     public bool SetActive(string guidString) =>
         SetActive(Guid.Parse(guidString));

@@ -15,6 +15,9 @@ internal static class Program
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+        Log.Init();
+        Log.Info("CLI invoked: " + (args.Length == 0 ? "(no args)" : string.Join(' ', args)));
+
         var backup = new BackupStore(AppPaths.BackupFile);
         var settings = new SettingsStore(AppPaths.SettingsFile);
         var history = new HistoryStore(AppPaths.HistoryFile);

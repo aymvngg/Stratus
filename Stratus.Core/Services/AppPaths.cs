@@ -11,4 +11,5 @@ public static class AppPaths
     public static readonly string HistoryFile = Path.Combine(ProgramData, "history.json");
     public static readonly string ScoreHistoryFile = Path.Combine(ProgramData, "score-history.json");
     public static readonly string TasksFile = Path.Combine(ProgramData, "tasks.json");
+    public static readonly string LogsDir = Path.Combine(ProgramData, "logs");
 }

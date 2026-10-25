@@ -41,10 +41,20 @@ public sealed class TweakEngine
         catch { /* timeline is informational only */ }
     }
 
+    /// <summary>Appends to the log. Kept next to Record so every engine change is visible in both places.</summary>
+    private static void LogResult(string action, Tweak tweak, TweakResult result)
+    {
+        if (result.Success)
+            Log.Info(action + " " + tweak.Id + ": ok");
+        else
+            Log.Warn(action + " " + tweak.Id + " failed: " + result.Error);
+    }
+
     public Task<TweakResult> ApplyAsync(Tweak tweak) => Task.Run(() =>
     {
         var result = tweak.Apply();
         Record(tweak, "Applied", result);
+        LogResult("Applied", tweak, result);
         if (result.Success)
             StateChanged?.Invoke();
         return result;
@@ -54,6 +64,7 @@ public sealed class TweakEngine
     {
         var result = tweak.Revert();
         Record(tweak, "Reverted", result);
+        LogResult("Reverted", tweak, result);
         if (result.Success)
             StateChanged?.Invoke();
         return result;

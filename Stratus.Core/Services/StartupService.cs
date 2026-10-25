@@ -174,10 +174,12 @@ public sealed class StartupService
         {
             _reg.WriteValue(item.Hive, item.ApprovedPath, item.ValueName,
                 RegistryValueKind.Binary, enabled ? EnabledBlob() : DisabledBlob(), TweakId(item));
+            Log.Info((enabled ? "Enabled" : "Disabled") + " startup entry: " + item.Name);
             return TweakResult.Ok;
         }
         catch (Exception ex)
         {
+            Log.Warn("Startup toggle failed for " + item.Name + ": " + ex.Message);
             return TweakResult.Fail(ex.Message);
         }
     }

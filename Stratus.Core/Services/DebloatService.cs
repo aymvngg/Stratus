@@ -138,10 +138,14 @@ public sealed class DebloatService
             var manager = new Windows.Management.Deployment.PackageManager();
             var result = await manager.RemovePackageAsync(item.FullName).AsTask();
             if (result.ErrorText.Length > 0)
+            {
+                Log.Warn("Debloat remove failed for " + item.Name + ": " + result.ErrorText);
                 return (false, result.ErrorText);
+            }
         }
         catch (Exception ex)
         {
+            Log.Warn("Debloat remove failed for " + item.Name + ": " + ex.Message);
             return (false, ex.Message);
         }
 
@@ -151,6 +155,7 @@ public sealed class DebloatService
             ProcessRunner.Run("dism.exe", $"/Online /Remove-ProvisionedAppxPackage /PackageName:{item.FullName}", 120_000);
         }
 
+        Log.Info("Debloat removed " + item.Name + ".");
         return (true, "Removed");
     }
 

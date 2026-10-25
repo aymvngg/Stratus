@@ -52,6 +52,10 @@ dotnet run --project Stratus.Cli -c Release -- revert <tweak-id>
 dotnet build Stratus.sln -c Release
 ```
 
+## CI and releases
+
+GitHub Actions builds the solution and runs a CLI smoke test on every push to `main`. Pushing a tag like `v1.1.0` publishes the app, zips it and attaches it to a GitHub release automatically.
+
 ## The 48 tweaks
 
 | Category | Count | Examples |
@@ -91,6 +95,7 @@ Every apply and revert lands in `%ProgramData%\Stratus\history.json` (newest fir
 
 - Tweak backups: `%ProgramData%\Stratus\backups.json` (every pre-change registry value / service startup state)
 - Settings: `%ProgramData%\Stratus\settings.json`
+- Logs: `%ProgramData%\Stratus\logs\` (one file per day, kept for 14 days)
 - Restore points: created via `Checkpoint-Computer` before bulk operations (offered in "Apply recommended tweaks")
 
 ## Safety model
