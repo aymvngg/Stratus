@@ -6,7 +6,7 @@ using Stratus.Core.Tweaks;
 namespace Stratus.Cli;
 
 /// <summary>
-/// Headless access to the engine: stratus list | score | info | apply &lt;id&gt; | revert &lt;id&gt;
+/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | apply &lt;id&gt; | revert &lt;id&gt;
 /// Run from an elevated terminal for HKLM/service changes.
 /// </summary>
 internal static class Program
@@ -21,6 +21,7 @@ internal static class Program
         var registry = new RegistryService(backup);
         var startup = new StartupService(registry);
         var scheduledTasks = new ScheduledTaskService(AppPaths.TasksFile);
+        var cleanup = new CleanupService();
         var power = new PowerPlanService();
         var engine = new TweakEngine(TweakCatalog.Build(registry, power, settings, backup), history);
 
@@ -29,7 +30,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|history|backups|apply <id>|revert <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|apply <id>|revert <id>]");
             return 0;
         }
 
@@ -117,6 +118,18 @@ internal static class Program
                 Console.WriteLine($"{taskItems.Count(i => !i.IsEnabled)} of {taskItems.Count} disabled. * = changed by Stratus");
                 return 0;
 
+            case "cleanup":
+                var totalBytes = 0L;
+                foreach (var target in cleanup.Scan())
+                {
+                    var size = target.Exists ? FormatBytes(target.SizeBytes) : "not present";
+                    Console.WriteLine($"{(target.Exists ? "[ok]" : "[--]")} {target.Name,-42} {size,10}  {target.FileCount} files");
+                    totalBytes += target.SizeBytes;
+                }
+                Console.WriteLine();
+                Console.WriteLine($"{FormatBytes(totalBytes)} reclaimable in total. Cleaning runs in the app.");
+                return 0;
+
             case "history":
                 var entries = history.All();
                 if (entries.Count == 0)
@@ -187,4 +200,10 @@ internal static class Program
 
     private static bool SafeIsApplied(Tweak t) { try { return t.IsApplied; } catch { return false; } }
     private static bool SafeIsApplicable(Tweak t) { try { return t.IsApplicable; } catch { return false; } }
+
+    private static string FormatBytes(long bytes)
+        => bytes <= 0 ? "0 B"
+        : bytes >= 1024 * 1024 * 1024 ? $"{bytes / 1024.0 / 1024 / 1024:F1} GB"
+        : bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024:F1} MB"
+        : $"{bytes / 1024.0:F0} KB";
 }

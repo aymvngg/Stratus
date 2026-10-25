@@ -149,6 +149,32 @@ public sealed class ToolsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Runs DISM StartComponentCleanup: removes superseded component versions. Can take 10-30 minutes.</summary>
+    public async Task<string> RunComponentCleanupAsync()
+    {
+        IsBusy = true;
+        BusyText = "Running component store cleanup (can take 10-30 minutes)…";
+        try
+        {
+            var result = await Task.Run(() =>
+                ProcessRunner.Run("dism.exe", "/Online /Cleanup-Image /StartComponentCleanup", 30 * 60_000));
+
+            if (result.Success)
+                return "Component store cleanup finished.";
+
+            var detail = (result.StdErr.Length > 0 ? result.StdErr : result.StdOut);
+            detail = detail.Replace("\r", "").Replace("\n", " ").Trim();
+            if (detail.Length > 220)
+                detail = detail[..220] + "…";
+            return $"Component cleanup failed (exit {result.ExitCode}): {detail}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
     /// <summary>Reverts every applied tweak back to its default (Windows) state.</summary>
     public async Task<string> RevertAllAsync()
     {

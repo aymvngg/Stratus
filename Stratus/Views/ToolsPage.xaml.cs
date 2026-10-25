@@ -46,6 +46,44 @@ public sealed partial class ToolsPage : Page
         VM.ShowStatus(message, message.StartsWith("Restore point failed") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
     }
 
+    private async void OnComponentCleanup(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Run component store cleanup?",
+            Content = new StackPanel
+            {
+                Spacing = 10,
+                MaxWidth = 420,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "DISM removes superseded versions of Windows components. This shrinks the component store and can free several GB.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new TextBlock
+                    {
+                        Text = "It runs in the background and can take 10-30 minutes. Keep the app open until it reports completion.",
+                        TextWrapping = TextWrapping.Wrap,
+                        Opacity = 0.75,
+                        FontSize = 12,
+                    },
+                },
+            },
+            PrimaryButtonText = "Run cleanup",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var message = await VM.RunComponentCleanupAsync();
+        VM.ShowStatus(message, message.Contains("failed") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+    }
+
     private void OnOpenFolder(object sender, RoutedEventArgs e)
     {
         try

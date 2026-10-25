@@ -2,6 +2,19 @@
 
 WinUI 3 (unpackaged, self-contained, admin). 48 detection-driven tweaks with a live score, debloat, cleanup, and tools. No snake oil - every change is backed up and revertible.
 
+## Cleanup
+
+16 targets, scanned live before anything is deleted:
+
+- Temp: user temp, Windows temp
+- Caches: DirectX / NVIDIA / AMD shader caches, thumbnail + icon cache, Edge / Chrome / Brave / Firefox caches
+- System: Delivery Optimization cache, Windows Update leftovers, CBS/DISM logs, prefetch, previous Windows installation (Windows.old)
+- Recycle Bin
+
+Files that are in use are skipped and reported, never forced. Services that lock files (wuauserv, dosvc) are stopped for the clean and restarted after, only if they were running.
+
+Tools > Maintenance also runs **DISM component store cleanup** (StartComponentCleanup), which removes superseded component versions. It can take 10-30 minutes.
+
 ## Run the app
 
 Grab the zip from [Releases](../../releases), extract it anywhere, and run `Stratus.exe`.
@@ -24,6 +37,7 @@ dotnet run --project Stratus.Cli -c Release -- info
 dotnet run --project Stratus.Cli -c Release -- presets
 dotnet run --project Stratus.Cli -c Release -- startup
 dotnet run --project Stratus.Cli -c Release -- tasks
+dotnet run --project Stratus.Cli -c Release -- cleanup
 dotnet run --project Stratus.Cli -c Release -- history
 dotnet run --project Stratus.Cli -c Release -- backups
 dotnet run --project Stratus.Cli -c Release -- apply <tweak-id>
