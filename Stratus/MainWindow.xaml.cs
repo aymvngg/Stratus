@@ -15,6 +15,23 @@ public sealed partial class MainWindow : Window
         Title = "Stratus";
         SystemBackdrop = new MicaBackdrop();
 
+        // Replace the native title bar with our own strip so Mica runs edge to edge.
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+
+        try
+        {
+            var titleBar = AppWindow.TitleBar;
+            titleBar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
+            titleBar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+            titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF);
+            titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF);
+        }
+        catch
+        {
+            // Older builds without title bar customization: the system keeps its default buttons.
+        }
+
         // A comfortable default size for a 5-section dashboard app.
         AppWindow.Resize(new SizeInt32(1300, 860));
 

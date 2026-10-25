@@ -4,8 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:Stratus.ViewModels">
 
-    <ScrollViewer>
-        <StackPanel Margin="32,24,32,32" Spacing="16" MaxWidth="1200" HorizontalAlignment="Stretch">
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="32,24,32,32" Spacing="16">
 
             <StackPanel Spacing="3">
                 <TextBlock Text="Dashboard" Style="{StaticResource PageHeader}"/>

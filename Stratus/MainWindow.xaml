@@ -3,82 +3,102 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <NavigationView
-        x:Name="Nav"
-        IsBackButtonVisible="Collapsed"
-        IsSettingsVisible="False"
-        PaneDisplayMode="Left"
-        OpenPaneLength="232"
-        IsPaneOpen="True"
-        SelectionChanged="OnSelectionChanged">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="34"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <NavigationView.PaneHeader>
-            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,10">
-                <Border Width="32" Height="32" CornerRadius="9"
-                        Background="{ThemeResource AccentFillColorDefaultBrush}">
-                    <FontIcon Glyph="&#xE753;" FontSize="17"
-                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
-                </Border>
-                <StackPanel VerticalAlignment="Center" Spacing="-2">
-                    <TextBlock Text="Stratus" FontSize="15" FontWeight="SemiBold"/>
-                    <TextBlock Text="System optimizer" FontSize="10"
-                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                </StackPanel>
+        <!-- Custom title bar: draggable strip, caption buttons are drawn by the system on the right. -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent" Padding="16,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                        IsHitTestVisible="False">
+                <FontIcon Glyph="&#xE753;" FontSize="11"
+                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                <TextBlock Text="Stratus" FontSize="11"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
             </StackPanel>
-        </NavigationView.PaneHeader>
+        </Grid>
 
-        <NavigationView.MenuItems>
-            <NavigationViewItem Content="Dashboard" Tag="dashboard">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE80F;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Tweaks" Tag="tweaks">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE945;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Debloat" Tag="debloat">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE74D;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Cleanup" Tag="cleanup">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xEA99;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="History" Tag="history">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE81C;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Tools" Tag="tools">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE90F;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.MenuItems>
+        <NavigationView
+            x:Name="Nav"
+            Grid.Row="1"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            IsPaneToggleButtonVisible="False"
+            PaneDisplayMode="Left"
+            OpenPaneLength="232"
+            IsPaneOpen="True"
+            SelectionChanged="OnSelectionChanged">
 
-        <NavigationView.PaneFooter>
-            <StackPanel Margin="0,4,0,10" Spacing="8">
-                <Border Background="{ThemeResource ControlFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="6" Padding="10,7">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon x:Name="ElevationGlyph" Glyph="&#xE7EF;" FontSize="12"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <TextBlock x:Name="ElevationText" Text="Checking…" FontSize="11"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <NavigationView.PaneHeader>
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,10">
+                    <Border Width="32" Height="32" CornerRadius="9"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}">
+                        <FontIcon Glyph="&#xE753;" FontSize="17"
+                                  Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Spacing="-2">
+                        <TextBlock Text="Stratus" FontSize="15" FontWeight="SemiBold"/>
+                        <TextBlock Text="System optimizer" FontSize="10"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                     </StackPanel>
-                </Border>
-                <TextBlock Text="v1.0 · every change is revertible" FontSize="10"
-                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                           TextWrapping="Wrap"/>
-            </StackPanel>
-        </NavigationView.PaneFooter>
+                </StackPanel>
+            </NavigationView.PaneHeader>
 
-        <Frame x:Name="ContentFrame"/>
-    </NavigationView>
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Dashboard" Tag="dashboard">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE80F;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Tweaks" Tag="tweaks">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE945;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Debloat" Tag="debloat">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE74D;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Cleanup" Tag="cleanup">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEA99;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="History" Tag="history">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE81C;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Tools" Tag="tools">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE90F;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.PaneFooter>
+                <StackPanel Margin="0,4,0,10" Spacing="8">
+                    <Border Background="{ThemeResource ControlFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6" Padding="10,7">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon x:Name="ElevationGlyph" Glyph="&#xE7EF;" FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock x:Name="ElevationText" Text="Checking…" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="v1.0 · every change is revertible" FontSize="10"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </NavigationView.PaneFooter>
+
+            <Frame x:Name="ContentFrame"/>
+        </NavigationView>
+    </Grid>
 </Window>
