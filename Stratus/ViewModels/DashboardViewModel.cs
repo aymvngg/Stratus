@@ -32,6 +32,7 @@ public sealed class DashboardViewModel : ObservableObject
     private bool _statusOpen;
     private int _refreshRequests;
     private int _pending;
+    private IReadOnlyList<ScoreSnapshot> _scoreHistory = Array.Empty<ScoreSnapshot>();
 
     public ScoreReport? Report
     {
@@ -64,6 +65,38 @@ public sealed class DashboardViewModel : ObservableObject
     public string PendingText => _pending == 0
         ? "All recommended tweaks applied"
         : $"{_pending} recommended tweak{(_pending == 1 ? "" : "s")} pending";
+
+    /// <summary>Snapshots behind the Dashboard graph, oldest first.</summary>
+    public IReadOnlyList<ScoreSnapshot> ScoreHistory
+    {
+        get => _scoreHistory;
+        private set
+        {
+            if (Set(ref _scoreHistory, value))
+                Raise(nameof(HasHistory), nameof(GraphSubtitle));
+        }
+    }
+
+    public bool HasHistory => _scoreHistory.Count >= 2;
+
+    public string GraphSubtitle
+    {
+        get
+        {
+            if (_scoreHistory.Count == 0)
+                return "A point is recorded every time the score changes.";
+            var first = _scoreHistory[0].TimestampUtc.ToLocalTime();
+            var last = _scoreHistory[^1].TimestampUtc.ToLocalTime();
+            var delta = _scoreHistory[^1].Score - _scoreHistory[0].Score;
+            var deltaText = delta == 0
+                ? "no change since the first snapshot"
+                : $"{delta:+0;-0} since the first snapshot";
+            var range = first.ToString("MMM d") == last.ToString("MMM d")
+                ? first.ToString("MMM d")
+                : $"{first:MMM d} - {last:MMM d}";
+            return $"{_scoreHistory.Count} point{(_scoreHistory.Count == 1 ? "" : "s")} · {range} · {deltaText}";
+        }
+    }
 
     public ObservableCollection<CategoryRow> Categories { get; } = new();
     public ObservableCollection<PresetRow> Presets { get; } = new();
@@ -98,6 +131,7 @@ public sealed class DashboardViewModel : ObservableObject
         var (report, pending, presets) = await Task.Run(() => (AppServices.Engine.Rescore(), PendingRecommendedCount(), BuildPresetRows()));
         _pending = pending;
         ApplyReport(report);
+        ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
         SyncPresets(presets);
         Raise(nameof(PendingRecommended), nameof(PendingText));
     }
@@ -120,7 +154,9 @@ public sealed class DashboardViewModel : ObservableObject
             var pendingTask = Task.Run(PendingRecommendedCount);
             var presetTask = Task.Run(BuildPresetRows);
 
-            ApplyReport(await reportTask);
+            var report = await reportTask;
+            ApplyReport(report);
+            ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
             _pending = await pendingTask;
             _summary = await summaryTask;
             _powerPlan = (await planTask)?.Name ?? "Unknown";
@@ -147,6 +183,14 @@ public sealed class DashboardViewModel : ObservableObject
                 c.Score,
                 RiskStyles.HealthBrush(c.Score)));
         }
+    }
+
+    /// <summary>Persists a point when the score moved, then returns the full graph data. Never throws.</summary>
+    private IReadOnlyList<ScoreSnapshot> RecordAndReadHistory(int score)
+    {
+        try { AppServices.ScoreHistory.AppendIfChanged(score); } catch { /* the graph is cosmetic */ }
+        try { return AppServices.ScoreHistory.All(); }
+        catch { return Array.Empty<ScoreSnapshot>(); }
     }
 
     /// <summary>Number of pending tweaks "Apply recommended" would touch (Safe + Recommended risk).</summary>

@@ -220,6 +220,42 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <!-- ================= Score over time ================= -->
+            <StackPanel Spacing="3" Margin="0,10,0,0">
+                <TextBlock Text="Score over time" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="{x:Bind VM.GraphSubtitle, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+
+            <Border Style="{StaticResource Card}" Padding="18,14">
+                <Grid>
+                    <Grid x:Name="GraphHost" Height="140" SizeChanged="OnGraphSizeChanged">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" VerticalAlignment="Bottom" Height="1"
+                                Background="{ThemeResource ControlStrokeColorSecondaryBrush}"/>
+                        <Border Grid.Row="1" VerticalAlignment="Bottom" Height="1"
+                                Background="{ThemeResource ControlStrokeColorSecondaryBrush}"/>
+                        <Border Grid.Row="2" VerticalAlignment="Bottom" Height="1"
+                                Background="{ThemeResource ControlStrokeColorSecondaryBrush}"/>
+
+                        <Canvas Grid.RowSpan="4">
+                            <Path x:Name="GraphArea"/>
+                            <Path x:Name="GraphLine" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
+                    </Grid>
+
+                    <TextBlock Text="The graph fills in as your score changes - it starts with this scan."
+                               FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{x:Bind vm:Conv.NotVis(VM.HasHistory), Mode=OneWay}"/>
+                </Grid>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -10,6 +10,7 @@ public static class AppServices
 {
     public static readonly BackupStore Backup = new(AppPaths.BackupFile);
     public static readonly HistoryStore History = new(AppPaths.HistoryFile);
+    public static readonly ScoreHistoryStore ScoreHistory = new(AppPaths.ScoreHistoryFile);
     public static readonly RegistryService Registry = new(Backup);
     public static readonly SettingsStore Settings = new(AppPaths.SettingsFile);
     public static readonly PowerPlanService Power = new();

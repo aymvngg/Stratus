@@ -30,11 +30,14 @@ public sealed partial class DashboardPage : Page
     {
         if (e.PropertyName == nameof(DashboardViewModel.Score))
             UpdateRing();
+        else if (e.PropertyName == nameof(DashboardViewModel.ScoreHistory))
+            UpdateGraph();
     }
 
     private async void OnFirstLoad(object sender, RoutedEventArgs e)
     {
         UpdateRing();
+        UpdateGraph();
         if (_loadedOnce)
             return;
         _loadedOnce = true;
@@ -79,6 +82,75 @@ public sealed partial class DashboardPage : Page
         var geometry = new PathGeometry();
         geometry.Figures.Add(figure);
         return geometry;
+    }
+
+    // ---- Score over time ----
+
+    private void OnGraphSizeChanged(object sender, SizeChangedEventArgs e) => UpdateGraph();
+
+    /// <summary>Redraws the sparkline: last 80 snapshots, newest on the right, newest point in the health colour.</summary>
+    private void UpdateGraph()
+    {
+        var history = VM.ScoreHistory;
+        if (history.Count == 0 || GraphHost.ActualWidth < 20)
+        {
+            GraphLine.Data = null;
+            GraphArea.Data = null;
+            return;
+        }
+
+        const int MaxPoints = 80;
+        var points = history.Skip(Math.Max(0, history.Count - MaxPoints)).ToArray();
+
+        var width = GraphHost.ActualWidth;
+        var height = GraphHost.ActualHeight;
+        var pad = 7.0;
+        var usableW = Math.Max(1.0, width - pad * 2);
+        var usableH = Math.Max(1.0, height - pad * 2);
+
+        double X(int i) => pad + (points.Length == 1 ? usableW : usableW * i / (points.Length - 1));
+        double Y(int score) => pad + usableH * (1 - Math.Clamp(score, 0, 100) / 100.0);
+
+        var start = new Point(X(0), Y(points[0].Score));
+        var bottom = height - 2;
+
+        var line = new PathFigure { StartPoint = start };
+        var area = new PathFigure { StartPoint = new Point(X(0), bottom), IsClosed = true };
+        area.Segments.Add(new LineSegment { Point = start });
+
+        if (points.Length == 1)
+        {
+            // A single snapshot draws as a flat line so the graph is never a lone dot.
+            line.Segments.Add(new LineSegment { Point = new Point(width - pad, start.Y) });
+            area.Segments.Add(new LineSegment { Point = new Point(width - pad, start.Y) });
+        }
+        else
+        {
+            var lineRest = new PolyLineSegment();
+            var areaRest = new PolyLineSegment();
+            for (var i = 1; i < points.Length; i++)
+            {
+                var p = new Point(X(i), Y(points[i].Score));
+                lineRest.Points.Add(p);
+                areaRest.Points.Add(p);
+            }
+            line.Segments.Add(lineRest);
+            area.Segments.Add(areaRest);
+            area.Segments.Add(new LineSegment { Point = new Point(X(points.Length - 1), bottom) });
+        }
+        area.Segments.Add(new LineSegment { Point = new Point(width - pad, bottom) });
+
+        var lineGeometry = new PathGeometry();
+        lineGeometry.Figures.Add(line);
+        GraphLine.Data = lineGeometry;
+
+        var areaGeometry = new PathGeometry();
+        areaGeometry.Figures.Add(area);
+        GraphArea.Data = areaGeometry;
+
+        GraphLine.Stroke = RiskStyles.HealthBrush(VM.Score);
+        var c = RiskStyles.HealthBrush(VM.Score).Color;
+        GraphArea.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0x33, c.R, c.G, c.B));
     }
 
     private async void OnRescan(object sender, RoutedEventArgs e) => await VM.RescanAsync();

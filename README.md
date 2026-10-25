@@ -4,7 +4,7 @@ WinUI 3 (unpackaged, self-contained, admin). 48 detection-driven tweaks with a l
 
 ## Cleanup
 
-16 targets, scanned live before anything is deleted:
+15 targets, scanned live before anything is deleted:
 
 - Temp: user temp, Windows temp
 - Caches: DirectX / NVIDIA / AMD shader caches, thumbnail + icon cache, Edge / Chrome / Brave / Firefox caches
@@ -78,6 +78,10 @@ The Startup page lists everything that launches with Windows: the HKCU and HKLM 
 ## Scheduled tasks
 
 The Tasks page covers 16 well-known telemetry, inventory and feedback jobs (`Microsoft Compatibility Appraiser`, `Consolidator`, `UsbCeip`, `DmClient`, `QueueReporting`, `Device`, `WinSAT` and friends). It drives the Task Scheduler COM API directly, so it never parses localized `schtasks` output, and only tasks that exist on your machine are listed. Turning a task off disables it, it is never deleted, and the original state is stored in `tasks.json` so "Reset changes" restores it exactly.
+
+## Score history
+
+The Dashboard graphs the score over time from `%ProgramData%\Stratus\score-history.json`. A point is recorded only when the score actually changes (capped at 500), so the line stays readable.
 
 ## History and undo
 
