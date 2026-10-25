@@ -176,7 +176,7 @@ public sealed class ToolsViewModel : ObservableObject
 
             return failed.Count == 0
                 ? $"Reverted {Format.Count(reverted, "tweak")} to default settings."
-                : $"Reverted {reverted}, {failed.Count} failed — {string.Join("; ", failed.Take(3))}";
+                : $"Reverted {reverted}, {failed.Count} failed - {string.Join("; ", failed.Take(3))}";
         }
         finally
         {

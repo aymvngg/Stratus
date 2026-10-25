@@ -73,7 +73,7 @@ public sealed partial class TweaksPage : Page
         var desired = toggle.IsOn;
         var actual = SafeReadApplied(item);
 
-        // Programmatic refresh snap — desired already matches reality.
+        // Programmatic refresh snap - desired already matches reality.
         if (desired == actual)
             return;
 
@@ -96,7 +96,7 @@ public sealed partial class TweaksPage : Page
             }
             else if (desired && item.RequiresReboot)
             {
-                VM.ShowStatus($"{item.Name} applied — restart Windows to take full effect.", InfoBarSeverity.Success);
+                VM.ShowStatus($"{item.Name} applied - restart Windows to take full effect.", InfoBarSeverity.Success);
             }
 
             var nowApplied = SafeReadApplied(item);
@@ -129,7 +129,7 @@ public sealed partial class TweaksPage : Page
                     new TextBlock { Text = item.Description, TextWrapping = TextWrapping.Wrap },
                     new TextBlock
                     {
-                        Text = "Advanced tweaks have real trade-offs — things you may rely on can be turned off. You can revert this at any time from the same switch.",
+                        Text = "Advanced tweaks have real trade-offs - things you may rely on can be turned off. You can revert this at any time from the same switch.",
                         TextWrapping = TextWrapping.Wrap,
                         Opacity = 0.75,
                         FontSize = 12,

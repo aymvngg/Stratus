@@ -57,7 +57,7 @@ public sealed class CleanupViewModel : ObservableObject
     private string _statusMessage = "";
     private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
     private bool _statusOpen;
-    private string _selectedText = "—";
+    private string _selectedText = "-";
 
     public bool HasScanned { get => _hasScanned; private set { if (Set(ref _hasScanned, value)) Raise(nameof(NotScannedHint)); } }
     public bool NotScannedHint => !HasScanned;
@@ -132,7 +132,7 @@ public sealed class CleanupViewModel : ObservableObject
     {
         var selected = Rows.Where(r => r.IsChecked).ToList();
         SelectedText = selected.Count == 0
-            ? "—"
+            ? "-"
             : $"{Format.Bytes(selected.Sum(r => r.Target.SizeBytes))} selected";
         Raise(nameof(CleanButtonText));
     }
@@ -149,7 +149,7 @@ public sealed class CleanupViewModel : ObservableObject
         {
             var result = await Task.Run(() => AppServices.Cleanup.Clean(selected, includeRecycleBin));
             await ScanAsync();
-            return $"Freed {Format.Bytes(result.FreedBytes)} — {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped.";
+            return $"Freed {Format.Bytes(result.FreedBytes)} - {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped.";
         }
         finally
         {

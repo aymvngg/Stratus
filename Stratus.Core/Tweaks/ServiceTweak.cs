@@ -82,7 +82,7 @@ public sealed class ServiceTweak : Tweak
                 });
             }
 
-            // Stop if running (best effort — some services refuse, disabling still works).
+            // Stop if running (best effort - some services refuse, disabling still works).
             try
             {
                 using var sc = new ServiceController(_serviceName);
@@ -118,7 +118,7 @@ public sealed class ServiceTweak : Tweak
             var saved = _backup.GetLatest(Id, ScopeType, _serviceName, "StartType");
             if (saved?.ValueJson is { } savedMode && TryMapFromString(savedMode, out var parsed))
             {
-                // Never restore to Disabled — that would be a no-op revert.
+                // Never restore to Disabled - that would be a no-op revert.
                 if (parsed != ServiceStartupType.Disabled)
                     target = parsed;
             }
@@ -144,7 +144,7 @@ public sealed class ServiceTweak : Tweak
     };
 
     // Automatic (Delayed Start) reports as Automatic via ServiceController; "delayed-auto"
-    // restores are handled by the sc.exe keyword — close enough for our set of services.
+    // restores are handled by the sc.exe keyword - close enough for our set of services.
     private static bool TryMapFromString(string s, out ServiceStartupType t) =>
         Enum.TryParse(s, ignoreCase: true, out t);
 }

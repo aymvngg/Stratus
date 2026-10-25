@@ -1,6 +1,6 @@
-# Stratus — native Windows optimizer
+# Stratus - native Windows optimizer
 
-WinUI 3 (unpackaged, self-contained, admin). 48 detection-driven tweaks with a live score, debloat, cleanup, and tools. No snake oil — every change is backed up and revertible.
+WinUI 3 (unpackaged, self-contained, admin). 48 detection-driven tweaks with a live score, debloat, cleanup, and tools. No snake oil - every change is backed up and revertible.
 
 ## Run the app
 
@@ -13,7 +13,7 @@ dotnet build Stratus.sln -c Release
 .\Stratus\bin\x64\Release\net8.0-windows10.0.22621.0\win-x64\Stratus.exe
 ```
 
-Double-click it (UAC prompt is expected — the manifest requires administrator).
+Double-click it (UAC prompt is expected - the manifest requires administrator).
 
 ## CLI (same engine, headless)
 
@@ -54,7 +54,7 @@ Each tweak has a risk level (Safe / Recommended / Advanced), a weight used by th
 
 ## Safety model
 
-- The score reads real system state — it does not care who made a change.
+- The score reads real system state - it does not care who made a change.
 - Every registry write is backed up first; Revert restores the exact original value.
 - Advanced tweaks always show a confirmation dialog. Safe/Recommended do not.
 - "Revert all tweaks" (Tools page) returns everything Stratus detects as applied to Windows defaults.

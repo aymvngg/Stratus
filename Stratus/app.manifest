@@ -2,7 +2,7 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="Stratus.app"/>
 
-  <!-- Stratus changes system settings (registry, services, power plans) — it needs admin. -->
+  <!-- Stratus changes system settings (registry, services, power plans) - it needs admin. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">

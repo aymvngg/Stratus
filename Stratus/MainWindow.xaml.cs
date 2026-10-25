@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new SizeInt32(1300, 860));
 
         var elevated = SystemInfoService.IsElevated();
-        ElevationText.Text = elevated ? "Running as administrator" : "Standard user — writes will fail";
+        ElevationText.Text = elevated ? "Running as administrator" : "Standard user - writes will fail";
         ElevationGlyph.Glyph = elevated ? "\uE7EF" : "\uE7BA";
         if (!elevated)
             ElevationText.Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xF1, 0x70, 0x7B));

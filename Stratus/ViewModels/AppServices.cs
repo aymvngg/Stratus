@@ -5,7 +5,7 @@ using Stratus.Core.Tweaks;
 
 namespace Stratus.ViewModels;
 
-/// <summary>Composition root — one instance of every service, shared by all pages/VMs.</summary>
+/// <summary>Composition root - one instance of every service, shared by all pages/VMs.</summary>
 public static class AppServices
 {
     public static readonly BackupStore Backup = new(AppPaths.BackupFile);

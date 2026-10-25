@@ -10,7 +10,7 @@
 
             <StackPanel Spacing="3">
                 <TextBlock Text="Tools" Style="{StaticResource PageHeader}"/>
-                <TextBlock Text="System actions that aren't registry tweaks — power plans, DNS, restore points and Stratus data."
+                <TextBlock Text="System actions that aren't registry tweaks - power plans, DNS, restore points and Stratus data."
                            Style="{StaticResource PageSubtitle}"/>
             </StackPanel>
 
@@ -141,7 +141,7 @@
                         </StackPanel>
 
                         <TextBlock Style="{StaticResource PageSubtitle}"
-                                   Text="Reverts every tweak detected as applied — including changes made by hand or by other tools — using the exact values backed up at change time."/>
+                                   Text="Reverts every tweak detected as applied - including changes made by hand or by other tools - using the exact values backed up at change time."/>
 
                         <Button Content="Revert all tweaks" Click="OnRevertAll"
                                 Background="#66C42B1C" Foreground="#FFF48B8B"/>

@@ -1,6 +1,6 @@
 namespace Stratus.ViewModels;
 
-/// <summary>Static singletons — pages cache, VMs survive navigation.</summary>
+/// <summary>Static singletons - pages cache, VMs survive navigation.</summary>
 public static class Vm
 {
     public static readonly DashboardViewModel Dashboard = new();

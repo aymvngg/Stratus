@@ -55,7 +55,7 @@ public sealed class DebloatService
         "Microsoft.YourPhone"                  // listed under Other for cautious users
     };
 
-    // Frameworks/runtimes other apps depend on — never offer these.
+    // Frameworks/runtimes other apps depend on - never offer these.
     private static readonly string[] SkipPatterns =
     [
         "Microsoft.NET.Native",
@@ -218,7 +218,7 @@ public sealed class DebloatService
                 args = space < 0 ? "" : s[(space + 1)..].Trim();
             }
 
-            // MsiExec /X{guid} needs a silent flag we cannot assume — keep it interactive.
+            // MsiExec /X{guid} needs a silent flag we cannot assume - keep it interactive.
             var psi = new System.Diagnostics.ProcessStartInfo { FileName = exe, Arguments = args, UseShellExecute = true };
             System.Diagnostics.Process.Start(psi);
             return true;

@@ -46,7 +46,7 @@
                         <Grid>
                             <StackPanel Spacing="1">
                                 <TextBlock Text="{x:Bind VM.RecommendedCount, Mode=OneWay}" Style="{StaticResource CardTitle}"/>
-                                <TextBlock Text="Known bloat nobody games with — news, weather, Cortana, Solitaire…"
+                                <TextBlock Text="Known bloat nobody games with - news, weather, Cortana, Solitaire…"
                                            Style="{StaticResource PageSubtitle}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Top">
@@ -84,7 +84,7 @@
                         <Grid>
                             <StackPanel Spacing="1">
                                 <TextBlock Text="{x:Bind VM.OtherMicrosoftCount, Mode=OneWay}" Style="{StaticResource CardTitle}"/>
-                                <TextBlock Text="Other Microsoft Store apps — review before removing (Phone Link, Camera, Media Player…)."
+                                <TextBlock Text="Other Microsoft Store apps - review before removing (Phone Link, Camera, Media Player…)."
                                            Style="{StaticResource PageSubtitle}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Top">
@@ -122,7 +122,7 @@
                         <Grid>
                             <StackPanel Spacing="1">
                                 <TextBlock Text="{x:Bind VM.ThirdPartyCount, Mode=OneWay}" Style="{StaticResource CardTitle}"/>
-                                <TextBlock Text="Store apps from other publishers — often driver and utility bundles."
+                                <TextBlock Text="Store apps from other publishers - often driver and utility bundles."
                                            Style="{StaticResource PageSubtitle}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Top">
@@ -154,7 +154,7 @@
                     <StackPanel Spacing="8">
                         <StackPanel Spacing="1">
                             <TextBlock Text="{x:Bind VM.Win32Count, Mode=OneWay}" Style="{StaticResource CardTitle}"/>
-                            <TextBlock Text="Classic desktop programs — Stratus opens each program's own uninstaller."
+                            <TextBlock Text="Classic desktop programs - Stratus opens each program's own uninstaller."
                                        Style="{StaticResource PageSubtitle}"/>
                         </StackPanel>
 

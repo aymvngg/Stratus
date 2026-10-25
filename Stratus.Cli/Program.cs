@@ -21,7 +21,7 @@ internal static class Program
         var power = new PowerPlanService();
         var engine = new TweakEngine(TweakCatalog.Build(registry, power, settings, backup));
 
-        Console.WriteLine($"Stratus CLI — elevated: {SystemInfoService.IsElevated()}");
+        Console.WriteLine($"Stratus CLI - elevated: {SystemInfoService.IsElevated()}");
         Console.WriteLine();
 
         if (args.Length == 0)
@@ -43,7 +43,7 @@ internal static class Program
 
             case "score":
                 var report = engine.Rescore();
-                Console.WriteLine($"Score: {report.Score}/100 ({report.StatusText}) — {report.AppliedCount}/{report.TotalCount} tweaks, weight {report.AppliedWeight}/{report.TotalWeight}");
+                Console.WriteLine($"Score: {report.Score}/100 ({report.StatusText}) - {report.AppliedCount}/{report.TotalCount} tweaks, weight {report.AppliedWeight}/{report.TotalWeight}");
                 foreach (var c in report.Categories)
                     Console.WriteLine($"  {c.Category,-9} {c.Score,3}  ({c.AppliedCount}/{c.TotalCount})");
                 return 0;

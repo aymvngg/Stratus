@@ -35,7 +35,7 @@ public static class TweakCatalog
         { Weight = 1, Risk = RiskLevel.Safe });
 
         tweaks.Add(new RegistryTweak("game-mode-on", "Ensure Game Mode is on",
-            "Windows prioritizes the foreground game (fewer background tasks while gaming). On by default in current builds — this makes it explicit.",
+            "Windows prioritizes the foreground game (fewer background tasks while gaming). On by default in current builds - this makes it explicit.",
             TweakCategory.Gaming, reg,
             new[]
             {
@@ -78,7 +78,7 @@ public static class TweakCatalog
         { Weight = 2, Risk = RiskLevel.Recommended });
 
         tweaks.Add(new RegistryTweak("game-mouse-accel-off", "Disable mouse acceleration",
-            "Turns off 'Enhance pointer precision' (MouseSpeed=0, thresholds=0). Raw, predictable aim — the first thing any FPS player changes.",
+            "Turns off 'Enhance pointer precision' (MouseSpeed=0, thresholds=0). Raw, predictable aim - the first thing any FPS player changes.",
             TweakCategory.Gaming, reg,
             new[]
             {
@@ -301,7 +301,7 @@ public static class TweakCatalog
         { Weight = 1, Risk = RiskLevel.Safe });
 
         tweaks.Add(new RegistryTweak("priv-copilot", "Disable Copilot",
-            "Removes the Copilot taskbar entry and disables the built-in Copilot experience via policy. Doesn't uninstall the Copilot app — use Debloat for that.",
+            "Removes the Copilot taskbar entry and disables the built-in Copilot experience via policy. Doesn't uninstall the Copilot app - use Debloat for that.",
             TweakCategory.Privacy, reg,
             new[]
             {

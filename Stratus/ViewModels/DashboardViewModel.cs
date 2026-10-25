@@ -33,7 +33,7 @@ public sealed class DashboardViewModel : ObservableObject
     }
 
     public int Score => Report?.Score ?? 0;
-    public string StatusText => Report?.StatusText ?? "—";
+    public string StatusText => Report?.StatusText ?? "-";
     public string AppliedText => Report is null ? "Scanning…" : $"{Report.AppliedCount} of {Report.TotalCount} applicable tweaks applied";
     public string AppliedCountText => Report is null ? "…" : $"{Report.AppliedCount} / {Report.TotalCount}";
     public string ScoreCaption => Report is null ? "Scanning the system…" : Report.StatusText;
@@ -146,7 +146,7 @@ public sealed class DashboardViewModel : ObservableObject
                 if (t.IsApplicable && !t.IsApplied)
                     count++;
             }
-            catch { /* unreadable state — skip */ }
+            catch { /* unreadable state - skip */ }
         }
         return count;
     }
@@ -161,7 +161,7 @@ public sealed class DashboardViewModel : ObservableObject
                 BusyText = "Creating restore point (can take a minute)…";
                 var (ok, message) = await Task.Run(() => RestorePointService.Create());
                 if (!ok)
-                    return $"Restore point failed: {message} — nothing was changed.";
+                    return $"Restore point failed: {message} - nothing was changed.";
             }
 
             BusyText = "Applying tweaks…";
@@ -173,7 +173,7 @@ public sealed class DashboardViewModel : ObservableObject
 
             return failed.Count == 0
                 ? $"Applied {Format.Count(applied, "tweak")}. Score: {Score}/100."
-                : $"Applied {Format.Count(applied, "tweak")}, {failed.Count} failed — {string.Join("; ", failed.Take(3).Select(f => $"{f.Key}: {f.Value.Error}"))}";
+                : $"Applied {Format.Count(applied, "tweak")}, {failed.Count} failed - {string.Join("; ", failed.Take(3).Select(f => $"{f.Key}: {f.Value.Error}"))}";
         }
         finally
         {

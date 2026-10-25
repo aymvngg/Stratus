@@ -27,7 +27,7 @@ public abstract class Tweak
     /// <summary>False when the tweak does not apply to this machine (e.g. unsupported feature).</summary>
     public virtual bool IsApplicable => Applicability?.Invoke() ?? true;
 
-    /// <summary>Reads the actual system state — never assumes the app itself made the change.</summary>
+    /// <summary>Reads the actual system state - never assumes the app itself made the change.</summary>
     public abstract bool IsApplied { get; }
 
     public abstract TweakResult Apply();

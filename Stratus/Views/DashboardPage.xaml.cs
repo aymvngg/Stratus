@@ -9,7 +9,7 @@ namespace Stratus.Views;
 
 public sealed partial class DashboardPage : Page
 {
-    // Ring geometry — must match the Ellipse in XAML (207px diameter, 13px stroke, 220px box).
+    // Ring geometry - must match the Ellipse in XAML (207px diameter, 13px stroke, 220px box).
     private const double RingSize = 220;
     private const double RingDiameter = 207;
 
@@ -95,7 +95,7 @@ public sealed partial class DashboardPage : Page
         var pending = VM.PendingRecommendedCount();
         if (pending == 0)
         {
-            VM.ShowStatus("Nothing to do — every recommended tweak is already applied.", InfoBarSeverity.Success);
+            VM.ShowStatus("Nothing to do - every recommended tweak is already applied.", InfoBarSeverity.Success);
             return;
         }
 

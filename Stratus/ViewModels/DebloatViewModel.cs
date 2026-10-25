@@ -173,7 +173,7 @@ public sealed class DebloatViewModel : ObservableObject
             await ScanAsync();
             return failed.Count == 0
                 ? $"Removed {Format.Count(ok, "app")}."
-                : $"Removed {Format.Count(ok, "app")}, {failed.Count} failed — {string.Join("; ", failed.Take(3))}";
+                : $"Removed {Format.Count(ok, "app")}, {failed.Count} failed - {string.Join("; ", failed.Take(3))}";
         }
         finally
         {

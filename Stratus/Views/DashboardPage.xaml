@@ -9,7 +9,7 @@
 
             <StackPanel Spacing="3">
                 <TextBlock Text="Dashboard" Style="{StaticResource PageHeader}"/>
-                <TextBlock Text="Live system state — the score reflects what is actually enabled on this machine, not what Stratus did."
+                <TextBlock Text="Live system state - the score reflects what is actually enabled on this machine, not what Stratus did."
                            Style="{StaticResource PageSubtitle}"/>
             </StackPanel>
 

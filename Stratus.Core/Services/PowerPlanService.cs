@@ -4,7 +4,7 @@ namespace Stratus.Core.Services;
 
 public sealed record PowerPlan(Guid Guid, string Name, bool IsActive);
 
-/// <summary>Wraps powercfg.exe — works on localized Windows because parsing is GUID-based.</summary>
+/// <summary>Wraps powercfg.exe - works on localized Windows because parsing is GUID-based.</summary>
 public sealed class PowerPlanService
 {
     public const string BalancedGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
