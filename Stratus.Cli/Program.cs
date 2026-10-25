@@ -20,6 +20,7 @@ internal static class Program
         var history = new HistoryStore(AppPaths.HistoryFile);
         var registry = new RegistryService(backup);
         var startup = new StartupService(registry);
+        var scheduledTasks = new ScheduledTaskService(AppPaths.TasksFile);
         var power = new PowerPlanService();
         var engine = new TweakEngine(TweakCatalog.Build(registry, power, settings, backup), history);
 
@@ -28,7 +29,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|history|backups|apply <id>|revert <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|history|backups|apply <id>|revert <id>]");
             return 0;
         }
 
@@ -97,6 +98,23 @@ internal static class Program
                 }
                 Console.WriteLine();
                 Console.WriteLine($"{startupItems.Count(i => i.IsEnabled)} of {startupItems.Count} enabled. * = changed by Stratus");
+                return 0;
+
+            case "tasks":
+                var taskItems = scheduledTasks.Scan();
+                if (taskItems.Count == 0)
+                {
+                    Console.WriteLine("No known scheduled tasks found.");
+                    return 0;
+                }
+                foreach (var item in taskItems)
+                {
+                    var state = item.IsEnabled ? "[on ]" : "[off]";
+                    var changed = scheduledTasks.IsModified(item) ? " *" : "  ";
+                    Console.WriteLine($"{state}{changed} {item.Name,-48} {item.Group}");
+                }
+                Console.WriteLine();
+                Console.WriteLine($"{taskItems.Count(i => !i.IsEnabled)} of {taskItems.Count} disabled. * = changed by Stratus");
                 return 0;
 
             case "history":

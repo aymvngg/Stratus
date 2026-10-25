@@ -9,4 +9,5 @@ public static class AppPaths
     public static readonly string BackupFile = Path.Combine(ProgramData, "backups.json");
     public static readonly string SettingsFile = Path.Combine(ProgramData, "settings.json");
     public static readonly string HistoryFile = Path.Combine(ProgramData, "history.json");
+    public static readonly string TasksFile = Path.Combine(ProgramData, "tasks.json");
 }

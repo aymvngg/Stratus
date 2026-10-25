@@ -23,6 +23,7 @@ dotnet run --project Stratus.Cli -c Release -- score
 dotnet run --project Stratus.Cli -c Release -- info
 dotnet run --project Stratus.Cli -c Release -- presets
 dotnet run --project Stratus.Cli -c Release -- startup
+dotnet run --project Stratus.Cli -c Release -- tasks
 dotnet run --project Stratus.Cli -c Release -- history
 dotnet run --project Stratus.Cli -c Release -- backups
 dotnet run --project Stratus.Cli -c Release -- apply <tweak-id>
@@ -59,6 +60,10 @@ The Dashboard ships three curated one-click sets: **Gaming PC**, **Balanced** an
 ## Startup manager
 
 The Startup page lists everything that launches with Windows: the HKCU and HKLM `Run` keys (including the 32-bit view) and both Startup folders. Toggling uses the same mechanism as Task Manager: it writes the `StartupApproved` blob (02 = enabled, 03 = disabled plus a timestamp) and never touches the command itself. So the entry is not deleted, disabling is instantly reversible, and uninstalling the app later still leaves the original entry intact. "Reset changes" returns every entry Stratus touched to its exact previous state.
+
+## Scheduled tasks
+
+The Tasks page covers 16 well-known telemetry, inventory and feedback jobs (`Microsoft Compatibility Appraiser`, `Consolidator`, `UsbCeip`, `DmClient`, `QueueReporting`, `Device`, `WinSAT` and friends). It drives the Task Scheduler COM API directly, so it never parses localized `schtasks` output, and only tasks that exist on your machine are listed. Turning a task off disables it, it is never deleted, and the original state is stored in `tasks.json` so "Reset changes" restores it exactly.
 
 ## History and undo
 

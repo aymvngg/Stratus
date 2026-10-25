@@ -62,6 +62,11 @@
                         <FontIcon Glyph="&#xE7E8;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Tasks" Tag="tasks">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE823;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Content="Debloat" Tag="debloat">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE74D;"/>
