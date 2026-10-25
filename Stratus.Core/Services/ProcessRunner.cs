@@ -37,8 +37,12 @@ public static class ProcessRunner
         return new ProcessResult(process.ExitCode, stdout, stderr);
     }
 
-    public static ProcessResult PowerShell(string script, int timeoutMs = 60_000) =>
-        Run("powershell.exe",
-            "-NoProfile -ExecutionPolicy Bypass -Command \"" + script.Replace("\"", "\\\"") + "\"",
+    public static ProcessResult PowerShell(string script, int timeoutMs = 60_000)
+    {
+        // EncodedCommand is immune to shell quoting: the script arrives verbatim.
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+        return Run("powershell.exe",
+            "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + encoded,
             timeoutMs);
+    }
 }
