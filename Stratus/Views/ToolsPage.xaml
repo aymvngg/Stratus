@@ -1,0 +1,154 @@
+<Page
+    x:Class="Stratus.Views.ToolsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Stratus.ViewModels"
+    xmlns:svc="using:Stratus.Core.Services">
+
+    <ScrollViewer>
+        <StackPanel Margin="32,24,32,32" Spacing="14" MaxWidth="1120" HorizontalAlignment="Stretch">
+
+            <StackPanel Spacing="3">
+                <TextBlock Text="Tools" Style="{StaticResource PageHeader}"/>
+                <TextBlock Text="System actions that aren't registry tweaks — power plans, DNS, restore points and Stratus data."
+                           Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+
+            <InfoBar
+                IsOpen="{x:Bind VM.StatusOpen, Mode=TwoWay}"
+                Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
+                Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
+
+            <Grid ColumnSpacing="14" RowSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- ============ Power plan ============ -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE945;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Power plan" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="CPU/GPU scheduling policy" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Ultimate Performance removes CPU parking and display sleep timers. Balanced is the battery-friendly default."/>
+
+                        <ComboBox x:Name="PlanBox" DisplayMemberPath="Name" MinWidth="200"
+                                  HorizontalAlignment="Stretch"
+                                  ItemsSource="{x:Bind VM.Plans, Mode=OneWay}"
+                                  SelectedItem="{x:Bind VM.SelectedPlan, Mode=TwoWay}"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Activate" Click="OnApplyPlan" Style="{StaticResource AccentButtonStyle}"/>
+                            <Button Content="Refresh" Click="OnReload"/>
+                        </StackPanel>
+
+                        <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                            <Run Text="Active: "/><Run Text="{x:Bind VM.ActivePlanText, Mode=OneWay}" FontWeight="SemiBold"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ DNS ============ -->
+                <Border Style="{StaticResource Card}" Grid.Column="1">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE774;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="DNS resolver" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Latency and privacy" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Fast, privacy-respecting resolvers usually beat ISP defaults. Applied to every connected physical adapter."/>
+
+                        <ComboBox MinWidth="200" HorizontalAlignment="Stretch"
+                                  ItemsSource="{x:Bind VM.DnsProfiles, Mode=OneWay}"
+                                  SelectedItem="{x:Bind VM.SelectedDns, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="svc:DnsProfile">
+                                    <TextBlock Text="{x:Bind Label}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <Button Content="Apply DNS" Click="OnApplyDns" Style="{StaticResource AccentButtonStyle}"/>
+
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                            <Run Text="Adapters affected: "/><Run Text="{x:Bind VM.AdaptersText, Mode=OneWay}"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Maintenance ============ -->
+                <Border Style="{StaticResource Card}" Grid.Row="1">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE90F;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Maintenance" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Safety net and data" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Create a System Restore point before big changes. Backups of every registry value Stratus touched live in ProgramData."/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Create restore point" Click="OnRestorePoint"/>
+                            <Button Content="Open data folder" Click="OnOpenFolder"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ProgressRing IsActive="{x:Bind VM.IsBusy, Mode=OneWay}" Width="18" Height="18"
+                                          VerticalAlignment="Center"/>
+                            <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Reset ============ -->
+                <Border Style="{StaticResource Card}" Grid.Row="1" Grid.Column="1"
+                        BorderBrush="#66C42B1C">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}" Background="#33C42B1C">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE7BA;" Foreground="#FFF48B8B"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Reset" Style="{StaticResource CardTitle}" Foreground="#FFF48B8B"/>
+                                <TextBlock Text="Revert everything" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Reverts every tweak detected as applied — including changes made by hand or by other tools — using the exact values backed up at change time."/>
+
+                        <Button Content="Revert all tweaks" Click="OnRevertAll"
+                                Background="#66C42B1C" Foreground="#FFF48B8B"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

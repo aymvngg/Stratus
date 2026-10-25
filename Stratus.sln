@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stratus.Core", "Stratus.Core\Stratus.Core.csproj", "{F875F38F-FFE3-447E-8AC4-97B8D7738C68}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stratus.Cli", "Stratus.Cli\Stratus.Cli.csproj", "{E2895E6E-3D86-4AED-8D9C-ECC9AE2CFDB3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stratus", "Stratus\Stratus.csproj", "{84A7217A-B91E-4385-A302-634375E81AD7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F875F38F-FFE3-447E-8AC4-97B8D7738C68}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F875F38F-FFE3-447E-8AC4-97B8D7738C68}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F875F38F-FFE3-447E-8AC4-97B8D7738C68}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F875F38F-FFE3-447E-8AC4-97B8D7738C68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2895E6E-3D86-4AED-8D9C-ECC9AE2CFDB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2895E6E-3D86-4AED-8D9C-ECC9AE2CFDB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2895E6E-3D86-4AED-8D9C-ECC9AE2CFDB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2895E6E-3D86-4AED-8D9C-ECC9AE2CFDB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84A7217A-B91E-4385-A302-634375E81AD7}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{84A7217A-B91E-4385-A302-634375E81AD7}.Debug|Any CPU.Build.0 = Debug|x64
+		{84A7217A-B91E-4385-A302-634375E81AD7}.Release|Any CPU.ActiveCfg = Release|x64
+		{84A7217A-B91E-4385-A302-634375E81AD7}.Release|Any CPU.Build.0 = Release|x64
+	EndGlobalSection
+EndGlobal

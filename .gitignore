@@ -1,0 +1,28 @@
+## Build output
+bin/
+obj/
+x64/
+x86/
+ARM64/
+publish/
+artifacts/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.assets.json
+
+## OS junk
+Thumbs.db
+desktop.ini
+.DS_Store

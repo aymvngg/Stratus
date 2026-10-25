@@ -1,0 +1,182 @@
+<Page
+    x:Class="Stratus.Views.DashboardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Stratus.ViewModels">
+
+    <ScrollViewer>
+        <StackPanel Margin="32,24,32,32" Spacing="16" MaxWidth="1200" HorizontalAlignment="Stretch">
+
+            <StackPanel Spacing="3">
+                <TextBlock Text="Dashboard" Style="{StaticResource PageHeader}"/>
+                <TextBlock Text="Live system state — the score reflects what is actually enabled on this machine, not what Stratus did."
+                           Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+
+            <InfoBar
+                IsOpen="{x:Bind VM.StatusOpen, Mode=TwoWay}"
+                Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
+                Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
+
+            <!-- ================= Hero ================= -->
+            <Border Style="{StaticResource Card}" Padding="26,24">
+                <Grid ColumnSpacing="34">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Score ring: static track + dynamic arc drawn in code-behind -->
+                    <Grid Width="220" Height="220" VerticalAlignment="Center">
+                        <Ellipse Width="207" Height="207"
+                                 Stroke="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                 StrokeThickness="13"/>
+                        <Path x:Name="ScoreArc"
+                              Width="220" Height="220"
+                              Stretch="None"
+                              HorizontalAlignment="Left" VerticalAlignment="Top"
+                              StrokeThickness="13"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Stroke="{x:Bind VM.ScoreBrush, Mode=OneWay}"/>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="1">
+                            <StackPanel Orientation="Horizontal" Spacing="1" HorizontalAlignment="Center">
+                                <TextBlock Text="{x:Bind VM.Score, Mode=OneWay}" FontSize="54"
+                                           FontWeight="SemiBold" CharacterSpacing="-20"/>
+                                <TextBlock Text="/100" FontSize="13" VerticalAlignment="Bottom" Margin="0,0,0,11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <TextBlock Text="{x:Bind VM.StatusText, Mode=OneWay}" FontSize="13" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{x:Bind VM.ScoreBrush, Mode=OneWay}"/>
+                            <TextBlock Text="{x:Bind VM.AppliedText, Mode=OneWay}" FontSize="10"
+                                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- System summary -->
+                    <StackPanel Grid.Column="1" Spacing="14" VerticalAlignment="Center">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="System health" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource PageSubtitle}"
+                                       Text="Every value is re-read from Windows on each scan. No cached assumptions."/>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="28" RowSpacing="9">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Spacing="1">
+                                <TextBlock Text="CPU" Style="{StaticResource SummaryLabel}"/>
+                                <TextBlock Text="{x:Bind VM.Cpu, Mode=OneWay}" Style="{StaticResource SummaryValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="1">
+                                <TextBlock Text="GPU" Style="{StaticResource SummaryLabel}"/>
+                                <TextBlock Text="{x:Bind VM.Gpu, Mode=OneWay}" Style="{StaticResource SummaryValue}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Spacing="1">
+                                <TextBlock Text="Memory" Style="{StaticResource SummaryLabel}"/>
+                                <TextBlock Text="{x:Bind VM.Ram, Mode=OneWay}" Style="{StaticResource SummaryValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="1">
+                                <TextBlock Text="Power plan" Style="{StaticResource SummaryLabel}"/>
+                                <TextBlock Text="{x:Bind VM.PowerPlan, Mode=OneWay}" Style="{StaticResource SummaryValue}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="1">
+                                <TextBlock Text="Operating system" Style="{StaticResource SummaryLabel}"/>
+                                <TextBlock Text="{x:Bind VM.Os, Mode=OneWay}" Style="{StaticResource SummaryValue}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Spacing="1">
+                                <TextBlock Text="Running as" Style="{StaticResource SummaryLabel}"/>
+                                <TextBlock Text="{x:Bind VM.ElevatedText, Mode=OneWay}" Style="{StaticResource SummaryValue}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+                            <Button Content="Rescan" Click="OnRescan" Style="{StaticResource AccentButtonStyle}"/>
+                            <Button Content="Create restore point" Click="OnRestorePoint"/>
+                            <ProgressRing IsActive="{x:Bind VM.IsBusy, Mode=OneWay}" Width="20" Height="20"
+                                          VerticalAlignment="Center"/>
+                            <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center"
+                                       FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ================= Categories + recommended ================= -->
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Score by category" Style="{StaticResource CardTitle}"/>
+                        <TextBlock Text="Weighted by how much each tweak actually matters."
+                                   Style="{StaticResource PageSubtitle}" Margin="0,2,0,8"/>
+
+                        <ItemsControl ItemsSource="{x:Bind VM.Categories, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CategoryRow">
+                                    <Grid ColumnSpacing="14" Padding="0,7"
+                                          ToolTipService.ToolTip="{x:Bind Detail}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="96"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Bind Title}" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"/>
+                                        <ProgressBar Grid.Column="1" Value="{x:Bind Score}" Maximum="100"
+                                                     Height="6" CornerRadius="3" VerticalAlignment="Center"
+                                                     Foreground="{x:Bind Brush}"/>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Score}" FontSize="13" FontWeight="SemiBold"
+                                                       MinWidth="24" TextAlignment="Right"/>
+                                            <TextBlock Text="{x:Bind Detail}" FontSize="10" VerticalAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Grid.Column="1">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Recommended" Style="{StaticResource CardTitle}"/>
+                        <TextBlock Text="{x:Bind VM.PendingText, Mode=OneWay}"
+                                   Style="{StaticResource PageSubtitle}" Margin="0,0,0,6"/>
+
+                        <TextBlock Text="{x:Bind VM.PendingRecommended, Mode=OneWay}" FontSize="44"
+                                   FontWeight="SemiBold" CharacterSpacing="-20"/>
+
+                        <TextBlock Text="Safe and Recommended tweaks only. Advanced ones stay opt-in on the Tweaks page."
+                                   Style="{StaticResource PageSubtitle}"/>
+
+                        <Button Content="Apply recommended" Click="OnApplyRecommended" Margin="0,8,0,0"
+                                HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
