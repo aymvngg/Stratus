@@ -64,6 +64,23 @@ internal static class Program
                 Console.WriteLine($"Plan: {plan?.Name ?? "unknown"}");
                 return 0;
 
+            case "dns-bench":
+                Console.WriteLine("Measuring resolver latency (3 queries each)...");
+                foreach (var bench in DnsBenchmarkService.Run())
+                    Console.WriteLine($"  {bench.Label,-24} {bench.Server,-16} {bench.LatencyText}");
+                return 0;
+
+            case "report":
+                var reportPath = ReportService.Create(engine.Rescore(), new SystemSummary(
+                    SystemInfoService.GetCpu(),
+                    SystemInfoService.GetGpu(),
+                    SystemInfoService.GetRam(),
+                    SystemInfoService.GetOsDisplayName(),
+                    SystemInfoService.GetOsBuild(),
+                    SystemInfoService.IsElevated()));
+                Console.WriteLine($"Report: {reportPath}");
+                return 0;
+
             case "presets":
                 foreach (var preset in PresetCatalog.All)
                 {

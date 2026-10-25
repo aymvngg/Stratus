@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.3.0
+
+Advanced tools: the repair and diagnostic actions that used to need a dozen terminal commands, in one place.
+
+### Tools
+- **Health scan**: run SFC, DISM component store scan and DISM repair from the app, with a plain-language result line and the raw output one click away. Marker matching covers English and French Windows output
+- **Windows Update reset**: stops the update services, moves `SoftwareDistribution` and `catroot2` aside with a timestamp, restarts the services. Nothing is deleted
+- **Network reset**: winsock reset, TCP/IP reset, DNS cache flush and DNS re-registration, with an explicit restart note
+- **DNS benchmark**: sends live UDP queries straight to Cloudflare, Google and Quad9, three each, and ranks them by average round trip. No PowerShell, no system cache
+- **System report**: writes a markdown snapshot (score, hardware, per-category breakdown, applied and pending tweaks) to `ProgramData\Stratus\reports`
+
+### CLI
+- `stratus dns-bench` prints the resolver ranking
+- `stratus report` writes the same markdown report headlessly
+
 ## v1.2.0
 
 A full interface revamp: the same engine and the same revertible changes, in a shell that finally looks the part.

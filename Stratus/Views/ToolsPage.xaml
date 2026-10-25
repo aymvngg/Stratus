@@ -114,6 +114,7 @@
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Create restore point" Click="OnRestorePoint"/>
+                            <Button Content="System report" Click="OnCreateReport"/>
                             <Button Content="Open data folder" Click="OnOpenFolder"/>
                             <Button Content="Open logs" Click="OnOpenLogs"/>
                             <Button Content="Component store cleanup" Click="OnComponentCleanup"/>
@@ -147,6 +148,154 @@
 
                         <Button Content="Revert all tweaks" Click="OnRevertAll"
                                 Background="#66C42B1C" Foreground="#FFF48B8B"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ============ Health scan ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Style="{StaticResource IconBadge}">
+                            <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE9D9;"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="Health scan" Style="{StaticResource CardTitle}"/>
+                            <TextBlock Text="The same tools Windows uses" Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource PageSubtitle}"
+                               Text="SFC checks protected system files. DISM checks and repairs the component store that SFC restores from. Long jobs, keep the machine plugged in."/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Scan system files (SFC)" Click="OnSfc" Style="{StaticResource AccentButtonStyle}"/>
+                        <Button Content="Scan component store" Click="OnDismScan"/>
+                        <Button Content="Repair component store" Click="OnDismRestore"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ProgressRing IsActive="{x:Bind VM.IsBusy, Mode=OneWay}" Width="18" Height="18"
+                                      VerticalAlignment="Center"/>
+                        <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center" FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <Border Padding="14,12" CornerRadius="6"
+                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                            Visibility="{x:Bind vm:Conv.Vis(VM.HasScan), Mode=OneWay}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{x:Bind VM.ScanTitle, Mode=OneWay}" FontSize="12" FontWeight="SemiBold"/>
+                            <TextBlock Text="{x:Bind VM.ScanSummary, Mode=OneWay}" FontSize="12" TextWrapping="Wrap"/>
+                            <Expander Header="Show raw output" HorizontalAlignment="Stretch"
+                                      HorizontalContentAlignment="Stretch">
+                                <TextBox Text="{x:Bind VM.ScanDetail, Mode=OneWay}" IsReadOnly="True"
+                                         AcceptsReturn="True" TextWrapping="NoWrap"
+                                         FontFamily="Consolas" FontSize="11" Height="220"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                            </Expander>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ Resets + DNS benchmark ============ -->
+            <Grid ColumnSpacing="14" RowSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource Card}" BorderBrush="#66FFB900">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}" Background="#33FFB900">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE896;" Foreground="#FFE9A825"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Windows Update reset" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Stuck updates, endless retries" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Stops the update services, moves the download cache and the cryptography catalogue aside, then restarts them. Windows rebuilds both on the next check. Nothing is deleted: the old folders are kept with a timestamp."/>
+
+                        <Button Content="Reset update cache" Click="OnResetWindowsUpdate"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Grid.Column="1" BorderBrush="#66FFB900">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}" Background="#33FFB900">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE968;" Foreground="#FFE9A825"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Network reset" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Broken stack after VPN or proxy" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Resets winsock, the TCP/IP stack and the DNS cache, then re-registers DNS. Use it when connections fail while other devices on the network work. Restart afterwards."/>
+
+                        <Button Content="Reset network stack" Click="OnResetNetwork"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Grid.Row="1" Grid.ColumnSpan="2">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE774;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="DNS benchmark" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Real latency, measured here" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}"
+                                   Text="Sends live DNS queries straight to each public resolver, three times each, and averages the round trip. Bypasses the Windows cache, so the numbers are what a new lookup would cost."/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Benchmark resolvers" Click="OnBenchmarkDns"/>
+                            <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <ListView ItemsSource="{x:Bind VM.DnsResults, Mode=OneWay}" SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource FlatItem}"
+                                  Visibility="{x:Bind vm:Conv.Vis(VM.HasDnsResults), Mode=OneWay}"
+                                  ScrollViewer.HorizontalScrollMode="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="svc:DnsBenchmarkResult">
+                                    <Grid ColumnSpacing="12" Padding="2,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="70"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Label}" FontSize="12.5" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Bind Server}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind LatencyText}" FontSize="12.5"
+                                                   FontWeight="SemiBold" TextAlignment="Right"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </StackPanel>
                 </Border>
             </Grid>

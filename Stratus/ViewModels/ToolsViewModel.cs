@@ -43,6 +43,20 @@ public sealed class ToolsViewModel : ObservableObject
     public string ActivePlanText { get => _activePlanText; private set => Set(ref _activePlanText, value); }
     public string AdaptersText => Adapters.Count == 0 ? "no connected physical adapters found" : string.Join(", ", Adapters);
 
+    // ---- R3: health scans, resets, DNS benchmark, report ----
+    public ObservableCollection<DnsBenchmarkResult> DnsResults { get; } = new();
+
+    private string _scanTitle = "";
+    private string _scanSummary = "";
+    private string _scanDetail = "";
+    private bool _hasScan;
+
+    public string ScanTitle { get => _scanTitle; private set => Set(ref _scanTitle, value); }
+    public string ScanSummary { get => _scanSummary; private set => Set(ref _scanSummary, value); }
+    public string ScanDetail { get => _scanDetail; private set => Set(ref _scanDetail, value); }
+    public bool HasScan { get => _hasScan; private set => Set(ref _hasScan, value); }
+    public bool HasDnsResults => DnsResults.Count > 0;
+
     public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
 
@@ -203,6 +217,134 @@ public sealed class ToolsViewModel : ObservableObject
             return failed.Count == 0
                 ? $"Reverted {Format.Count(reverted, "tweak")} to default settings."
                 : $"Reverted {reverted}, {failed.Count} failed - {string.Join("; ", failed.Take(3))}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    // ================= R3: health scans =================
+
+    public Task<string> RunSfcAsync() => RunScanAsync(HealthScanService.RunSfc, "Scanning system files with SFC (can take 10-30 minutes)…");
+
+    public Task<string> RunDismScanAsync() => RunScanAsync(HealthScanService.RunDismScan, "Scanning the component store with DISM (can take 10-30 minutes)…");
+
+    public Task<string> RunDismRestoreAsync() => RunScanAsync(HealthScanService.RunDismRestore, "Repairing the component store with DISM (can take 30-60 minutes)…");
+
+    private async Task<string> RunScanAsync(Func<HealthScanResult> scan, string busyText)
+    {
+        IsBusy = true;
+        BusyText = busyText;
+        try
+        {
+            var result = await Task.Run(scan);
+            ScanTitle = result.Title;
+            ScanSummary = result.Summary;
+            var detail = result.Detail;
+            if (detail.Length > 12_000)
+                detail = detail[..12_000] + Environment.NewLine + "… output truncated, full text is in the Stratus log.";
+            ScanDetail = detail;
+            HasScan = true;
+
+            var minutes = result.Duration.TotalMinutes >= 1
+                ? $"{result.Duration.TotalMinutes:F0} min"
+                : $"{result.Duration.TotalSeconds:F0} s";
+            return $"{result.Title}: {result.Summary} ({minutes})";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    // ================= R3: resets =================
+
+    public async Task<string> ResetWindowsUpdateAsync()
+    {
+        IsBusy = true;
+        BusyText = "Resetting the Windows Update cache…";
+        try
+        {
+            var (ok, message) = await Task.Run(UpdateResetService.Reset);
+            return ok ? message : message;
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    public async Task<string> ResetNetworkAsync()
+    {
+        IsBusy = true;
+        BusyText = "Resetting the network stack…";
+        try
+        {
+            var (ok, message) = await Task.Run(NetworkResetService.Reset);
+            return message;
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    // ================= R3: DNS benchmark =================
+
+    public async Task<string> BenchmarkDnsAsync()
+    {
+        IsBusy = true;
+        BusyText = "Measuring resolver latency…";
+        try
+        {
+            var results = await Task.Run(() => DnsBenchmarkService.Run());
+            DnsResults.Clear();
+            foreach (var result in results)
+                DnsResults.Add(result);
+            Raise(nameof(HasDnsResults));
+
+            if (DnsResults.Count == 0)
+                return "No resolvers to test.";
+
+            var fastest = DnsResults.FirstOrDefault(r => r.Ok);
+            return fastest is null
+                ? "Every resolver timed out. Check the network connection."
+                : $"Fastest resolver: {fastest.Label} at {fastest.LatencyText}.";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    // ================= R3: system report =================
+
+    public async Task<string> CreateReportAsync()
+    {
+        IsBusy = true;
+        BusyText = "Writing the system report…";
+        try
+        {
+            var path = await Task.Run(() =>
+            {
+                var report = AppServices.Engine.Rescore();
+                var summary = new SystemSummary(
+                    SystemInfoService.GetCpu(),
+                    SystemInfoService.GetGpu(),
+                    SystemInfoService.GetRam(),
+                    SystemInfoService.GetOsDisplayName(),
+                    SystemInfoService.GetOsBuild(),
+                    SystemInfoService.IsElevated());
+                return ReportService.Create(report, summary);
+            });
+
+            return $"System report saved to {path}.";
         }
         finally
         {
