@@ -154,7 +154,7 @@ public sealed class BackupGroupRow : ObservableObject
         }
     }
 
-    public bool CanRestore => !_isBusy && Tweak is not null;
+    public bool CanRestore => !_isBusy;
 }
 
 public sealed class HistoryViewModel : ObservableObject
@@ -266,13 +266,28 @@ public sealed class HistoryViewModel : ObservableObject
 
     public async Task RestoreGroupAsync(BackupGroupRow group)
     {
-        if (group.Tweak is null || group.IsBusy)
+        if (group.IsBusy)
             return;
 
         group.IsBusy = true;
         BusyText = "Restoring " + group.TweakName + "...";
 
-        var result = await AppServices.Engine.RevertAsync(group.Tweak);
+        // Tweaks revert through the engine (so the revert is recorded in history).
+        // Anything else, such as a startup entry, is restored straight from its backup.
+        var result = group.Tweak is { } tweak
+            ? await AppServices.Engine.RevertAsync(tweak)
+            : await Task.Run(() =>
+            {
+                try
+                {
+                    AppServices.Registry.RestoreAll(group.TweakId);
+                    return TweakResult.Ok;
+                }
+                catch (Exception ex)
+                {
+                    return TweakResult.Fail(ex.Message);
+                }
+            });
 
         group.IsBusy = false;
         SetStatus(

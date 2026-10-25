@@ -58,6 +58,7 @@ public sealed partial class MainWindow : Window
         {
             "dashboard" => typeof(DashboardPage),
             "tweaks" => typeof(TweaksPage),
+            "startup" => typeof(StartupPage),
             "debloat" => typeof(DebloatPage),
             "cleanup" => typeof(CleanupPage),
             "history" => typeof(HistoryPage),

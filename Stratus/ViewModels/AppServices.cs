@@ -19,6 +19,7 @@ public static class AppServices
     public static readonly CleanupService Cleanup = new();
     public static readonly DebloatService Debloat = new();
     public static readonly DnsService Dns = new();
+    public static readonly StartupService Startup = new(Registry);
 
     /// <summary>Set on the UI thread at launch; lets background events marshal back.</summary>
     public static DispatcherQueue? Dispatcher { get; set; }

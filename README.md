@@ -22,6 +22,7 @@ dotnet run --project Stratus.Cli -c Release -- list
 dotnet run --project Stratus.Cli -c Release -- score
 dotnet run --project Stratus.Cli -c Release -- info
 dotnet run --project Stratus.Cli -c Release -- presets
+dotnet run --project Stratus.Cli -c Release -- startup
 dotnet run --project Stratus.Cli -c Release -- history
 dotnet run --project Stratus.Cli -c Release -- backups
 dotnet run --project Stratus.Cli -c Release -- apply <tweak-id>
@@ -54,6 +55,10 @@ Full reference with every registry key, default and reasoning: [docs/tweaks.md](
 ## Presets
 
 The Dashboard ships three curated one-click sets: **Gaming PC**, **Balanced** and **Max Privacy**. Presets only ever apply Safe and Recommended tweaks; Advanced ones stay opt-in on the Tweaks page. Each preset card shows live progress read from the system, not from what the app changed.
+
+## Startup manager
+
+The Startup page lists everything that launches with Windows: the HKCU and HKLM `Run` keys (including the 32-bit view) and both Startup folders. Toggling uses the same mechanism as Task Manager: it writes the `StartupApproved` blob (02 = enabled, 03 = disabled plus a timestamp) and never touches the command itself. So the entry is not deleted, disabling is instantly reversible, and uninstalling the app later still leaves the original entry intact. "Reset changes" returns every entry Stratus touched to its exact previous state.
 
 ## History and undo
 

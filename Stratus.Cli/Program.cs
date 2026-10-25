@@ -19,6 +19,7 @@ internal static class Program
         var settings = new SettingsStore(AppPaths.SettingsFile);
         var history = new HistoryStore(AppPaths.HistoryFile);
         var registry = new RegistryService(backup);
+        var startup = new StartupService(registry);
         var power = new PowerPlanService();
         var engine = new TweakEngine(TweakCatalog.Build(registry, power, settings, backup), history);
 
@@ -27,7 +28,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|history|backups|apply <id>|revert <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|history|backups|apply <id>|revert <id>]");
             return 0;
         }
 
@@ -75,6 +76,27 @@ internal static class Program
                     Console.WriteLine($"{preset.Name,-12} {applied}/{total} applied{(applied == total && total > 0 ? "  (complete)" : "")}");
                     Console.WriteLine($"  {preset.Description}");
                 }
+                return 0;
+
+            case "startup":
+                var startupItems = startup.Scan();
+                if (startupItems.Count == 0)
+                {
+                    Console.WriteLine("No startup entries found.");
+                    return 0;
+                }
+                foreach (var item in startupItems)
+                {
+                    var state = item.IsEnabled ? "[on ]" : "[off]";
+                    var changed = startup.IsModified(item) ? " *" : "  ";
+                    Console.WriteLine($"{state}{changed} {item.Name,-32} {item.Scope,-13} {item.Source}");
+                    var command = item.Command;
+                    if (command.Length > 100)
+                        command = command[..97] + "...";
+                    Console.WriteLine($"          {command}");
+                }
+                Console.WriteLine();
+                Console.WriteLine($"{startupItems.Count(i => i.IsEnabled)} of {startupItems.Count} enabled. * = changed by Stratus");
                 return 0;
 
             case "history":

@@ -1,0 +1,90 @@
+<Page
+    x:Class="Stratus.Views.StartupPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Stratus.ViewModels">
+
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="32,24,32,32" Spacing="14">
+
+            <StackPanel Spacing="3">
+                <TextBlock Text="Startup" Style="{StaticResource PageHeader}"/>
+                <TextBlock Text="What launches with Windows. Toggling uses the same mechanism as Task Manager: the command stays in the registry, only its enabled state changes."
+                           Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+
+            <InfoBar
+                IsOpen="{x:Bind VM.StatusOpen, Mode=TwoWay}"
+                Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
+                Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE7E8;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Startup apps" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="{x:Bind VM.CountText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Reset changes" Click="OnResetAll"/>
+                            <Button Content="Refresh" Click="OnRefresh"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Nothing launches with Windows on this machine."
+                               Style="{StaticResource PageSubtitle}"
+                               Visibility="{x:Bind vm:Conv.Vis(VM.Empty), Mode=OneWay}"/>
+
+                    <ItemsControl ItemsSource="{x:Bind VM.Rows, Mode=OneWay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StartupRow">
+                                <Border Style="{StaticResource RowCard}">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"/>
+                                                <Border Style="{StaticResource Chip}">
+                                                    <TextBlock Text="{x:Bind ScopeText}" Style="{StaticResource ChipText}"/>
+                                                </Border>
+                                                <Border Style="{StaticResource Chip}">
+                                                    <TextBlock Text="{x:Bind SourceText}" Style="{StaticResource ChipText}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{x:Bind Command}"
+                                                       FontSize="11"
+                                                       MaxLines="1"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+
+                                        <ToggleSwitch Grid.Column="1"
+                                                      VerticalAlignment="Center"
+                                                      IsOn="{x:Bind IsEnabled, Mode=OneWay}"
+                                                      IsEnabled="{x:Bind ToggleEnabled, Mode=OneWay}"
+                                                      Toggled="OnToggle"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
