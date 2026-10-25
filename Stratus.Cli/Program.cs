@@ -26,7 +26,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|apply <id>|revert <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|apply <id>|revert <id>]");
             return 0;
         }
 
@@ -55,6 +55,25 @@ internal static class Program
                 Console.WriteLine($"OS:   {SystemInfoService.GetOsDisplayName()} ({SystemInfoService.GetOsBuild()})");
                 var plan = power.GetActivePlan();
                 Console.WriteLine($"Plan: {plan?.Name ?? "unknown"}");
+                return 0;
+
+            case "presets":
+                foreach (var preset in PresetCatalog.All)
+                {
+                    var total = 0;
+                    var applied = 0;
+                    foreach (var id in preset.TweakIds)
+                    {
+                        var t = engine.Find(id);
+                        if (t is null || !SafeIsApplicable(t))
+                            continue;
+                        total++;
+                        if (SafeIsApplied(t))
+                            applied++;
+                    }
+                    Console.WriteLine($"{preset.Name,-12} {applied}/{total} applied{(applied == total && total > 0 ? "  (complete)" : "")}");
+                    Console.WriteLine($"  {preset.Description}");
+                }
                 return 0;
 
             case "apply":

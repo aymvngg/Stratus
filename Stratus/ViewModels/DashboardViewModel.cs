@@ -3,10 +3,22 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
+using Stratus.Core.Tweaks;
 
 namespace Stratus.ViewModels;
 
 public sealed record CategoryRow(string Title, string Detail, int Score, Brush Brush);
+
+/// <summary>One preset card on the Dashboard. Recomputed on every refresh, detection-driven like everything else.</summary>
+public sealed record PresetRow(Preset Preset, string Name, string Description, string Glyph, int Applied, int Total)
+{
+    public bool Complete => Total > 0 && Applied == Total;
+    public bool CanApply => Total > 0 && !Complete;
+    public string ProgressText => Total == 0 ? "Nothing applicable on this machine"
+        : Complete ? "Fully applied"
+        : $"{Applied} of {Total} applied";
+    public int Percent => Total == 0 ? 0 : (int)Math.Round(Applied * 100.0 / Total);
+}
 
 public sealed class DashboardViewModel : ObservableObject
 {
@@ -54,6 +66,7 @@ public sealed class DashboardViewModel : ObservableObject
         : $"{_pending} recommended tweak{(_pending == 1 ? "" : "s")} pending";
 
     public ObservableCollection<CategoryRow> Categories { get; } = new();
+    public ObservableCollection<PresetRow> Presets { get; } = new();
 
     public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
@@ -82,9 +95,10 @@ public sealed class DashboardViewModel : ObservableObject
 
     public async Task RefreshScoreAsync()
     {
-        var (report, pending) = await Task.Run(() => (AppServices.Engine.Rescore(), PendingRecommendedCount()));
+        var (report, pending, presets) = await Task.Run(() => (AppServices.Engine.Rescore(), PendingRecommendedCount(), BuildPresetRows()));
         _pending = pending;
         ApplyReport(report);
+        SyncPresets(presets);
         Raise(nameof(PendingRecommended), nameof(PendingText));
     }
 
@@ -104,11 +118,13 @@ public sealed class DashboardViewModel : ObservableObject
                 SystemInfoService.IsElevated()));
             var planTask = Task.Run(() => AppServices.Power.GetActivePlan());
             var pendingTask = Task.Run(PendingRecommendedCount);
+            var presetTask = Task.Run(BuildPresetRows);
 
             ApplyReport(await reportTask);
             _pending = await pendingTask;
             _summary = await summaryTask;
             _powerPlan = (await planTask)?.Name ?? "Unknown";
+            SyncPresets(await presetTask);
             Raise(nameof(Cpu), nameof(Gpu), nameof(Ram), nameof(Os), nameof(ElevatedText), nameof(PowerPlan),
                   nameof(PendingRecommended), nameof(PendingText));
         }
@@ -174,6 +190,87 @@ public sealed class DashboardViewModel : ObservableObject
             return failed.Count == 0
                 ? $"Applied {Format.Count(applied, "tweak")}. Score: {Score}/100."
                 : $"Applied {Format.Count(applied, "tweak")}, {failed.Count} failed - {string.Join("; ", failed.Take(3).Select(f => $"{f.Key}: {f.Value.Error}"))}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    private void SyncPresets(List<PresetRow> rows)
+    {
+        Presets.Clear();
+        foreach (var row in rows)
+            Presets.Add(row);
+    }
+
+    /// <summary>Per-preset progress read from live system state (unknown and n/a tweaks excluded).</summary>
+    private List<PresetRow> BuildPresetRows()
+    {
+        var rows = new List<PresetRow>();
+        foreach (var preset in PresetCatalog.All)
+        {
+            var total = 0;
+            var applied = 0;
+            foreach (var id in preset.TweakIds)
+            {
+                var t = AppServices.Engine.Find(id);
+                if (t is null || !t.IsApplicable)
+                    continue;
+                total++;
+                bool a;
+                try { a = t.IsApplied; } catch { a = false; }
+                if (a)
+                    applied++;
+            }
+            rows.Add(new PresetRow(preset, preset.Name, preset.Description, preset.Glyph, applied, total));
+        }
+        return rows;
+    }
+
+    /// <summary>How many tweaks "Apply" on this preset card would actually change.</summary>
+    public int PresetPendingCount(Preset preset)
+    {
+        var count = 0;
+        foreach (var id in preset.TweakIds)
+        {
+            var t = AppServices.Engine.Find(id);
+            if (t is null || !t.IsApplicable)
+                continue;
+            try
+            {
+                if (!t.IsApplied)
+                    count++;
+            }
+            catch { /* unreadable state - skip */ }
+        }
+        return count;
+    }
+
+    public async Task<string> ApplyPresetAsync(Preset preset, bool createRestorePoint)
+    {
+        IsBusy = true;
+        try
+        {
+            if (createRestorePoint)
+            {
+                BusyText = "Creating restore point (can take a minute)…";
+                var (ok, message) = await Task.Run(() => RestorePointService.Create());
+                if (!ok)
+                    return $"Restore point failed: {message} - nothing was changed.";
+            }
+
+            BusyText = $"Applying '{preset.Name}'…";
+            var results = await AppServices.Engine.ApplyIdsAsync(preset.TweakIds);
+            var failed = results.Where(kv => !kv.Value.Success).ToList();
+            var applied = results.Count - failed.Count;
+
+            await RefreshScoreAsync();
+
+            return failed.Count == 0
+                ? $"{preset.Name}: applied {Format.Count(applied, "tweak")}. Score: {Score}/100."
+                : $"{preset.Name}: applied {Format.Count(applied, "tweak")}, {failed.Count} failed - {string.Join("; ", failed.Take(3).Select(f => $"{f.Key}: {f.Value.Error}"))}";
         }
         finally
         {

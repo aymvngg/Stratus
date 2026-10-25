@@ -119,6 +119,9 @@
                                                         <TextBlock Text="{x:Bind Description}" FontSize="11.5"
                                                                    TextWrapping="Wrap" LineHeight="16"
                                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                        <HyperlinkButton Content="Learn more" NavigateUri="{x:Bind DocsUrl}"
+                                                                         FontSize="11" Padding="0,0,0,4" Margin="0,-4,0,0"
+                                                                         HorizontalAlignment="Left"/>
                                                     </StackPanel>
 
                                                     <Grid Grid.Column="2" Width="46" VerticalAlignment="Center">

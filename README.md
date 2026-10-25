@@ -37,14 +37,20 @@ dotnet build Stratus.sln -c Release
 
 | Category | Count | Examples |
 |---|---|---|
-| Gaming | 6 | Game DVR off, Game Mode on, HAGS, FSO off, foreground priority, mouse accel off |
+| Gaming | 7 | Game DVR off, Game Mode on, HAGS, FSO off, foreground priority, mouse accel off |
 | Visuals | 6 | transparency off, performance visual effects, instant menus, Aero Shake off, Widgets hidden |
 | Network | 5 | Nagle off, throttling off, Games task priority, DO P2P off, SystemResponsiveness |
-| Services | 11 | DiagTrack, SysMain, Spooler, Remote Registry, WER, TrkWks, PhoneSvc… |
-| Privacy | 14 | telemetry, ad ID, activity, suggestions, Copilot, Recall, web search, consumer features… |
+| Services | 12 | DiagTrack, SysMain, Spooler, Remote Registry, WER, TrkWks, PhoneSvc... |
+| Privacy | 14 | telemetry, ad ID, activity, suggestions, Copilot, Recall, web search, consumer features... |
 | Power | 4 | Ultimate Performance, hibernation off, Fast Startup off, EcoQoS throttling off |
 
 Each tweak has a risk level (Safe / Recommended / Advanced), a weight used by the score, and a live `IsApplied` check. Tweaks that don't apply to your hardware (e.g. HAGS without an exposed `HwSchMode`) are excluded from the score denominator entirely.
+
+Full reference with every registry key, default and reasoning: [docs/tweaks.md](docs/tweaks.md) (the "Learn more" link on each tweak row opens the matching section).
+
+## Presets
+
+The Dashboard ships three curated one-click sets: **Gaming PC**, **Balanced** and **Max Privacy**. Presets only ever apply Safe and Recommended tweaks; Advanced ones stay opt-in on the Tweaks page. Each preset card shows live progress read from the system, not from what the app changed.
 
 ## Where things live
 

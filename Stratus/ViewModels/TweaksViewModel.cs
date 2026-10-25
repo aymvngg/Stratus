@@ -16,6 +16,9 @@ public sealed class TweakItemViewModel : ObservableObject
     public string RiskText => T.Risk.ToString();
     public bool RequiresReboot => T.RequiresReboot;
 
+    /// <summary>Reference page for this tweak (registry keys, defaults, reasoning) in the Stratus repo.</summary>
+    public string DocsUrl => $"https://github.com/aymvngg/Stratus/blob/main/docs/tweaks.md#{T.Id}";
+
     public Brush RiskForeground { get; }
     public Brush RiskBackground { get; }
 

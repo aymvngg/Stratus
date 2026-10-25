@@ -177,6 +177,49 @@
                 </Border>
             </Grid>
 
+            <!-- ================= Presets ================= -->
+            <StackPanel Spacing="3" Margin="0,10,0,0">
+                <TextBlock Text="Presets" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="Curated one-click sets. Only Safe and Recommended tweaks - Advanced ones always stay manual on the Tweaks page."
+                           Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{x:Bind VM.Presets, Mode=OneWay}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PresetRow">
+                        <Border Style="{StaticResource Card}" Width="356" Padding="18,16">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Style="{StaticResource IconBadge}">
+                                        <FontIcon Glyph="{x:Bind Glyph}" Style="{StaticResource BadgeGlyph}"/>
+                                    </Border>
+                                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource CardTitle}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <TextBlock Text="{x:Bind Description}" FontSize="11" TextWrapping="Wrap" MinHeight="42"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                                <ProgressBar Value="{x:Bind Percent}" Maximum="100" Height="5" CornerRadius="2.5"/>
+
+                                <TextBlock Text="{x:Bind ProgressText}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                                <Button Content="Apply preset" Click="OnApplyPreset" Tag="{x:Bind Preset}"
+                                        IsEnabled="{x:Bind CanApply}"
+                                        HorizontalAlignment="Stretch" Margin="0,4,0,0"
+                                        Style="{StaticResource AccentButtonStyle}"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
         </StackPanel>
     </ScrollViewer>
 </Page>

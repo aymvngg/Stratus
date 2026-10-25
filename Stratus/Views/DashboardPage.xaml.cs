@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Stratus.Core.Models;
 using Stratus.ViewModels;
 using Windows.Foundation;
 
@@ -131,6 +132,58 @@ public sealed partial class DashboardPage : Page
             return;
 
         var message = await VM.ApplyRecommendedAsync(restorePointCheck.IsChecked == true);
+        VM.ShowStatus(message, message.Contains("failed")
+            ? InfoBarSeverity.Warning
+            : InfoBarSeverity.Success);
+    }
+
+    private async void OnApplyPreset(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Preset preset })
+            await ApplyPresetFlowAsync(preset);
+    }
+
+    private async Task ApplyPresetFlowAsync(Preset preset)
+    {
+        var pending = VM.PresetPendingCount(preset);
+        if (pending == 0)
+        {
+            VM.ShowStatus($"The {preset.Name} preset is already fully applied.", InfoBarSeverity.Success);
+            return;
+        }
+
+        var restorePointCheck = new CheckBox
+        {
+            Content = "Create a restore point first (recommended)",
+            IsChecked = true,
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = $"Apply the {preset.Name} preset?",
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"Applies the {pending} remaining tweak{(pending == 1 ? "" : "s")} from the '{preset.Name}' set. Only Safe and Recommended tweaks are included, and each one can be reverted individually from the Tweaks page.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    restorePointCheck,
+                },
+            },
+            PrimaryButtonText = "Apply",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var message = await VM.ApplyPresetAsync(preset, restorePointCheck.IsChecked == true);
         VM.ShowStatus(message, message.Contains("failed")
             ? InfoBarSeverity.Warning
             : InfoBarSeverity.Success);

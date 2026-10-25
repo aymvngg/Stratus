@@ -50,4 +50,24 @@ public sealed class TweakEngine
         }
         return results;
     }
+
+    /// <summary>Applies the given tweaks by id (skips unknown, not-applicable and already-applied). Returns per-tweak results for those attempted.</summary>
+    public async Task<Dictionary<string, TweakResult>> ApplyIdsAsync(IEnumerable<string> ids)
+    {
+        var results = new Dictionary<string, TweakResult>();
+        foreach (var id in ids)
+        {
+            var tweak = Find(id);
+            if (tweak is null || !tweak.IsApplicable)
+                continue;
+
+            bool applied;
+            try { applied = tweak.IsApplied; } catch { applied = false; }
+            if (applied)
+                continue;
+
+            results[id] = await ApplyAsync(tweak);
+        }
+        return results;
+    }
 }
