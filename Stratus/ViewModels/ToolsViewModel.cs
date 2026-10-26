@@ -359,7 +359,7 @@ public sealed class ToolsViewModel : ObservableObject
     public const string LastCheckKey = "update.lastCheck";
 
     private bool _autoCheck = true;
-    private UpdateInfo? _updateInfo;
+    private UpdateCheck? _updateInfo;
     private bool _hasUpdate;
     private bool _isDownloading;
     private double _updateProgress;
@@ -369,7 +369,9 @@ public sealed class ToolsViewModel : ObservableObject
 
     /// <summary>Version of the running build, or "development build" when the CI tag was not stamped.</summary>
     public string CurrentVersionText =>
-        UpdateService.IsDevBuild ? "development build" : $"v{UpdateService.CurrentVersion}";
+        UpdateService.CurrentVersion == "0.0.0" ? "development build"
+        : !UpdateService.IsVelopackInstalled ? $"v{UpdateService.CurrentVersion} (portable)"
+        : $"v{UpdateService.CurrentVersion}";
 
     public bool AutoCheck
     {
@@ -403,12 +405,26 @@ public sealed class ToolsViewModel : ObservableObject
 
     public bool CanCheckForUpdates => !IsBusy && !IsDownloading && !IsUpdateReady;
 
-    /// <summary>Restores the persisted auto-check preference.</summary>
+    /// <summary>Restores the persisted auto-check preference and any downloaded-but-unapplied update.</summary>
     public void LoadUpdateState()
     {
         AutoCheck = AppServices.Settings.Get(AutoCheckKey) is not { } value || value != "false";
+
         if (UpdateService.IsDevBuild)
-            UpdateStatusText = "Development build: automatic checks are off, use the button to test the updater.";
+        {
+            UpdateStatusText = UpdateService.SelfUpdateBlockReason;
+            return;
+        }
+
+        // Surface an update that was downloaded earlier but never applied (app was closed instead of restarting).
+        if (UpdateService.PendingRestart is { } pending)
+        {
+            var version = pending.Version.ToString();
+            _updateInfo = new UpdateCheck($"v{version}", version, "");
+            HasUpdate = true;
+            IsUpdateReady = true;
+            UpdateStatusText = $"Stratus v{version} is downloaded. Restart to finish the update.";
+        }
     }
 
     /// <summary>Silent startup check, throttled to once a day, followed by a background download.</summary>
@@ -431,7 +447,7 @@ public sealed class ToolsViewModel : ObservableObject
         _updateInfo = info;
         UpdateNotes = info.Notes;
         HasUpdate = true;
-        UpdateStatusText = $"Downloading {info.Tag} ({info.SizeText})…";
+        UpdateStatusText = $"Downloading {info.Tag}…";
         await DownloadUpdateAsync(info, silent: true);
     }
 
@@ -466,11 +482,11 @@ public sealed class ToolsViewModel : ObservableObject
 
             if (UpdateService.IsDevBuild)
             {
-                UpdateStatusText = $"{info.Tag} is available. Development builds cannot update themselves: publish a release to test the swap.";
+                UpdateStatusText = UpdateService.SelfUpdateBlockReason;
                 return $"Development build: {info.Tag} is available, updates are disabled.";
             }
 
-            UpdateStatusText = $"Downloading {info.Tag} ({info.SizeText})…";
+            UpdateStatusText = $"Downloading {info.Tag}…";
             await DownloadUpdateAsync(info, silent: true);
 
             return IsUpdateReady
@@ -484,7 +500,7 @@ public sealed class ToolsViewModel : ObservableObject
         }
     }
 
-    private async Task DownloadUpdateAsync(UpdateInfo info, bool silent)
+    private async Task DownloadUpdateAsync(UpdateCheck info, bool silent)
     {
         IsDownloading = true;
         UpdateProgress = 0;
@@ -492,10 +508,12 @@ public sealed class ToolsViewModel : ObservableObject
 
         try
         {
-            var (ok, error) = await UpdateService.DownloadAsync(info, progress);
+            var (ok, _, error) = await UpdateService.DownloadAsync(progress);
             if (!ok)
             {
-                UpdateStatusText = $"Download failed: {error}";
+                UpdateStatusText = error is null
+                    ? "No update is available."
+                    : $"Download failed: {error}";
                 if (!silent)
                     ShowStatus(UpdateStatusText, InfoBarSeverity.Warning);
                 return;
@@ -511,22 +529,18 @@ public sealed class ToolsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Hands the swap to the detached script. The caller closes the app when this returns true.</summary>
+    /// <summary>Hands the swap to Velopack's Update.exe. The caller closes the app when this returns true.</summary>
     public bool RestartToUpdate(out string message)
     {
-        if (_updateInfo is null)
-        {
-            message = "No update is staged.";
-            return false;
-        }
-
-        if (!UpdateService.ApplyAndRestart(_updateInfo, out var error))
+        if (!UpdateService.ApplyAndRestart(out var error))
         {
             message = $"Could not start the update: {error}";
             return false;
         }
 
-        message = $"Restarting into {_updateInfo.Tag}.";
+        message = _updateInfo is null
+            ? "Restarting to finish the update."
+            : $"Restarting into {_updateInfo.Tag}.";
         return true;
     }
 

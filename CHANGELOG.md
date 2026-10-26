@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.5.0
+
+Stratus is now installed, not unzipped: a real Setup.exe with Start Menu shortcuts, an uninstall entry, and delta updates that replace only what changed.
+
+### Installer
+- **Setup.exe**: one-click installer (Velopack). Installs per user under `%LocalAppData%\Stratus`, creates Start Menu and Desktop shortcuts, registers an Apps & Features entry and launches Stratus when done
+- **Real application icon**: the Stratus badge now shows on the exe, shortcuts and taskbar instead of the default template icon
+
+### Updates
+- **Delta updates**: installed copies download only the differences between versions instead of the full 104 MB build; the updater falls back to a full package when deltas are not possible
+- **Crash-safe swapping**: the update is applied by Velopack's Update.exe, which can replace files even while Stratus is closing; a downloaded-but-unapplied update is now picked up again on the next launch
+- **Portable builds still work**: the zip stays available on every release; portable copies report "(portable)" and point to the Setup.exe instead of trying to self-update
+
 ## v1.4.1
 
 ### Fixes

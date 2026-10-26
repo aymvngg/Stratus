@@ -28,6 +28,20 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/Stratus-win-x64/* -DestinationPath "publish/Stratus-${{ github.ref_name }}-win-x64.zip" -CompressionLevel Optimal
 
+      - name: Pack installer
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet tool install --global vpk
+          vpk pack -u Stratus -v $version `
+            -p publish/Stratus-win-x64 `
+            -e Stratus.exe `
+            --packTitle Stratus `
+            --icon packaging/app.ico `
+            --splashImage packaging/splash.png `
+            --channel win-x64
+          Get-ChildItem Releases -File | Select-Object -ExpandProperty Name
+
       - name: Create GitHub release
         shell: pwsh
         env:
@@ -48,8 +62,13 @@ jobs:
             }
           }
           if ($useNotes) {
-            gh release create "$tag" "publish/Stratus-$tag-win-x64.zip" --title "Stratus $tag" --notes-file "$notesFile"
+            gh release create "$tag" "publish/Stratus-$tag-win-x64.zip" "Releases/Stratus-win-x64-Setup.exe" --title "Stratus $tag" --notes-file "$notesFile"
           } else {
             Write-Warning "No '## $tag' section found in CHANGELOG.md, falling back to generated notes."
-            gh release create "$tag" "publish/Stratus-$tag-win-x64.zip" --title "Stratus $tag" --generate-notes
+            gh release create "$tag" "publish/Stratus-$tag-win-x64.zip" "Releases/Stratus-win-x64-Setup.exe" --title "Stratus $tag" --generate-notes
+          }
+          # Velopack metadata + full/delta packages so installed apps can update in place.
+          # (Velopack's own Portable.zip is skipped: the canonical zip above is the portable asset.)
+          Get-ChildItem Releases -File | Where-Object { $_.Name -notin @("Stratus-win-x64-Setup.exe", "Stratus-win-x64-Portable.zip") } | ForEach-Object {
+            gh release upload "$tag" $_.FullName
           }

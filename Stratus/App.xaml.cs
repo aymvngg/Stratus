@@ -28,8 +28,7 @@ public partial class App : Application
         Window = new MainWindow();
         Window.Activate();
 
-        // v1.4: drop leftovers from earlier updates, then look for a newer build in the background.
-        _ = Task.Run(UpdateService.CleanupOld);
+        // v1.4: look for a newer build in the background (Velopack cleans up old versions itself).
         _ = StartupUpdateCheckAsync();
     }
 

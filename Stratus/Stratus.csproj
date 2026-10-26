@@ -18,8 +18,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <!-- Program.cs owns Main so Velopack's install/update hooks run before WinUI starts. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <!-- Local builds report 0.0.0 (auto-update off). CI stamps the release tag with -p:Version. -->
     <Version>0.0.0</Version>
+    <ApplicationIcon>..\packaging\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
