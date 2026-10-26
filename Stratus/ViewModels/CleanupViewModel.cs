@@ -89,6 +89,13 @@ public sealed class CleanupViewModel : ObservableObject
             row.IsChecked = value;
     }
 
+    /// <summary>Checks only the targets Stratus marks as safe defaults, so a scan does not clean surprises.</summary>
+    public void SelectRecommended()
+    {
+        foreach (var row in Rows)
+            row.IsChecked = row.Target.DefaultChecked;
+    }
+
     public void ShowStatus(string message, InfoBarSeverity severity)
     {
         StatusMessage = message;

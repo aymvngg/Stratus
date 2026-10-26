@@ -31,6 +31,8 @@ public sealed partial class CleanupPage : Page
 
     private void OnSelectAll(object sender, RoutedEventArgs e) => VM.SetAllChecked(true);
 
+    private void OnSelectRecommended(object sender, RoutedEventArgs e) => VM.SelectRecommended();
+
     private void OnSelectNone(object sender, RoutedEventArgs e) => VM.SetAllChecked(false);
 
     private void OnRecycleChanged(object sender, RoutedEventArgs e) =>

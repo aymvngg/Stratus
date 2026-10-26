@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.6.0
+
+Stratus reaches further into the machine: 26 new tweaks, four more cleanup targets, filters and bulk actions for scheduled tasks and startup, optional feature and provisioned app removal, and restore point, update pause and TCP tools.
+
+### Tweaks
+- **26 new tweaks** (45 to 71) across gaming, visuals, network, services, privacy and power: Game Bar startup and notifications, Xbox save and network services, animation and Spotlight effects, TCP timestamps, QoS reserved bandwidth, Wi-Fi Sense, SMB1, the Xbox auth, accessory, RRAS, DPS and UPnP host services, settings suggestions, Start recommendations, clipboard sync, Edge first run, location tracking, typing insights, USB selective suspend, modern standby and processor boost mode
+- **Same contract everywhere**: every new entry detects the live state, backs up the old value on apply and puts it back on revert
+
+### Cleanup
+- **Four new targets** (15 to 19): application crash dumps, the Windows Error Reporting queue, kernel minidumps and live kernel reports. All four are unchecked by default because they hold diagnostic data
+- **Recommended button**: selects the safe everyday set in one click instead of ticking targets by hand
+
+### Scheduled tasks
+- **Columns**: last run, next run and author are shown per task, so a task that never runs or belongs to a third-party app is easy to spot
+- **Search and folder filter**: filter by name, path or author and narrow the list to one task folder
+- **Presets**: one click selects a known group (telemetry, Xbox, feedback), and the checked count is shown before you disable anything
+- **Bulk actions**: enable or disable every checked task at once, plus select all and select none
+- **Xbox tasks**: the catalog now covers the Xbox Game Bar and related scheduled tasks
+
+### Startup
+- **More detail per entry**: publisher, executable path, file size and a startup impact hint based on the entry location and size
+- **Scope filter**: split entries by user, machine and scheduled startup
+- **Disable per scope**: disable only the user entries or only the machine entries instead of all of them
+- **Open location**: jump straight to the executable or the Run key behind an entry
+
+### Debloat
+- **Optional features**: scan Windows optional features and capabilities and remove the ones you pick, with the same elevation and progress handling as package removal
+- **Provisioned packages**: list the packages staged for new user accounts and deprovision them, so a removed app does not come back for the next profile
+- **Silent uninstall**: classic Win32 apps now run their silent uninstall command when one is known instead of opening the vendor uninstaller and waiting
+- **Scope filter and preview**: filter by app scope and review the recommended removal list before anything is touched
+
+### Tools
+- **Restore points**: list every restore point with its date and delete a single point without wiping the rest
+- **Windows Update pause**: pause updates for a chosen number of days and resume them, with the current pause state shown
+- **TCP settings**: receive window auto-tuning, receive-side scaling and TCP timestamps can be read, changed and reset from the app
+
 ## v1.5.2
 
 Debloat removal no longer hangs: the slow DISM deprovision step is gone and every package operation is now capped.

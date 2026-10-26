@@ -27,6 +27,45 @@ public sealed partial class ScheduledTasksPage : Page
 
     private async void OnRefresh(object sender, RoutedEventArgs e) => await VM.RefreshAsync();
 
+    private void OnSearchChanged(object sender, TextChangedEventArgs e) =>
+        VM.SearchText = ((TextBox)sender).Text;
+
+    private async void OnPresetDisable(object sender, RoutedEventArgs e) =>
+        await ApplyPresetAsync(sender, enabled: false);
+
+    private async void OnPresetEnable(object sender, RoutedEventArgs e) =>
+        await ApplyPresetAsync(sender, enabled: true);
+
+    private async Task ApplyPresetAsync(object sender, bool enabled)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string group)
+            return;
+
+        VM.ShowStatus(await VM.ApplyGroupAsync(group, enabled), InfoBarSeverity.Success);
+    }
+
+    private async void OnEnableChecked(object sender, RoutedEventArgs e)
+    {
+        VM.ShowStatus(await VM.SetCheckedAsync(true), InfoBarSeverity.Success);
+    }
+
+    private async void OnDisableChecked(object sender, RoutedEventArgs e)
+    {
+        VM.ShowStatus(await VM.SetCheckedAsync(false), InfoBarSeverity.Success);
+    }
+
+    private void OnSelectAll(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in VM.Filtered)
+            row.IsChecked = true;
+    }
+
+    private void OnSelectNone(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in VM.Filtered)
+            row.IsChecked = false;
+    }
+
     private async void OnResetAll(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog

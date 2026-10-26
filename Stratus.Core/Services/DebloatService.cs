@@ -22,7 +22,16 @@ public sealed record Win32AppItem(
     long SizeBytes)
 {
     public string RegistryKey { get; set; } = "";
+
+    /// <summary>"All users" for HKLM entries, "Current user" for HKCU entries.</summary>
+    public string Scope { get; set; } = "All users";
+
+    /// <summary>No-prompt uninstall command, null when the installer family is unknown.</summary>
+    public string? SilentCommand { get; set; }
 }
+
+/// <summary>A package staged for new user profiles but not installed for the current user.</summary>
+public sealed record ProvisionedAppItem(string Name, string DisplayName, string? FamilyName);
 
 /// <summary>UWP bloat removal via PackageManager (elevated: removes for all users) + Win32 list from the registry.</summary>
 public sealed class DebloatService
@@ -195,9 +204,9 @@ public sealed class DebloatService
         using var machine = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
         using var machineWow = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall");
         using var user = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
-        var roots = new[] { machine, machineWow, user };
+        var roots = new[] { (Key: machine, Scope: "All users"), (Key: machineWow, Scope: "All users"), (Key: user, Scope: "Current user") };
 
-        foreach (var root in roots)
+        foreach (var (root, scope) in roots)
         {
             if (root is null) continue;
             foreach (var sub in root.GetSubKeyNames())
@@ -218,13 +227,20 @@ public sealed class DebloatService
                     long kb => kb * 1024,
                     _ => 0L,
                 };
+
+                // QuietUninstallString already carries the vendor's silent flags; only derive
+                // arguments ourselves when the entry does not provide one.
+                var quiet = key.GetValue("QuietUninstallString") as string;
+
                 items.Add(new Win32AppItem(
                     display,
                     key.GetValue("Publisher") as string ?? "",
                     uninstall,
                     size)
                 {
-                    RegistryKey = sub
+                    RegistryKey = sub,
+                    Scope = scope,
+                    SilentCommand = string.IsNullOrWhiteSpace(quiet) ? BuildSilentCommand(uninstall) : quiet,
                 });
             }
         }
@@ -241,52 +257,7 @@ public sealed class DebloatService
     {
         try
         {
-            string exe;
-            string args;
-            var s = item.UninstallString.Trim();
-            if (s.StartsWith('"'))
-            {
-                var end = s.IndexOf('"', 1);
-                if (end < 0)
-                {
-                    exe = s.Trim('"');
-                    args = "";
-                }
-                else
-                {
-                    exe = s[1..end];
-                    args = s[(end + 1)..].Trim();
-                }
-            }
-            else if (System.IO.File.Exists(s))
-            {
-                exe = s;
-                args = "";
-            }
-            else
-            {
-                // Unquoted paths with spaces are common ("C:\Program Files\App\unins000.exe /S").
-                // Use the longest prefix that exists on disk as the executable, the rest as args.
-                exe = "";
-                args = "";
-                for (var space = s.IndexOf(' '); space > 0; space = s.IndexOf(' ', space + 1))
-                {
-                    var candidate = s[..space];
-                    if (System.IO.File.Exists(candidate))
-                    {
-                        exe = candidate;
-                        args = s[(space + 1)..].Trim();
-                        break;
-                    }
-                }
-
-                if (exe.Length == 0)
-                {
-                    var space = s.IndexOf(' ');
-                    exe = space < 0 ? s : s[..space];
-                    args = space < 0 ? "" : s[(space + 1)..].Trim();
-                }
-            }
+            var (exe, args) = SplitCommand(item.UninstallString);
 
             // MsiExec /X{guid} needs a silent flag we cannot assume - keep it interactive.
             var psi = new System.Diagnostics.ProcessStartInfo { FileName = exe, Arguments = args, UseShellExecute = true };
@@ -296,6 +267,160 @@ public sealed class DebloatService
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Runs the no-prompt uninstall command and waits for it to finish, so the page can
+    /// report the real outcome instead of guessing. Capped at five minutes.
+    /// </summary>
+    public async Task<(bool Success, string Message)> UninstallSilentlyAsync(Win32AppItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.SilentCommand))
+            return (false, "This program has no known silent uninstall command.");
+
+        try
+        {
+            var (exe, args) = SplitCommand(item.SilentCommand);
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = System.Diagnostics.Process.Start(psi);
+            if (process is null)
+                return (false, "The uninstaller did not start.");
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            await process.WaitForExitAsync(timeout.Token);
+
+            if (process.ExitCode == 0)
+            {
+                Log.Info("Silent uninstall finished: " + item.DisplayName);
+                return (true, "Uninstalled");
+            }
+
+            Log.Warn($"Silent uninstall of {item.DisplayName} exited with code {process.ExitCode}.");
+            return (false, $"The uninstaller exited with code {process.ExitCode}.");
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warn("Silent uninstall timed out: " + item.DisplayName);
+            return (false, "The uninstaller is still running after five minutes.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Silent uninstall of {item.DisplayName} failed: {ex.Message}");
+            return (false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Splits an uninstall command into executable and arguments. Quoted paths are used as-is;
+    /// unquoted paths with spaces are resolved by growing the prefix until a file matches.
+    /// </summary>
+    private static (string Exe, string Args) SplitCommand(string command)
+    {
+        var s = command.Trim();
+        if (s.StartsWith('"'))
+        {
+            var end = s.IndexOf('"', 1);
+            if (end < 0)
+                return (s.Trim('"'), "");
+
+            return (s[1..end], s[(end + 1)..].Trim());
+        }
+
+        if (System.IO.File.Exists(s))
+            return (s, "");
+
+        for (var space = s.IndexOf(' '); space > 0; space = s.IndexOf(' ', space + 1))
+        {
+            var candidate = s[..space];
+            if (System.IO.File.Exists(candidate))
+                return (candidate, s[(space + 1)..].Trim());
+        }
+
+        var firstSpace = s.IndexOf(' ');
+        return firstSpace < 0 ? (s, "") : (s[..firstSpace], s[(firstSpace + 1)..].Trim());
+    }
+
+    /// <summary>
+    /// Adds no-prompt flags for the installer families we can recognise. Unknown installers
+    /// stay interactive, because guessing flags can leave a half-removed program.
+    /// </summary>
+    private static string? BuildSilentCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return null;
+
+        var text = command.Trim();
+        var lower = text.ToLowerInvariant();
+
+        if (lower.Contains("msiexec") && lower.Contains("/x"))
+            return text + " /qn /norestart";
+
+        if (lower.Contains("unins000.exe"))
+            return text + " /VERYSILENT /SUPPRESSMSGBOXES /NORESTART";
+
+        if (lower.EndsWith("uninstall.exe") || lower.Contains("uninstall.exe\""))
+            return text + " /S";
+
+        return null;
+    }
+
+    /// <summary>Packages staged for new user profiles. Empty when nothing is provisioned.</summary>
+    public List<ProvisionedAppItem> ScanProvisioned()
+    {
+        var items = new List<ProvisionedAppItem>();
+        try
+        {
+            var manager = new Windows.Management.Deployment.PackageManager();
+            foreach (var package in manager.FindProvisionedPackages())
+            {
+                var id = package.Id;
+                if (id is null || string.IsNullOrWhiteSpace(id.FamilyName))
+                    continue;
+
+                var name = id.Name ?? "";
+                var display = string.IsNullOrWhiteSpace(package.DisplayName) ? name : package.DisplayName;
+                items.Add(new ProvisionedAppItem(name, display, id.FamilyName));
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Provisioned package scan failed: " + ex.Message);
+        }
+
+        return items.OrderBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Removes a provisioned package so new user profiles no longer receive it.</summary>
+    public async Task<(bool Success, string Message)> DeprovisionAsync(ProvisionedAppItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.FamilyName))
+            return (false, "This package has no family name and cannot be deprovisioned.");
+
+        try
+        {
+            var manager = new Windows.Management.Deployment.PackageManager();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await manager.DeprovisionPackageForAllUsersAsync(item.FamilyName).AsTask(timeout.Token);
+            Log.Info("Deprovisioned package: " + item.Name);
+            return (true, "Removed");
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warn("Deprovision timed out: " + item.Name);
+            return (false, "Timed out after 60 seconds.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Deprovision of {item.Name} failed: {ex.Message}");
+            return (false, ex.Message);
         }
     }
 }

@@ -42,21 +42,58 @@
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="None of the known tasks exist on this machine."
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox PlaceholderText="Search tasks…" Width="200" TextChanged="OnSearchChanged"/>
+                        <ComboBox MinWidth="190"
+                                  ItemsSource="{x:Bind VM.Folders, Mode=OneWay}"
+                                  SelectedItem="{x:Bind VM.FolderFilter, Mode=TwoWay}"/>
+                        <Button Content="Presets">
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Disable telemetry tasks" Tag="Telemetry" Click="OnPresetDisable"/>
+                                    <MenuFlyoutItem Text="Disable feedback tasks" Tag="Feedback" Click="OnPresetDisable"/>
+                                    <MenuFlyoutItem Text="Disable appraiser tasks" Tag="Compatibility" Click="OnPresetDisable"/>
+                                    <MenuFlyoutItem Text="Disable diagnostic tasks" Tag="Diagnostics" Click="OnPresetDisable"/>
+                                    <MenuFlyoutSeparator/>
+                                    <MenuFlyoutItem Text="Enable telemetry tasks" Tag="Telemetry" Click="OnPresetEnable"/>
+                                    <MenuFlyoutItem Text="Enable feedback tasks" Tag="Feedback" Click="OnPresetEnable"/>
+                                    <MenuFlyoutItem Text="Enable appraiser tasks" Tag="Compatibility" Click="OnPresetEnable"/>
+                                    <MenuFlyoutItem Text="Enable diagnostic tasks" Tag="Diagnostics" Click="OnPresetEnable"/>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button Content="Select all" Click="OnSelectAll"/>
+                        <Button Content="None" Click="OnSelectNone"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                Visibility="{x:Bind vm:Conv.Vis(VM.HasChecked), Mode=OneWay}">
+                        <TextBlock Text="{x:Bind VM.SelectionText, Mode=OneWay}"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource PageSubtitle}"/>
+                        <Button Content="Enable selected" Click="OnEnableChecked"/>
+                        <Button Content="Disable selected" Click="OnDisableChecked"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{x:Bind VM.EmptyText, Mode=OneWay}"
                                Style="{StaticResource PageSubtitle}"
                                Visibility="{x:Bind vm:Conv.Vis(VM.Empty), Mode=OneWay}"/>
 
-                    <ItemsControl ItemsSource="{x:Bind VM.Rows, Mode=OneWay}">
+                    <ItemsControl ItemsSource="{x:Bind VM.Filtered, Mode=OneWay}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ScheduledTaskRow">
                                 <Border Style="{StaticResource RowCard}">
                                     <Grid ColumnSpacing="12">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <StackPanel Spacing="4">
+                                        <CheckBox VerticalAlignment="Center"
+                                                  IsChecked="{x:Bind IsChecked, Mode=TwoWay}"/>
+
+                                        <StackPanel Grid.Column="1" Spacing="4">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"/>
                                                 <Border Style="{StaticResource Chip}">
@@ -73,9 +110,15 @@
                                                        MaxLines="1"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock FontSize="10"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}">
+                                                <Run Text="Last run: "/><Run Text="{x:Bind LastRunText}"/>
+                                                <Run Text="  Next: "/><Run Text="{x:Bind NextRunText}"/>
+                                                <Run Text="  By: "/><Run Text="{x:Bind AuthorText}"/>
+                                            </TextBlock>
                                         </StackPanel>
 
-                                        <ToggleSwitch Grid.Column="1"
+                                        <ToggleSwitch Grid.Column="2"
                                                       VerticalAlignment="Center"
                                                       IsOn="{x:Bind IsEnabled, Mode=OneWay}"
                                                       IsEnabled="{x:Bind ToggleEnabled, Mode=OneWay}"

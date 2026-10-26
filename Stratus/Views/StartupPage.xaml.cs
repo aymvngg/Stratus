@@ -27,6 +27,20 @@ public sealed partial class StartupPage : Page
 
     private async void OnRefresh(object sender, RoutedEventArgs e) => await VM.RefreshAsync();
 
+    private async void OnDisableScope(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string scope)
+            return;
+
+        VM.ShowStatus(await VM.SetScopeAsync(scope, enabled: false), InfoBarSeverity.Success);
+    }
+
+    private void OnOpenLocation(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is StartupRow row)
+            VM.OpenLocation(row);
+    }
+
     private async void OnResetAll(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog

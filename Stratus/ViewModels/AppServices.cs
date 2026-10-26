@@ -19,6 +19,7 @@ public static class AppServices
 
     public static readonly CleanupService Cleanup = new();
     public static readonly DebloatService Debloat = new();
+    public static readonly OptionalFeatureService OptionalFeatures = new();
     public static readonly DnsService Dns = new();
     public static readonly StartupService Startup = new(Registry);
     public static readonly ScheduledTaskService ScheduledTasks = new(AppPaths.TasksFile);

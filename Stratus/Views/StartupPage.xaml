@@ -42,17 +42,26 @@
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="Nothing launches with Windows on this machine."
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox MinWidth="180"
+                                  ItemsSource="{x:Bind VM.Scopes, Mode=OneWay}"
+                                  SelectedItem="{x:Bind VM.ScopeFilter, Mode=TwoWay}"/>
+                        <Button Content="Disable current user" Tag="Current user" Click="OnDisableScope"/>
+                        <Button Content="Disable all users" Tag="All users" Click="OnDisableScope"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{x:Bind VM.EmptyText, Mode=OneWay}"
                                Style="{StaticResource PageSubtitle}"
                                Visibility="{x:Bind vm:Conv.Vis(VM.Empty), Mode=OneWay}"/>
 
-                    <ItemsControl ItemsSource="{x:Bind VM.Rows, Mode=OneWay}">
+                    <ItemsControl ItemsSource="{x:Bind VM.Filtered, Mode=OneWay}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:StartupRow">
                                 <Border Style="{StaticResource RowCard}">
                                     <Grid ColumnSpacing="12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
@@ -71,9 +80,20 @@
                                                        MaxLines="1"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock Text="{x:Bind ImpactText}"
+                                                       FontSize="10"
+                                                       MaxLines="1"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         </StackPanel>
 
-                                        <ToggleSwitch Grid.Column="1"
+                                        <Button Grid.Column="1"
+                                                Content="Open location"
+                                                VerticalAlignment="Center"
+                                                Visibility="{x:Bind vm:Conv.Vis(CanOpenLocation)}"
+                                                Click="OnOpenLocation"/>
+
+                                        <ToggleSwitch Grid.Column="2"
                                                       VerticalAlignment="Center"
                                                       IsOn="{x:Bind IsEnabled, Mode=OneWay}"
                                                       IsEnabled="{x:Bind ToggleEnabled, Mode=OneWay}"

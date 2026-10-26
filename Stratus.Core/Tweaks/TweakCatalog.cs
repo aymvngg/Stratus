@@ -88,8 +88,36 @@ public static class TweakCatalog
             })
         { Weight = 1, Risk = RiskLevel.Safe });
 
-        // ---------------- Visuals ----------------
+        tweaks.Add(new RegistryTweak("game-gamebar-startup-off", "Keep the Game Bar out of the way",
+            "Stops the Game Bar panel from opening at sign-in and from taking over the Xbox button. Press Win+G when you actually want it.",
+            TweakCategory.Gaming, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\GameBar", "ShowStartupPanel", 0, 1),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
 
+        tweaks.Add(new RegistryTweak("game-gamebar-notifications-off", "Silence Game Bar notifications",
+            "Turns off the achievement and recording popups that can steal focus and drop frames in full-screen games.",
+            TweakCategory.Gaming, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Microsoft.XboxGamingOverlay", "Enabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new ServiceTweak("game-xbox-save-service", "Park the Xbox save sync service",
+            "Sets the Xbox game save service to manual. Saves still work locally; cloud sync starts again the next time a game needs it.",
+            "XblGameSave", ServiceStartupType.Manual, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new ServiceTweak("game-xbox-net-service", "Park the Xbox networking service",
+            "Sets the Xbox Live networking service to manual. Only needed for Xbox multiplayer and the Xbox app, which restart it on demand.",
+            "XboxNetApiSvc", ServiceStartupType.Manual, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
+
+        // ---------------- Visuals ----------------
         tweaks.Add(new RegistryTweak("transparency-off", "Disable transparency effects",
             "Turns off acrylic/blur effects across the shell. Frees a small amount of GPU and RAM on low-end systems.",
             TweakCategory.Visuals, reg,
@@ -150,6 +178,44 @@ public static class TweakCatalog
             })
         { Weight = 1, Risk = RiskLevel.Safe });
 
+        tweaks.Add(new RegistryTweak("visual-animations-off", "Cut menu and taskbar animations",
+            "Removes the fade and slide animations from menus and taskbar buttons. Windows feels immediate, which matters most on older hardware.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetString(RegistryHive.CurrentUser, @"Control Panel\Desktop", "MenuAnimation", "0", "1"),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("visual-spotlight-off", "Turn off lock screen Spotlight",
+            "Stops Windows from downloading rotating lock screen pictures. Saves a little background network and disk work, and the lock screen stays predictable.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "RotatingLockScreenEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "RotatingLockScreenOverlayEnabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("visual-notification-banners-off", "Hide notification banners",
+            "Keeps notifications in the Action Center but stops them from sliding in over whatever you are doing. Focus assist style, without the schedule.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\PushNotifications", "ToastEnabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("visual-snap-flyout-off", "Turn off the snap layouts flyout",
+            "Stops the snap layouts panel from appearing when you hover a window's maximize button. Snapping with the keyboard and drag still works.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "EnableSnapAssistFlyout", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
         // ---------------- Network ----------------
 
         tweaks.Add(NagleTweak.Create(reg));
@@ -192,6 +258,42 @@ public static class TweakCatalog
                 RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "SystemResponsiveness", 10, 20)
             })
         { Weight = 1, Risk = RiskLevel.Recommended });
+
+        tweaks.Add(new RegistryTweak("net-tcp-timestamps-off", "Drop TCP timestamps",
+            "Keeps window scaling but stops adding a timestamp to every TCP segment. Slightly less per-packet overhead on fast links, no effect on normal browsing.",
+            TweakCategory.Network, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters", "Tcp1323Opts", 1, 3)
+            })
+        { Weight = 1, Risk = RiskLevel.Recommended, RequiresReboot = true });
+
+        tweaks.Add(new RegistryTweak("net-qos-bandwidth", "Release the reserved QoS bandwidth",
+            "Windows keeps 20 percent of the link for QoS by default. Setting the limit to zero hands that slice back to normal traffic; QoS still works when an app asks for it.",
+            TweakCategory.Network, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\Psched", "NonBestEffortLimit", 0, 20)
+            })
+        { Weight = 1, Risk = RiskLevel.Recommended });
+
+        tweaks.Add(new RegistryTweak("net-wifi-sense-off", "Turn off Wi-Fi Sense sharing",
+            "Stops Windows from offering to share Wi-Fi credentials with contacts and from pulling suggested hotspots. Nothing you joined is forgotten.",
+            TweakCategory.Network, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config", "AutoConnectAllowedOEM", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("net-smb1-off", "Disable the SMB1 file sharing protocol",
+            "SMB1 is the 1990s file sharing protocol behind WannaCry. Modern Windows and NAS boxes use SMB2 or SMB3, so turning it off closes an attack surface with no everyday cost.",
+            TweakCategory.Network, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters", "SMB1", 0, 1)
+            })
+        { Weight = 2, Risk = RiskLevel.Recommended, RequiresReboot = true });
 
         // ---------------- Services ----------------
 
@@ -254,6 +356,31 @@ public static class TweakCatalog
             "Brokers calls and SMS between Windows and a paired phone. Dead weight unless you actually link a phone to the PC.",
             "PhoneSvc", ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Safe });
+
+        tweaks.Add(new ServiceTweak("svc-xbox-auth", "Park the Xbox Live auth service",
+            "Sets the Xbox Live authentication service to manual. Signing into the Xbox app or a Game Pass title starts it again on demand.",
+            "XblAuthManager", ServiceStartupType.Manual, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new ServiceTweak("svc-xbox-accessory", "Park the Xbox accessory service",
+            "Sets the Xbox controller accessory service to manual. Wired and Bluetooth controllers still work; the service starts when a game asks for it.",
+            "XboxGipSvc", ServiceStartupType.Manual, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new ServiceTweak("svc-rras", "Disable the legacy routing service",
+            "Turns off Routing and Remote Access, the service behind dial-up and old VPN setups. Home networks and modern VPN clients do not use it.",
+            "RemoteAccess", ServiceStartupType.Disabled, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new ServiceTweak("svc-dps", "Park the diagnostic policy service",
+            "Sets the Diagnostic Policy Service to manual. Windows troubleshooting wizards still work; the always-on background diagnostics stop.",
+            "DPS", ServiceStartupType.Manual, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new ServiceTweak("svc-upnphost", "Park the UPnP device host",
+            "Sets the UPnP device host to manual. Only needed when sharing media to a TV or console, which starts it on demand.",
+            "upnphost", ServiceStartupType.Manual, backup, weight: 1)
+        { Risk = RiskLevel.Advanced });
 
         // ---------------- Privacy ----------------
 
@@ -397,6 +524,63 @@ public static class TweakCatalog
             })
         { Weight = 2, Risk = RiskLevel.Recommended });
 
+        tweaks.Add(new RegistryTweak("priv-settings-suggestions", "Stop suggested content in Settings",
+            "Removes the promotional cards and app suggestions Windows shows on the Settings home page.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-338387Enabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("priv-start-recommendations", "Clear the Start menu recommendations",
+            "Turns off the suggested apps and account nudges in the Start menu. Your pinned apps and the app list are untouched.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "Start_IrisRecommendations", 0, 1),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "Start_AccountNotifications", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("priv-clipboard-sync", "Keep clipboard history on this PC",
+            "Stops the clipboard from syncing to your Microsoft account and from uploading copied items. Local copy and paste keeps working.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Clipboard", "EnableClipboardHistory", 0, 1),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Clipboard", "CloudClipboardAutomaticUpload", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("priv-edge-first-run", "Skip Edge first run and preload",
+            "Hides the Edge welcome flow and stops the browser from staying in memory after you close it.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Policies\Microsoft\Edge", "HideFirstRunExperience", 1, 0),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Policies\Microsoft\Edge", "BackgroundModeEnabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Recommended });
+
+        tweaks.Add(new RegistryTweak("priv-location-tracking", "Deny app access to your location",
+            "Sets the system location consent to Deny. Apps that need it can still ask, and Maps still works while the setting is on.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetString(RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location", "Value", "Deny", "Allow")
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("priv-typing-insights", "Turn off typing insights",
+            "Stops Windows from collecting a local sample of what you type to improve suggestions and autocorrect.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Input\TIPC", "Enabled", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
         // ---------------- Power ----------------
 
         tweaks.Add(new DelegateTweak(
@@ -439,6 +623,47 @@ public static class TweakCatalog
                 RegistryAction.SetDword(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Power\PowerThrottling", "PowerThrottlingOff", 1, 0)
             })
         { Weight = 2, Risk = RiskLevel.Advanced, RequiresReboot = true });
+
+        tweaks.Add(new RegistryTweak("power-usb-selective-suspend-off", "Keep USB devices awake",
+            "Stops Windows from suspending USB ports to save power. Fixes controllers, audio interfaces and external drives that drop out or need a replug.",
+            TweakCategory.Power, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Services\USB", "DisableSelectiveSuspend", 1, 0)
+            })
+        { Weight = 1, Risk = RiskLevel.Recommended, RequiresReboot = true });
+
+        tweaks.Add(new RegistryTweak("power-modern-standby-off", "Use classic sleep instead of Modern Standby",
+            "Forces the S3 sleep state on machines that support it. Classic sleep resumes faster and keeps network and audio devices working after wake.",
+            TweakCategory.Power, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Power", "PlatformAoAcOverride", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Advanced, RequiresReboot = true });
+
+        tweaks.Add(new DelegateTweak("power-boost-mode", "Keep the CPU in boost mode",
+            "Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat.",
+            TweakCategory.Power,
+            () => ProcessRunner.Run("powercfg.exe", "/query SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE", 10_000)
+                .StdOut.Contains("0x00000002", StringComparison.OrdinalIgnoreCase),
+            () =>
+            {
+                ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
+                var active = ProcessRunner.Run("powercfg.exe", "/setactive SCHEME_CURRENT", 10_000);
+                return active.Success
+                    ? TweakResult.Ok
+                    : TweakResult.Fail("powercfg could not update the active plan.");
+            },
+            () =>
+            {
+                ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 0", 10_000);
+                var active = ProcessRunner.Run("powercfg.exe", "/setactive SCHEME_CURRENT", 10_000);
+                return active.Success
+                    ? TweakResult.Ok
+                    : TweakResult.Fail("powercfg could not update the active plan.");
+            })
+        { Weight = 2, Risk = RiskLevel.Advanced });
 
         return tweaks;
     }

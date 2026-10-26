@@ -30,6 +30,7 @@ public sealed partial class ToolsPage : Page
         TrayToggle.IsOn = ThemeHelper.GetCloseToTray();
 
         await VM.LoadAsync();
+        await VM.LoadExtrasAsync();
     }
 
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
@@ -42,7 +43,63 @@ public sealed partial class ToolsPage : Page
     private void OnTrayToggled(object sender, RoutedEventArgs e) =>
         ThemeHelper.SetCloseToTray(TrayToggle.IsOn);
 
-    private async void OnReload(object sender, RoutedEventArgs e) => await VM.LoadAsync();
+    private async void OnReload(object sender, RoutedEventArgs e)
+    {
+        await VM.LoadAsync();
+        await VM.LoadExtrasAsync();
+    }
+
+    // ================= restore points, update pause, TCP =================
+
+    private async void OnRefreshRestorePoints(object sender, RoutedEventArgs e) =>
+        await VM.LoadRestorePointsAsync();
+
+    private async void OnDeleteRestorePoint(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RestorePointRow row)
+            return;
+
+        var dialog = new ContentDialog
+        {
+            Title = "Delete this restore point?",
+            Content = new TextBlock
+            {
+                Text = $"{row.Description}\n{row.MetaText}\n\nOnly this snapshot is removed. Newer restore points and your files stay as they are.",
+                TextWrapping = TextWrapping.Wrap,
+            },
+            PrimaryButtonText = "Delete",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var message = await VM.DeleteRestorePointAsync(row);
+        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+    }
+
+    private async void OnToggleUpdatePause(object sender, RoutedEventArgs e)
+    {
+        var message = await VM.ToggleUpdatePauseAsync();
+        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+    }
+
+    private async void OnApplyTcp(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not TcpRow row)
+            return;
+
+        var message = await VM.ApplyTcpAsync(row);
+        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+    }
+
+    private async void OnResetTcp(object sender, RoutedEventArgs e)
+    {
+        var message = await VM.ResetTcpAsync();
+        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+    }
 
     private async void OnApplyPlan(object sender, RoutedEventArgs e)
     {

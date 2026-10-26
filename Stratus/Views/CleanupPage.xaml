@@ -60,6 +60,7 @@
                         <Button Content="{x:Bind VM.CleanButtonText, Mode=OneWay}" Click="OnClean"
                                 Style="{StaticResource AccentButtonStyle}"/>
                         <Button Content="Select all" Click="OnSelectAll"/>
+                        <Button Content="Recommended" Click="OnSelectRecommended"/>
                         <Button Content="None" Click="OnSelectNone"/>
                     </StackPanel>
                 </StackPanel>

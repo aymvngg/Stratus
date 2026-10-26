@@ -315,6 +315,148 @@
                 </Border>
             </Grid>
 
+            <!-- ============ Restore points ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBadge}">
+                            <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE777;"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="Restore points" Style="{StaticResource CardTitle}"/>
+                            <TextBlock Text="{x:Bind VM.RestoreStorageText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Create point" Click="OnRestorePoint"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                            <Button Content="Refresh" Click="OnRefreshRestorePoints"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource PageSubtitle}"
+                               Text="Each row is one snapshot Windows can roll back to. Deleting a point only removes that snapshot; newer points and your files are untouched."/>
+
+                    <TextBlock Text="{x:Bind VM.RestoreEmptyText, Mode=OneWay}"
+                               Style="{StaticResource PageSubtitle}"
+                               Visibility="{x:Bind vm:Conv.NotVis(VM.HasRestorePoints), Mode=OneWay}"/>
+
+                    <ListView ItemsSource="{x:Bind VM.RestorePoints, Mode=OneWay}" SelectionMode="None"
+                              ItemContainerStyle="{StaticResource FlatItem}"
+                              Visibility="{x:Bind vm:Conv.Vis(VM.HasRestorePoints), Mode=OneWay}"
+                              ScrollViewer.HorizontalScrollMode="Disabled"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollMode="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RestorePointRow">
+                                <Grid ColumnSpacing="12" Padding="2,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{x:Bind Description}" FontSize="12.5" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{x:Bind MetaText}" FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                    </StackPanel>
+
+                                    <Button Grid.Column="1" Content="Delete" Click="OnDeleteRestorePoint"
+                                            VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ Update pause + TCP ============ -->
+            <Grid ColumnSpacing="14" RowSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE823;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Update pause" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="{x:Bind VM.UpdatePauseText, Mode=OneWay}" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="{x:Bind VM.UpdatePauseHint, Mode=OneWay}"
+                                   Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"/>
+
+                        <Button Content="{x:Bind VM.UpdatePauseButtonText, Mode=OneWay}"
+                                Click="OnToggleUpdatePause"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Grid.Column="1">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE968;"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="TCP settings" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Current value next to the Windows default" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"
+                                   Text="Read from the registry, applied through netsh. Pick a value and apply; reset all puts every row back to the default shown beside it."/>
+
+                        <ItemsControl ItemsSource="{x:Bind VM.TcpSettings, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TcpRow">
+                                    <Grid ColumnSpacing="8" Padding="0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{x:Bind Name}" FontSize="12.5" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{x:Bind Description}" FontSize="11" TextWrapping="Wrap"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}">
+                                                <Run Text="Now: "/><Run Text="{x:Bind CurrentText}"/>
+                                                <Run Text="   "/><Run Text="{x:Bind DefaultText}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <ComboBox Grid.Column="1" MinWidth="130" VerticalAlignment="Center"
+                                                  ItemsSource="{x:Bind Values}"
+                                                  SelectedItem="{x:Bind SelectedValue, Mode=TwoWay}"/>
+                                        <Button Grid.Column="2" Content="Apply" Click="OnApplyTcp"
+                                                VerticalAlignment="Center"
+                                                IsEnabled="{x:Bind CanInteract, Mode=OneWay}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Content="Reset all to defaults" Click="OnResetTcp"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
             <!-- ============ Updates ============ -->
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="10">

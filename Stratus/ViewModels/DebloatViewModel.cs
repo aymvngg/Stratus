@@ -45,18 +45,175 @@ public sealed class UwpRow : ObservableObject
     }
 }
 
+public sealed class Win32Row : ObservableObject
+{
+    public Win32Row(Win32AppItem item) => Item = item;
+
+    public Win32AppItem Item { get; }
+    public string DisplayName => Item.DisplayName;
+    public string Publisher => string.IsNullOrWhiteSpace(Item.Publisher) ? "Unknown publisher" : Item.Publisher;
+    public string SizeText => Item.SizeBytes > 0 ? Format.Bytes(Item.SizeBytes) : "Unknown size";
+    public string ScopeText => Item.Scope;
+    public bool CanUninstallSilently => !string.IsNullOrWhiteSpace(Item.SilentCommand);
+
+    private string? _result;
+    public string? Result { get => _result; private set => Set(ref _result, value); }
+
+    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (Set(ref _isBusy, value))
+                Raise(nameof(CanInteract));
+        }
+    }
+
+    public bool CanInteract => !IsBusy;
+
+    public async Task<(bool Ok, string Message)> UninstallAsync(bool silent)
+    {
+        if (!silent)
+        {
+            var started = AppServices.Debloat.LaunchUninstaller(Item);
+            Result = started ? "Uninstaller opened" : "Could not start the uninstaller";
+            return (started, Result);
+        }
+
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await AppServices.Debloat.UninstallSilentlyAsync(Item);
+            Result = ok ? "Uninstalled" : message;
+            return (ok, message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Silent uninstall of '{Item.DisplayName}' failed", ex);
+            Result = ex.Message;
+            return (false, ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public void MarkResult(string message) => Result = message;
+}
+
+public sealed class FeatureRow : ObservableObject
+{
+    public FeatureRow(OptionalFeatureItem item) => Item = item;
+
+    public OptionalFeatureItem Item { get; }
+    public string Name => Item.DisplayName;
+    public string KindText => Item.Kind;
+
+    private string? _result;
+    public string? Result { get => _result; private set => Set(ref _result, value); }
+
+    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (Set(ref _isBusy, value))
+                Raise(nameof(CanInteract));
+        }
+    }
+
+    public bool CanInteract => !IsBusy;
+
+    public async Task<(bool Ok, string Message)> RemoveAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await Task.Run(() => AppServices.OptionalFeatures.Remove(Item));
+            Result = ok ? "Removed" : message;
+            return (ok, message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Removing optional feature '{Item.Name}' failed", ex);
+            Result = ex.Message;
+            return (false, ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+}
+
+public sealed class ProvisionedRow : ObservableObject
+{
+    public ProvisionedRow(ProvisionedAppItem item) => Item = item;
+
+    public ProvisionedAppItem Item { get; }
+    public string Name => Item.Name;
+    public string DisplayName => Item.DisplayName;
+
+    private string? _result;
+    public string? Result { get => _result; private set => Set(ref _result, value); }
+
+    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (Set(ref _isBusy, value))
+                Raise(nameof(CanInteract));
+        }
+    }
+
+    public bool CanInteract => !IsBusy;
+
+    public async Task<(bool Ok, string Message)> RemoveAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await AppServices.Debloat.DeprovisionAsync(Item);
+            Result = ok ? "Removed" : message;
+            return (ok, message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Deprovisioning '{Item.Name}' failed", ex);
+            Result = ex.Message;
+            return (false, ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+}
+
 public sealed class DebloatViewModel : ObservableObject
 {
+    private const string AllScopes = "All programs";
+
     public ObservableCollection<UwpRow> Recommended { get; } = new();
     public ObservableCollection<UwpRow> OtherMicrosoft { get; } = new();
     public ObservableCollection<UwpRow> ThirdParty { get; } = new();
-    public ObservableCollection<Win32AppItem> Win32 { get; } = new();
+    public ObservableCollection<Win32Row> Win32 { get; } = new();
+    public ObservableCollection<FeatureRow> Features { get; } = new();
+    public ObservableCollection<ProvisionedRow> Provisioned { get; } = new();
+
+    public ObservableCollection<string> Scopes { get; } = new() { AllScopes, "All users", "Current user" };
 
     // Full scan results; the observable collections above show the filtered view.
     private List<UwpRow> _allRecommended = new();
     private List<UwpRow> _allOtherMicrosoft = new();
     private List<UwpRow> _allThirdParty = new();
-    private List<Win32AppItem> _allWin32 = new();
+    private List<Win32Row> _allWin32 = new();
+    private List<ProvisionedRow> _allProvisioned = new();
 
     private string _searchText = "";
     private bool _hasScanned;
@@ -73,6 +230,13 @@ public sealed class DebloatViewModel : ObservableObject
         set { _searchText = value; Refilter(); }
     }
 
+    private string _scopeFilter = AllScopes;
+    public string ScopeFilter
+    {
+        get => _scopeFilter;
+        set { _scopeFilter = value; Refilter(); }
+    }
+
     public bool HasScanned { get => _hasScanned; private set { if (Set(ref _hasScanned, value)) Raise(nameof(NotScannedHint)); } }
     public bool NotScannedHint => !HasScanned;
     public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
@@ -86,11 +250,15 @@ public sealed class DebloatViewModel : ObservableObject
     public string OtherMicrosoftCount => $"Other Microsoft apps ({OtherMicrosoft.Count})";
     public string ThirdPartyCount => $"Third-party ({ThirdParty.Count})";
     public string Win32Count => $"Desktop programs ({Win32.Count})";
+    public string FeaturesCount => $"Windows features ({Features.Count})";
+    public string ProvisionedCount => $"Provisioned for new users ({Provisioned.Count})";
 
     public bool RecommendedEmpty => HasScanned && Recommended.Count == 0;
     public bool OtherMicrosoftEmpty => HasScanned && OtherMicrosoft.Count == 0;
     public bool ThirdPartyEmpty => HasScanned && ThirdParty.Count == 0;
     public bool Win32Empty => HasScanned && Win32.Count == 0;
+    public bool FeaturesEmpty => Features.Count == 0;
+    public bool ProvisionedEmpty => Provisioned.Count == 0;
 
     public string SelectedSummary => TotalSelected == 0
         ? "Nothing selected"
@@ -116,7 +284,9 @@ public sealed class DebloatViewModel : ObservableObject
 
     private void RaiseCounts() =>
         Raise(nameof(RecommendedCount), nameof(OtherMicrosoftCount), nameof(ThirdPartyCount), nameof(Win32Count),
+              nameof(FeaturesCount), nameof(ProvisionedCount),
               nameof(RecommendedEmpty), nameof(OtherMicrosoftEmpty), nameof(ThirdPartyEmpty), nameof(Win32Empty),
+              nameof(FeaturesEmpty), nameof(ProvisionedEmpty),
               nameof(SelectedSummary));
 
     public void ShowStatus(string message, InfoBarSeverity severity)
@@ -153,13 +323,16 @@ public sealed class DebloatViewModel : ObservableObject
         {
             var uwpTask = Task.Run(() => AppServices.Debloat.ScanUwp());
             var win32Task = Task.Run(() => AppServices.Debloat.ScanWin32());
+            var provisionedTask = Task.Run(() => AppServices.Debloat.ScanProvisioned());
             var uwp = await uwpTask;
             var win32 = await win32Task;
+            var provisioned = await provisionedTask;
 
             _allRecommended = Rows(uwp.Where(i => i.Group == DebloatGroup.Recommended));
             _allOtherMicrosoft = Rows(uwp.Where(i => i.Group == DebloatGroup.OtherMicrosoft));
             _allThirdParty = Rows(uwp.Where(i => i.Group == DebloatGroup.ThirdParty));
-            _allWin32 = win32;
+            _allWin32 = win32.Select(a => new Win32Row(a)).ToList();
+            _allProvisioned = provisioned.Select(p => new ProvisionedRow(p)).ToList();
 
             HasScanned = true;
             Refilter();
@@ -193,10 +366,28 @@ public sealed class DebloatViewModel : ObservableObject
         FillVisible(ThirdParty, Filter(_allThirdParty, query));
 
         Win32.Clear();
-        foreach (var app in string.IsNullOrEmpty(query)
-                     ? _allWin32
-                     : _allWin32.Where(a => Match(a.DisplayName, a.Publisher, query)))
-            Win32.Add(app);
+        foreach (var row in _allWin32)
+        {
+            if (_scopeFilter != AllScopes &&
+                !string.Equals(row.ScopeText, _scopeFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(query) && !Match(row.DisplayName, row.Publisher, query))
+                continue;
+
+            Win32.Add(row);
+        }
+
+        Provisioned.Clear();
+        foreach (var row in _allProvisioned)
+        {
+            if (!string.IsNullOrEmpty(query) && !Match(row.DisplayName, row.Name, query))
+                continue;
+
+            Provisioned.Add(row);
+        }
 
         RaiseCounts();
         Raise(nameof(TotalSelected), nameof(RemoveButtonText));
@@ -277,5 +468,115 @@ public sealed class DebloatViewModel : ObservableObject
             IsBusy = false;
             BusyText = "";
         }
+    }
+
+    /// <summary>
+    /// Reads the curated Windows feature list. Kept out of the main scan because the DISM
+    /// queries take several seconds and most visits only need the app lists.
+    /// </summary>
+    public async Task ScanFeaturesAsync()
+    {
+        if (IsBusy)
+            return;
+
+        IsBusy = true;
+        BusyText = "Reading Windows features…";
+        try
+        {
+            var items = await Task.Run(() => AppServices.OptionalFeatures.Scan());
+
+            Features.Clear();
+            foreach (var item in items)
+                Features.Add(new FeatureRow(item));
+
+            RaiseCounts();
+            ShowStatus(
+                Features.Count == 0
+                    ? "No removable optional features are installed."
+                    : $"{Features.Count} optional {(Features.Count == 1 ? "feature is" : "features are")} installed and can be removed.",
+                InfoBarSeverity.Informational);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Optional feature scan failed: " + ex.Message);
+            ShowStatus($"Could not read the Windows features: {ex.Message}", InfoBarSeverity.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    public async Task<string> RemoveFeatureAsync(FeatureRow row)
+    {
+        if (IsBusy)
+            return "Another operation is still running.";
+
+        var (ok, message) = await row.RemoveAsync();
+        if (!ok)
+            return $"Could not remove {row.Name}: {message}";
+
+        Features.Remove(row);
+        RaiseCounts();
+        return $"{row.Name} removed. A restart may be needed to finish.";
+    }
+
+    public async Task<string> UninstallWin32Async(Win32Row row, bool silent)
+    {
+        if (IsBusy)
+            return "Another operation is still running.";
+
+        if (silent)
+        {
+            IsBusy = true;
+            BusyText = $"Uninstalling {row.DisplayName}…";
+        }
+
+        try
+        {
+            var (ok, message) = await row.UninstallAsync(silent);
+            if (!ok)
+                return $"Could not uninstall {row.DisplayName}: {message}";
+
+            if (!silent)
+                return $"The uninstaller for {row.DisplayName} is open. Finish it there, then refresh the list.";
+
+            await ScanCoreAsync();
+
+            // The rescan rebuilds every row, so put the result back on the app that was removed.
+            var rebuilt = _allWin32.FirstOrDefault(r =>
+                string.Equals(r.DisplayName, row.DisplayName, StringComparison.OrdinalIgnoreCase));
+            rebuilt?.MarkResult(message);
+
+            return $"{row.DisplayName} uninstalled.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Uninstalling '{row.DisplayName}' failed", ex);
+            return $"Could not uninstall {row.DisplayName}: {ex.Message}";
+        }
+        finally
+        {
+            if (silent)
+            {
+                IsBusy = false;
+                BusyText = "";
+            }
+        }
+    }
+
+    public async Task<string> RemoveProvisionedAsync(ProvisionedRow row)
+    {
+        if (IsBusy)
+            return "Another operation is still running.";
+
+        var (ok, message) = await row.RemoveAsync();
+        if (!ok)
+            return $"Could not remove {row.DisplayName}: {message}";
+
+        Provisioned.Remove(row);
+        RaiseCounts();
+        return $"{row.DisplayName} is no longer provisioned for new users.";
     }
 }

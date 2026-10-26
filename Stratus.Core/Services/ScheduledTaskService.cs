@@ -10,7 +10,13 @@ public sealed record ScheduledTaskItem(
     string Folder,
     string Group,
     string Description,
-    bool IsEnabled);
+    bool IsEnabled,
+    DateTime? LastRunUtc = null,
+    DateTime? NextRunUtc = null,
+    string? Author = null);
+
+/// <summary>State read from the Task Scheduler for one task.</summary>
+public sealed record TaskInfo(bool Enabled, DateTime? LastRunUtc, DateTime? NextRunUtc, string? Author);
 
 /// <summary>
 /// Enables or disables well-known telemetry and inventory scheduled tasks.
@@ -76,13 +82,14 @@ public sealed class ScheduledTaskService
         foreach (var definition in Known)
         {
             var path = Path(definition);
-            var enabled = session.Enabled(path);
-            if (enabled is null)
+            var info = session.Read(path);
+            if (info is null)
                 continue;
 
             list.Add(new ScheduledTaskItem(
                 "task:" + path, definition.Name, definition.Folder,
-                definition.Group, definition.Description, enabled.Value));
+                definition.Group, definition.Description, info.Enabled,
+                info.LastRunUtc, info.NextRunUtc, info.Author));
         }
 
         return list;
@@ -253,6 +260,59 @@ public sealed class ScheduledTaskService
                 var (folder, name) = Split(taskPath);
                 dynamic task = _service.GetFolder(folder).GetTask(name);
                 return (bool)task.Enabled;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads the full task state. Each property is probed separately: a task that never ran
+        /// has no last run time, and that must not hide the whole row.
+        /// </summary>
+        public TaskInfo? Read(string taskPath)
+        {
+            if (_service is null)
+                return null;
+
+            try
+            {
+                var (folder, name) = Split(taskPath);
+                dynamic task = _service.GetFolder(folder).GetTask(name);
+
+                var enabled = (bool)task.Enabled;
+                return new TaskInfo(
+                    enabled,
+                    TryTime(() => (DateTime)task.LastRunTime),
+                    TryTime(() => (DateTime)task.NextRunTime),
+                    TryAuthor(task));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static DateTime? TryTime(Func<DateTime> read)
+        {
+            try
+            {
+                var value = read();
+                return value == DateTime.MinValue ? null : value.ToUniversalTime();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string? TryAuthor(dynamic task)
+        {
+            try
+            {
+                var author = (string?)task.Definition.RegistrationInfo.Author;
+                return string.IsNullOrWhiteSpace(author) ? null : author.Trim();
             }
             catch
             {

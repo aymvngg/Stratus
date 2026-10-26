@@ -1,9 +1,68 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Microsoft.UI.Xaml.Controls;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
 
 namespace Stratus.ViewModels;
+
+public sealed class RestorePointRow : ObservableObject
+{
+    public RestorePointRow(RestorePointItem item) => Item = item;
+
+    public RestorePointItem Item { get; }
+
+    public string Description => string.IsNullOrWhiteSpace(Item.Description) ? "Restore point" : Item.Description;
+
+    public string CreatedText =>
+        Item.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture);
+
+    public string TypeText => Item.Type switch
+    {
+        "0" => "App install",
+        "1" => "App uninstall",
+        "10" => "Driver install",
+        "12" => "Settings change",
+        "13" => "Cancelled",
+        _ => "System",
+    };
+
+    public string MetaText => $"{CreatedText} · {TypeText}";
+}
+
+public sealed class TcpRow : ObservableObject
+{
+    public TcpRow(TcpSettingItem item)
+    {
+        Item = item;
+        _selectedValue = item.CurrentValue;
+    }
+
+    public TcpSettingItem Item { get; }
+
+    public string Name => Item.Name;
+    public string Description => Item.Description;
+    public string[] Values => Item.Values;
+    public string CurrentText => Item.CurrentValue;
+    public string DefaultText => $"Default: {Item.DefaultValue}";
+    public bool IsDefault => string.Equals(Item.CurrentValue, Item.DefaultValue, StringComparison.OrdinalIgnoreCase);
+
+    private string _selectedValue;
+    public string SelectedValue { get => _selectedValue; set => Set(ref _selectedValue, value); }
+
+    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        set
+        {
+            if (Set(ref _isBusy, value))
+                Raise(nameof(CanInteract));
+        }
+    }
+
+    public bool CanInteract => !IsBusy;
+}
 
 public sealed class ToolsViewModel : ObservableObject
 {
@@ -64,6 +123,55 @@ public sealed class ToolsViewModel : ObservableObject
     public string ScanDetail { get => _scanDetail; private set => Set(ref _scanDetail, value); }
     public bool HasScan { get => _hasScan; private set => Set(ref _hasScan, value); }
     public bool HasDnsResults => DnsResults.Count > 0;
+
+    // ---- restore points ----
+    public ObservableCollection<RestorePointRow> RestorePoints { get; } = new();
+
+    private string _restoreStorageText = "Reading restore points…";
+    private bool _restoreAvailable = true;
+
+    public string RestoreStorageText { get => _restoreStorageText; private set => Set(ref _restoreStorageText, value); }
+
+    public bool RestoreAvailable
+    {
+        get => _restoreAvailable;
+        private set
+        {
+            if (Set(ref _restoreAvailable, value))
+                Raise(nameof(RestoreEmptyText), nameof(HasRestorePoints));
+        }
+    }
+
+    public bool HasRestorePoints => RestorePoints.Count > 0;
+
+    public string RestoreEmptyText => RestoreAvailable
+        ? "No restore points yet. Create one before big changes."
+        : "System Restore is turned off on this PC. Creating a point turns it on for the system drive.";
+
+    // ---- Windows Update pause ----
+    private bool _updatePaused;
+    private string _updatePauseText = "Reading the update pause state…";
+
+    public bool UpdatePaused
+    {
+        get => _updatePaused;
+        private set
+        {
+            if (Set(ref _updatePaused, value))
+                Raise(nameof(UpdatePauseButtonText), nameof(UpdatePauseHint));
+        }
+    }
+
+    public string UpdatePauseText { get => _updatePauseText; private set => Set(ref _updatePauseText, value); }
+
+    public string UpdatePauseButtonText => UpdatePaused ? "Resume updates" : "Pause for 7 days";
+
+    public string UpdatePauseHint => UpdatePaused
+        ? "Windows Update installs nothing until the pause expires. Resume to let it check again right away."
+        : "Pausing holds feature, quality and driver updates for a week. Security updates resume automatically when the pause ends.";
+
+    // ---- TCP settings ----
+    public ObservableCollection<TcpRow> TcpSettings { get; } = new();
 
     public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) Raise(nameof(CanCheckForUpdates)); } }
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
@@ -188,12 +296,195 @@ public sealed class ToolsViewModel : ObservableObject
         try
         {
             var (ok, message) = await Task.Run(() => RestorePointService.Create());
-            return ok ? "Restore point created." : $"Restore point failed: {message}";
+            if (!ok)
+                return $"Restore point failed: {message}";
+
+            await LoadRestorePointsAsync();
+            return "Restore point created.";
         }
         catch (Exception ex)
         {
             Log.Error("Creating a restore point failed", ex);
             return $"Restore point failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    // ================= restore points, update pause, TCP =================
+
+    /// <summary>Loads the three cards that read their own state. Each one catches its own failure.</summary>
+    public async Task LoadExtrasAsync()
+    {
+        await Task.WhenAll(LoadRestorePointsAsync(), LoadUpdatePauseAsync(), LoadTcpAsync());
+    }
+
+    public async Task LoadRestorePointsAsync()
+    {
+        try
+        {
+            var list = await Task.Run(RestorePointService.Scan);
+
+            RestorePoints.Clear();
+            foreach (var point in list.Points)
+                RestorePoints.Add(new RestorePointRow(point));
+
+            RestoreAvailable = list.Available;
+            RestoreStorageText = list.UsedBytes > 0
+                ? $"{Format.Bytes(list.UsedBytes)} used by System Restore ({Format.Bytes(list.AllocatedBytes)} allocated)"
+                : list.Available
+                    ? "No space used by System Restore yet"
+                    : "System Restore is turned off";
+
+            Raise(nameof(HasRestorePoints), nameof(RestoreEmptyText));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Restore point scan failed: " + ex.Message);
+            RestoreStorageText = "Could not read the restore points.";
+        }
+    }
+
+    public async Task<string> DeleteRestorePointAsync(RestorePointRow row)
+    {
+        if (IsBusy)
+            return "Another action is already running.";
+
+        IsBusy = true;
+        BusyText = "Deleting the restore point…";
+        try
+        {
+            var (ok, message) = await Task.Run(() => RestorePointService.Delete(row.Item.Sequence));
+            if (!ok)
+                return $"Could not delete the restore point: {message}";
+
+            await LoadRestorePointsAsync();
+            return "Restore point deleted.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Deleting a restore point failed", ex);
+            return $"Could not delete the restore point: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    public async Task LoadUpdatePauseAsync()
+    {
+        try
+        {
+            ApplyPauseState(await Task.Run(UpdatePauseService.Read));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read the Windows Update pause state: " + ex.Message);
+            UpdatePauseText = "Could not read the update pause state.";
+        }
+    }
+
+    private void ApplyPauseState(UpdatePauseState state)
+    {
+        UpdatePaused = state.IsPaused;
+        UpdatePauseText = state.IsPaused && state.UntilUtc is { } until
+            ? $"Paused until {until.ToLocalTime().ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)}."
+            : "Updates are active. Windows checks on its own schedule.";
+    }
+
+    public async Task<string> ToggleUpdatePauseAsync()
+    {
+        IsBusy = true;
+        BusyText = UpdatePaused ? "Resuming Windows Update…" : "Pausing Windows Update…";
+        try
+        {
+            var paused = UpdatePaused;
+            var (ok, message) = await Task.Run(() =>
+                paused ? UpdatePauseService.Resume() : UpdatePauseService.Pause(7));
+
+            if (!ok)
+                return $"Could not change the update pause: {message}";
+
+            ApplyPauseState(await Task.Run(UpdatePauseService.Read));
+            return message;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Changing the Windows Update pause failed", ex);
+            return $"Could not change the update pause: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    public async Task LoadTcpAsync()
+    {
+        try
+        {
+            var items = await Task.Run(TcpSettingsService.Scan);
+
+            TcpSettings.Clear();
+            foreach (var item in items)
+                TcpSettings.Add(new TcpRow(item));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read the TCP settings: " + ex.Message);
+        }
+    }
+
+    public async Task<string> ApplyTcpAsync(TcpRow row)
+    {
+        if (IsBusy)
+            return "Another action is already running.";
+
+        IsBusy = true;
+        row.IsBusy = true;
+        BusyText = $"Applying {row.Name.ToLowerInvariant()}…";
+        try
+        {
+            var (ok, message) = await Task.Run(() => TcpSettingsService.Apply(row.Item, row.SelectedValue));
+            if (!ok)
+                return $"Could not apply the TCP setting: {message}";
+
+            await LoadTcpAsync();
+            return message;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Applying a TCP setting failed", ex);
+            return $"Could not apply the TCP setting: {ex.Message}";
+        }
+        finally
+        {
+            row.IsBusy = false;
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    public async Task<string> ResetTcpAsync()
+    {
+        IsBusy = true;
+        BusyText = "Restoring the default TCP settings…";
+        try
+        {
+            var (ok, message) = await Task.Run(TcpSettingsService.ResetAll);
+            await LoadTcpAsync();
+            return ok ? message : $"Could not reset every TCP setting: {message}";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Resetting the TCP settings failed", ex);
+            return $"Could not reset the TCP settings: {ex.Message}";
         }
         finally
         {

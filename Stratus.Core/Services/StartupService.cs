@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Win32;
 using Stratus.Core.Models;
 
@@ -13,7 +14,10 @@ public sealed record StartupItem(
     RegistryHive Hive,
     string ApprovedPath,
     string ValueName,
-    bool IsEnabled);
+    bool IsEnabled,
+    string? ExecutablePath = null,
+    long FileSizeBytes = 0,
+    string? Publisher = null);
 
 /// <summary>
 /// Reads and toggles startup entries the same way Task Manager does: the command
@@ -80,18 +84,24 @@ public sealed class StartupService
                     if (string.IsNullOrWhiteSpace(name))
                         continue;
 
+                    var command = key.GetValue(name)?.ToString() ?? "";
+                    var described = Describe(command);
+
                     items.Add(new StartupItem(
                         // The RunPath is part of the id: HKLM\...\Run and HKLM\...\WOW6432Node\...\Run
                         // can hold entries with the same name, and they must not share a backup.
                         Id: $"run:{location.Hive}:{location.RunPath}:{name}",
                         Name: name,
-                        Command: key.GetValue(name)?.ToString() ?? "",
+                        Command: command,
                         Scope: location.Scope,
                         Source: location.Source,
                         Hive: location.Hive,
                         ApprovedPath: location.ApprovedPath,
                         ValueName: name,
-                        IsEnabled: IsEnabled(location.Hive, location.ApprovedPath, name)));
+                        IsEnabled: IsEnabled(location.Hive, location.ApprovedPath, name),
+                        ExecutablePath: described.Path,
+                        FileSizeBytes: described.SizeBytes,
+                        Publisher: described.Publisher));
                 }
             }
             catch
@@ -132,6 +142,8 @@ public sealed class StartupService
                     && !ext.Equals(".exe", StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                var described = Describe(file);
+
                 items.Add(new StartupItem(
                     Id: $"folder:{hive}:{name}",
                     Name: Path.GetFileNameWithoutExtension(file),
@@ -141,12 +153,113 @@ public sealed class StartupService
                     Hive: hive,
                     ApprovedPath: approvedPath,
                     ValueName: name,
-                    IsEnabled: IsEnabled(hive, approvedPath, name)));
+                    IsEnabled: IsEnabled(hive, approvedPath, name),
+                    ExecutablePath: described.Path,
+                    FileSizeBytes: described.SizeBytes,
+                    Publisher: described.Publisher));
             }
         }
         catch
         {
             // Unreadable folder: skip it.
+        }
+    }
+
+    /// <summary>
+    /// Resolves the file behind a Run command and reads its size and publisher.
+    /// Best effort: a missing file or an unreadable version resource leaves the fields empty
+    /// instead of hiding the row.
+    /// </summary>
+    private static (string? Path, long SizeBytes, string? Publisher) Describe(string command)
+    {
+        var resolved = ResolvePath(command);
+        if (resolved is null)
+            return (null, 0, null);
+
+        var target = ResolveShortcut(resolved);
+
+        long size = 0;
+        try
+        {
+            var info = new FileInfo(target);
+            if (info.Exists)
+                size = info.Length;
+        }
+        catch
+        {
+            // A locked or denied file simply reports an unknown size.
+        }
+
+        string? publisher = null;
+        try
+        {
+            var company = FileVersionInfo.GetVersionInfo(target).CompanyName?.Trim();
+            if (!string.IsNullOrWhiteSpace(company))
+                publisher = company;
+        }
+        catch
+        {
+            // No version resource: leave the publisher empty.
+        }
+
+        return (target, size, publisher);
+    }
+
+    /// <summary>
+    /// Pulls the file path out of a command line. Quoted paths are used as-is;
+    /// unquoted paths grow word by word until an existing file matches.
+    /// </summary>
+    private static string? ResolvePath(string command)
+    {
+        var text = Environment.ExpandEnvironmentVariables(command.Trim());
+        if (text.Length == 0)
+            return null;
+
+        if (text[0] == '"')
+        {
+            var close = text.IndexOf('"', 1);
+            if (close <= 1)
+                return null;
+
+            var quoted = text[1..close];
+            return File.Exists(quoted) ? quoted : null;
+        }
+
+        if (File.Exists(text))
+            return text;
+
+        var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var candidate = "";
+        foreach (var part in parts)
+        {
+            candidate = candidate.Length == 0 ? part : candidate + " " + part;
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    /// <summary>Follows a Startup folder shortcut to the executable it launches.</summary>
+    private static string ResolveShortcut(string path)
+    {
+        if (!path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+            return path;
+
+        try
+        {
+            var type = Type.GetTypeFromProgID("WScript.Shell");
+            if (type is null)
+                return path;
+
+            dynamic shell = Activator.CreateInstance(type)!;
+            var target = (string?)shell.CreateShortcut(path).TargetPath;
+            return string.IsNullOrWhiteSpace(target) || !File.Exists(target) ? path : target;
+        }
+        catch
+        {
+            // A shortcut without a readable target is reported as itself.
+            return path;
         }
     }
 

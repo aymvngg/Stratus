@@ -16,6 +16,13 @@ public sealed class StartupRow : ObservableObject
     public string ScopeText => Item.Scope;
     public string SourceText => Item.Source;
 
+    public string PublisherText => string.IsNullOrWhiteSpace(Item.Publisher) ? "Unknown publisher" : Item.Publisher;
+    public string SizeText => Item.FileSizeBytes > 0 ? Format.Bytes(Item.FileSizeBytes) : "Unknown size";
+    public string ImpactText => $"{SizeText} · {PublisherText}";
+
+    /// <summary>False when the command points at a file that no longer exists, so the button is hidden.</summary>
+    public bool CanOpenLocation => !string.IsNullOrWhiteSpace(Item.ExecutablePath);
+
     private bool _isEnabled;
     public bool IsEnabled
     {
@@ -45,7 +52,25 @@ public sealed class StartupRow : ObservableObject
 
 public sealed class StartupViewModel : ObservableObject
 {
+    private const string AllScopes = "All scopes";
+
     public ObservableCollection<StartupRow> Rows { get; } = [];
+
+    /// <summary>Rows that match the scope filter. Rows itself is never filtered in place.</summary>
+    public ObservableCollection<StartupRow> Filtered { get; } = [];
+
+    public ObservableCollection<string> Scopes { get; } = [];
+
+    private string _scopeFilter = AllScopes;
+    public string ScopeFilter
+    {
+        get => _scopeFilter;
+        set
+        {
+            if (Set(ref _scopeFilter, value))
+                ApplyFilter();
+        }
+    }
 
     private string _countText = "Scanning startup entries…";
     public string CountText
@@ -61,11 +86,34 @@ public sealed class StartupViewModel : ObservableObject
         private set
         {
             if (Set(ref _hasItems, value))
-                Raise(nameof(Empty));
+                Raise(nameof(Empty), nameof(EmptyText));
         }
     }
 
-    public bool Empty => !HasItems;
+    public bool Empty => Filtered.Count == 0;
+
+    public string EmptyText => Rows.Count == 0
+        ? "Nothing launches with Windows on this machine."
+        : "No startup entries are registered for this scope.";
+
+    /// <summary>Rebuilds the visible list from Rows using the scope filter.</summary>
+    private void ApplyFilter()
+    {
+        Filtered.Clear();
+
+        foreach (var row in Rows)
+        {
+            if (_scopeFilter != AllScopes &&
+                !string.Equals(row.ScopeText, _scopeFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Filtered.Add(row);
+        }
+
+        Raise(nameof(Empty), nameof(EmptyText));
+    }
 
     private bool _isBusy;
     public bool IsBusy
@@ -116,7 +164,17 @@ public sealed class StartupViewModel : ObservableObject
                 Rows.Add(row);
             }
 
+            var scopes = Rows.Select(r => r.ScopeText).Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+            Scopes.Clear();
+            Scopes.Add(AllScopes);
+            foreach (var scope in scopes)
+                Scopes.Add(scope);
+            if (!Scopes.Contains(_scopeFilter))
+                ScopeFilter = AllScopes;
+
             HasItems = Rows.Count > 0;
+            ApplyFilter();
             UpdateCount();
         }
         catch (Exception ex)
@@ -171,6 +229,56 @@ public sealed class StartupViewModel : ObservableObject
         finally
         {
             row.IsBusy = false;
+        }
+    }
+
+    /// <summary>Applies one state to every entry in a scope. Used by the per-group buttons.</summary>
+    public async Task<string> SetScopeAsync(string scope, bool enabled)
+    {
+        var rows = Rows
+            .Where(r => string.Equals(r.ScopeText, scope, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (rows.Count == 0)
+            return $"No startup entries are registered for {scope.ToLowerInvariant()}.";
+
+        var changed = 0;
+        foreach (var row in rows)
+        {
+            if (row.IsEnabled == enabled)
+                continue;
+
+            if (await SetEnabledAsync(row, enabled))
+                changed++;
+        }
+
+        var label = scope.ToLowerInvariant();
+        var noun = rows.Count == 1 ? "entry" : "entries";
+        if (changed == 0)
+            return $"Every {label} {noun} is already {(enabled ? "enabled" : "disabled")}.";
+
+        return $"{(enabled ? "Enabled" : "Disabled")} {changed} of {rows.Count} {label} {noun}.";
+    }
+
+    /// <summary>Opens Explorer with the entry's executable selected.</summary>
+    public void OpenLocation(StartupRow row)
+    {
+        var path = row.Item.ExecutablePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            ShowStatus($"{row.Name} does not point at a file that still exists.", InfoBarSeverity.Warning);
+            return;
+        }
+
+        try
+        {
+            // explorer.exe returns a non-zero exit code even when the window opens,
+            // so only an exception counts as a failure here.
+            ProcessRunner.Run("explorer.exe", $"/select,\"{path}\"", 5_000);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not open the startup entry location: " + ex.Message);
+            ShowStatus($"Could not open the folder for {row.Name}: {ex.Message}", InfoBarSeverity.Warning);
         }
     }
 
