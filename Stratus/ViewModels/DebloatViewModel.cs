@@ -241,7 +241,7 @@ public sealed class DebloatViewModel : ObservableObject
         {
             for (var i = 0; i < rows.Count; i++)
             {
-                BusyText = $"Removing {i + 1} of {rows.Count}…";
+                BusyText = $"Removing {i + 1} of {rows.Count}: {rows[i].Name}…";
                 var (success, message) = await rows[i].RemoveAsync();
                 if (success) ok++;
                 else failed.Add((rows[i].Item.FullName, rows[i].Name, message));

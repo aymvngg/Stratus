@@ -475,8 +475,45 @@ public sealed class ToolsViewModel : ObservableObject
     public bool IsUpdateReady { get => _isUpdateReady; private set { if (Set(ref _isUpdateReady, value)) Raise(nameof(UpdateButtonText), nameof(CanCheckForUpdates)); } }
     public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
     public string UpdateStatusText { get => _updateStatusText; private set => Set(ref _updateStatusText, value); }
-    public string UpdateNotes { get => _updateNotes; private set { if (Set(ref _updateNotes, value)) Raise(nameof(HasUpdateNotes)); } }
+    public string UpdateNotes { get => _updateNotes; private set { if (Set(ref _updateNotes, value)) Raise(nameof(HasUpdateNotes), nameof(UpdateNotesText)); } }
     public bool HasUpdateNotes => !string.IsNullOrWhiteSpace(_updateNotes);
+
+    /// <summary>Release notes as plain text: markdown markers read badly inside a TextBox.</summary>
+    public string UpdateNotesText => FormatNotes(_updateNotes);
+
+    private static string FormatNotes(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var builder = new System.Text.StringBuilder();
+
+        foreach (var raw in lines)
+        {
+            var line = raw.TrimEnd();
+
+            // Headers: drop the hashes, keep the title and give it breathing room.
+            if (line.StartsWith("### ") || line.StartsWith("## ") || line.StartsWith("# "))
+            {
+                if (builder.Length > 0)
+                    builder.AppendLine();
+                builder.AppendLine(line.TrimStart('#').Trim());
+                continue;
+            }
+
+            if (line.StartsWith("- "))
+                line = "\u2022 " + line[2..];
+
+            // Links keep their text, emphasis and code markers go away.
+            line = System.Text.RegularExpressions.Regex.Replace(line, @"\[([^\]]+)\]\([^)]+\)", "$1");
+            line = line.Replace("**", "").Replace("`", "");
+
+            builder.AppendLine(line);
+        }
+
+        return builder.ToString().Trim();
+    }
 
     public string UpdateTitleText =>
         _updateInfo is null ? "Updates" : $"Stratus {_updateInfo.Tag} is available";

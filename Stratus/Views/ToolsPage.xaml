@@ -348,7 +348,7 @@
 
                     <Expander Header="What's new" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                               Visibility="{x:Bind vm:Conv.Vis(VM.HasUpdateNotes), Mode=OneWay}">
-                        <TextBox Text="{x:Bind VM.UpdateNotes, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                        <TextBox Text="{x:Bind VM.UpdateNotesText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
                                  TextWrapping="Wrap" Height="160" FontSize="12"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                     </Expander>

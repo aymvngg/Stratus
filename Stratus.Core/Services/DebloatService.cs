@@ -8,7 +8,8 @@ public sealed record UwpAppItem(
     string Name,
     string FullName,
     string Publisher,
-    DebloatGroup Group)
+    DebloatGroup Group,
+    string? FamilyName = null)
 {
     public bool Selected { get; set; }
     public string? Result { get; set; }
@@ -118,7 +119,7 @@ public sealed class DebloatService
                 else
                     group = DebloatGroup.ThirdParty;
 
-                items.Add(new UwpAppItem(display, id.FullName ?? name, publisher, group));
+                items.Add(new UwpAppItem(display, id.FullName ?? name, publisher, group, id.FamilyName));
             }
         }
         catch (Exception ex)
@@ -132,15 +133,27 @@ public sealed class DebloatService
     /// <summary>Removes one UWP package for the current user and deprovisions it (so new users never get it).</summary>
     public async Task<(bool Success, string Message)> RemoveAsync(UwpAppItem item)
     {
+        if (string.IsNullOrWhiteSpace(item.FullName))
+            return (false, "This entry has no package name and cannot be removed.");
+
+        var manager = new Windows.Management.Deployment.PackageManager();
+
+        // Deployment calls can block for minutes when the servicing stack is busy, and one
+        // stuck package used to freeze the whole batch. Cap every step.
+        using var removeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         try
         {
-            var manager = new Windows.Management.Deployment.PackageManager();
-            var result = await manager.RemovePackageAsync(item.FullName).AsTask();
+            var result = await manager.RemovePackageAsync(item.FullName).AsTask(removeTimeout.Token);
             if (result.ErrorText.Length > 0)
             {
                 Log.Warn("Debloat remove failed for " + item.Name + ": " + result.ErrorText);
                 return (false, result.ErrorText);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warn("Debloat remove timed out for " + item.Name + ".");
+            return (false, "Timed out after 90 seconds.");
         }
         catch (Exception ex)
         {
@@ -148,15 +161,28 @@ public sealed class DebloatService
             return (false, ex.Message);
         }
 
-        // Best effort: drop the provisioning so future user profiles don't reinstall it.
-        // DISM takes seconds to minutes per package and ProcessRunner blocks, so keep it off
-        // the UI thread (this method is awaited from the UI and resumes there).
-        if (SystemInfoService.IsElevated())
+        // Deprovision so future user profiles do not get the package back. This used to shell
+        // out to "dism /Online /Remove-ProvisionedAppxPackage", which waits on the servicing
+        // stack and took minutes per package (the page looked frozen on "Removing 1 of 9").
+        // The deployment API is the supported replacement and returns once the entry is gone.
+        if (!string.IsNullOrEmpty(item.FamilyName) && SystemInfoService.IsElevated())
         {
-            await Task.Run(() => ProcessRunner.Run(
-                "dism.exe",
-                $"/Online /Remove-ProvisionedAppxPackage /PackageName:{item.FullName}",
-                120_000));
+            try
+            {
+                using var deprovisionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                await manager
+                    .DeprovisionPackageForAllUsersAsync(item.FamilyName)
+                    .AsTask(deprovisionTimeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Log.Warn("Debloat deprovision timed out for " + item.Name + ".");
+            }
+            catch (Exception ex)
+            {
+                // The package is already gone for this user, so provisioning stays best effort.
+                Log.Warn("Debloat deprovision failed for " + item.Name + ": " + ex.Message);
+            }
         }
 
         Log.Info("Debloat removed " + item.Name + ".");

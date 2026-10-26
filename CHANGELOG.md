@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.2
+
+Debloat removal no longer hangs: the slow DISM deprovision step is gone and every package operation is now capped.
+
+### Fixes
+- **Debloat hang**: removing recommended apps could sit on "Removing 1 of 9" for many minutes because each package ran `dism /Online /Remove-ProvisionedAppxPackage`, which waits on the Windows servicing stack. Removal now uses the deployment API only, deprovisions in the background with a 60 second cap, and caps each package at 90 seconds, so a stuck app reports a timeout instead of freezing the batch
+- **Debloat progress**: the status line now names the app being removed ("Removing 3 of 9: Microsoft News...")
+- **What's new**: release notes are shown as plain text instead of raw markdown headings, bullets and asterisks
+
 ## v1.5.1
 
 Stratus now starts from its shortcuts, keeps your DNS picker, and reports failures instead of crashing.
