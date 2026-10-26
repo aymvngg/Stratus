@@ -36,13 +36,46 @@ public sealed partial class HistoryPage : Page
 
     private async void OnUndo(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: HistoryRow row })
-            await VM.UndoAsync(row);
+        if (sender is not FrameworkElement { DataContext: HistoryRow row })
+            return;
+
+        // Undoing a change that created a value deletes it again. That is what Undo means, but
+        // deleting registry values is worth a confirmation when there is no previous value.
+        if (AppServices.Backup.LatestPerKey(row.Entry.TweakId).Any(b => !b.Existed))
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Undo and remove the value?",
+                Content = "Part of this change created a value that did not exist before. Undoing removes it again. Continue?",
+                PrimaryButtonText = "Undo",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+            };
+
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+        }
+
+        await VM.UndoAsync(row);
     }
 
     private async void OnRestoreGroup(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: BackupGroupRow group })
+        if (sender is not FrameworkElement { DataContext: BackupGroupRow group })
+            return;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"Restore {group.TweakName}?",
+            Content = "Every value in this group is written back from the backup. Values changed since then are overwritten.",
+            PrimaryButtonText = "Restore",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             await VM.RestoreGroupAsync(group);
     }
 
@@ -58,8 +91,15 @@ public sealed partial class HistoryPage : Page
             DefaultButton = ContentDialogButton.Close,
         };
 
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await VM.ClearHistoryAsync();
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        await VM.ClearHistoryAsync();
+
+        // The cleared timeline is empty: drop the filter so the empty state is not confused
+        // with "no changes match your search".
+        SearchBox.Text = "";
+        VM.SearchText = "";
     }
 
     private void OnOpenBackupFile(object sender, RoutedEventArgs e)

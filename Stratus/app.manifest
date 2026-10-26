@@ -2,11 +2,17 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="Stratus.app"/>
 
-  <!-- Stratus changes system settings (registry, services, power plans) - it needs admin. -->
+  <!--
+    Stratus changes system settings (registry, services, power plans), so it runs elevated.
+    It must NOT demand elevation here: installers, shortcuts and Velopack's Update.exe start
+    the exe without elevation, and a requireAdministrator manifest makes those launches fail
+    with ERROR_ELEVATION_REQUIRED (740) before the app can even show UAC.
+    Program.Main asks for elevation itself right after the Velopack hooks have run.
+  -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

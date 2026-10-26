@@ -414,7 +414,10 @@ public static class TweakCatalog
             "power-hibernation-off", "Disable hibernation",
             "Runs 'powercfg /h off': deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected.",
             TweakCategory.Power,
-            () => ProcessRunner.Run("powercfg.exe", "/a").StdOut.Contains("Hibernation has not been enabled", StringComparison.OrdinalIgnoreCase),
+            // Registry, not "powercfg /a" text: that output is localized, so the English marker
+            // never matched on a French or otherwise localized Windows.
+            () => reg.ValueEquals(RegistryHive.LocalMachine,
+                @"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", RegistryValueKind.DWord, 0),
             () => ProcessRunner.Run("powercfg.exe", "/h off").Success ? TweakResult.Ok : TweakResult.Fail("powercfg /h off failed."),
             () => ProcessRunner.Run("powercfg.exe", "/h on").Success ? TweakResult.Ok : TweakResult.Fail("powercfg /h on failed."))
         { Weight = 1, Risk = RiskLevel.Advanced });

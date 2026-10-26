@@ -52,7 +52,7 @@ public sealed class DebloatService
         "Microsoft.Wallet",
         "Microsoft.Windows.DevHome",
         "microsoft.windowscommunicationsapps", // Mail/Calendar (legacy)
-        "Microsoft.YourPhone"                  // listed under Other for cautious users
+        "Microsoft.YourPhone"                  // Phone Link: removable, only useful with an Android phone
     };
 
     // Frameworks/runtimes other apps depend on - never offer these.
@@ -80,7 +80,6 @@ public sealed class DebloatService
         "Microsoft.Windows.ShellExperienceHost",
         "Microsoft.Windows.StartMenuExperienceHost",
         "Microsoft.Copilot",
-        "Microsoft.WindowsNotepad",
         "Microsoft.HEIFImageExtension",
         "Microsoft.WebMediaExtensions",
         "Microsoft.WebpImageExtension",
@@ -150,9 +149,14 @@ public sealed class DebloatService
         }
 
         // Best effort: drop the provisioning so future user profiles don't reinstall it.
+        // DISM takes seconds to minutes per package and ProcessRunner blocks, so keep it off
+        // the UI thread (this method is awaited from the UI and resumes there).
         if (SystemInfoService.IsElevated())
         {
-            ProcessRunner.Run("dism.exe", $"/Online /Remove-ProvisionedAppxPackage /PackageName:{item.FullName}", 120_000);
+            await Task.Run(() => ProcessRunner.Run(
+                "dism.exe",
+                $"/Online /Remove-ProvisionedAppxPackage /PackageName:{item.FullName}",
+                120_000));
         }
 
         Log.Info("Debloat removed " + item.Name + ".");
@@ -162,12 +166,10 @@ public sealed class DebloatService
     public List<Win32AppItem> ScanWin32()
     {
         var items = new List<Win32AppItem>();
-        var roots = new[]
-        {
-            Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
-            Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
-            Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
-        };
+        using var machine = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+        using var machineWow = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall");
+        using var user = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+        var roots = new[] { machine, machineWow, user };
 
         foreach (var root in roots)
         {
@@ -184,7 +186,12 @@ public sealed class DebloatService
                 if (string.IsNullOrWhiteSpace(display) || string.IsNullOrWhiteSpace(uninstall))
                     continue;
 
-                var size = key.GetValue("EstimatedSize") is int kb ? (long)kb * 1024 : 0;
+                var size = key.GetValue("EstimatedSize") switch
+                {
+                    int kb => (long)kb * 1024,
+                    long kb => kb * 1024,
+                    _ => 0L,
+                };
                 items.Add(new Win32AppItem(
                     display,
                     key.GetValue("Publisher") as string ?? "",
@@ -208,19 +215,51 @@ public sealed class DebloatService
     {
         try
         {
-            string exe, args;
+            string exe;
+            string args;
             var s = item.UninstallString.Trim();
             if (s.StartsWith('"'))
             {
                 var end = s.IndexOf('"', 1);
-                exe = s[1..end];
-                args = s[(end + 1)..].Trim();
+                if (end < 0)
+                {
+                    exe = s.Trim('"');
+                    args = "";
+                }
+                else
+                {
+                    exe = s[1..end];
+                    args = s[(end + 1)..].Trim();
+                }
+            }
+            else if (System.IO.File.Exists(s))
+            {
+                exe = s;
+                args = "";
             }
             else
             {
-                var space = s.IndexOf(' ');
-                exe = space < 0 ? s : s[..space];
-                args = space < 0 ? "" : s[(space + 1)..].Trim();
+                // Unquoted paths with spaces are common ("C:\Program Files\App\unins000.exe /S").
+                // Use the longest prefix that exists on disk as the executable, the rest as args.
+                exe = "";
+                args = "";
+                for (var space = s.IndexOf(' '); space > 0; space = s.IndexOf(' ', space + 1))
+                {
+                    var candidate = s[..space];
+                    if (System.IO.File.Exists(candidate))
+                    {
+                        exe = candidate;
+                        args = s[(space + 1)..].Trim();
+                        break;
+                    }
+                }
+
+                if (exe.Length == 0)
+                {
+                    var space = s.IndexOf(' ');
+                    exe = space < 0 ? s : s[..space];
+                    args = space < 0 ? "" : s[(space + 1)..].Trim();
+                }
             }
 
             // MsiExec /X{guid} needs a silent flag we cannot assume - keep it interactive.

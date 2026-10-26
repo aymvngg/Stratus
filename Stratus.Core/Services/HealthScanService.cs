@@ -36,7 +36,9 @@ public static class HealthScanService
 
     /// <summary>SFC verifies protected system files and repairs them from the component store.</summary>
     public static HealthScanResult RunSfc() =>
-        Execute("System file check (SFC)", "sfc.exe", "/scannow", 40 * 60_000);
+        // sfc.exe emits UTF-16LE when its output is redirected; decoding it as ANSI turns the
+        // text into NUL-interleaved garbage and no summary marker ever matches.
+        Execute("System file check (SFC)", "sfc.exe", "/scannow", 40 * 60_000, System.Text.Encoding.Unicode);
 
     /// <summary>DISM ScanHealth checks the component store without changing anything.</summary>
     public static HealthScanResult RunDismScan() =>
@@ -46,13 +48,18 @@ public static class HealthScanService
     public static HealthScanResult RunDismRestore() =>
         Execute("Component store repair (DISM)", "dism.exe", "/Online /Cleanup-Image /RestoreHealth", 60 * 60_000);
 
-    private static HealthScanResult Execute(string title, string file, string arguments, int timeoutMs)
+    private static HealthScanResult Execute(
+        string title,
+        string file,
+        string arguments,
+        int timeoutMs,
+        System.Text.Encoding? encoding = null)
     {
         var started = DateTime.UtcNow;
         ProcessResult result;
         try
         {
-            result = ProcessRunner.Run(file, arguments, timeoutMs);
+            result = ProcessRunner.Run(file, arguments, timeoutMs, encoding);
         }
         catch (Exception ex)
         {
@@ -66,6 +73,10 @@ public static class HealthScanService
 
         Log.Info($"{title}: exit {result.ExitCode} in {duration.TotalMinutes:F1} min");
 
+        // The UI only shows a truncated excerpt, so keep the whole output in the log.
+        if (detail.Length > 0)
+            Log.Info($"{title} output:{Environment.NewLine}{detail}");
+
         return new HealthScanResult(title, result.Success, result.ExitCode, Summarize(detail, result.ExitCode), detail, duration);
     }
 
@@ -76,7 +87,7 @@ public static class HealthScanService
             return "";
 
         var text = Regex.Replace(raw, @"\x1B\[[0-9;?]*[a-zA-Z]", "");
-        text = text.Replace("\r\n", "\n").Replace('\r', '\n');
+        text = text.Replace("\r\n", "\n").Replace('\r', '\n').TrimStart('\uFEFF');
 
         var lines = text.Split('\n')
             .Select(l => l.TrimEnd())

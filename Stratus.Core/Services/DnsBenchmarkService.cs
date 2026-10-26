@@ -28,24 +28,37 @@ public static class DnsBenchmarkService
             if (profile.Primary is null)
                 continue;
 
-            var times = new List<double>();
-            string? error = null;
+            results.Add(Measure(profile.Label, profile.Primary, samplesPerServer));
 
-            for (var i = 0; i < samplesPerServer; i++)
+            // Secondaries are real resolvers too: measuring only the primary hid a dead fallback.
+            if (profile.Secondary is not null)
             {
-                var (ok, ms, message) = Query(profile.Primary);
-                if (ok)
-                    times.Add(ms);
-                else
-                    error = message;
+                var name = profile.Label.Split('(')[0].Trim();
+                results.Add(Measure($"{name} secondary ({profile.Secondary})", profile.Secondary, samplesPerServer));
             }
-
-            results.Add(times.Count > 0
-                ? new DnsBenchmarkResult(profile.Label, profile.Primary, times.Average(), times.Count, true, null)
-                : new DnsBenchmarkResult(profile.Label, profile.Primary, 0, 0, false, error ?? "no response"));
         }
 
         return results.OrderBy(r => r.Ok ? 0 : 1).ThenBy(r => r.AverageMs).ToList();
+    }
+
+    /// <summary>Times one server over a few queries and folds the samples into a result row.</summary>
+    private static DnsBenchmarkResult Measure(string label, string server, int samplesPerServer)
+    {
+        var times = new List<double>();
+        string? error = null;
+
+        for (var i = 0; i < samplesPerServer; i++)
+        {
+            var (ok, ms, message) = Query(server);
+            if (ok)
+                times.Add(ms);
+            else
+                error = message;
+        }
+
+        return times.Count > 0
+            ? new DnsBenchmarkResult(label, server, times.Average(), times.Count, true, null)
+            : new DnsBenchmarkResult(label, server, 0, 0, false, error ?? "no response");
     }
 
     /// <summary>One DNS query round trip. Returns elapsed milliseconds on success.</summary>

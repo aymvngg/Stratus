@@ -25,8 +25,10 @@
                               VerticalAlignment="Center"/>
                 <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center" FontSize="11"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                <Button Content="Scan installed apps" Click="OnScan" Style="{StaticResource AccentButtonStyle}"/>
-                <Button Content="{x:Bind VM.RemoveButtonText, Mode=OneWay}" Click="OnRemoveSelected"/>
+                <Button Content="Scan installed apps" Click="OnScan" Style="{StaticResource AccentButtonStyle}"
+                        IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                <Button Content="{x:Bind VM.RemoveButtonText, Mode=OneWay}" Click="OnRemoveSelected"
+                        IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
             </StackPanel>
         </Grid>
 

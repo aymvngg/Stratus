@@ -81,7 +81,9 @@ public sealed class StartupService
                         continue;
 
                     items.Add(new StartupItem(
-                        Id: $"run:{location.Hive}:{name}",
+                        // The RunPath is part of the id: HKLM\...\Run and HKLM\...\WOW6432Node\...\Run
+                        // can hold entries with the same name, and they must not share a backup.
+                        Id: $"run:{location.Hive}:{location.RunPath}:{name}",
                         Name: name,
                         Command: key.GetValue(name)?.ToString() ?? "",
                         Scope: location.Scope,
@@ -193,8 +195,9 @@ public sealed class StartupService
 
         try
         {
-            _reg.RestoreAll(TweakId(item));
-            return TweakResult.Ok;
+            return _reg.RestoreAll(TweakId(item))
+                ? TweakResult.Ok
+                : TweakResult.Fail("Some values could not be restored. See the Stratus log for details.");
         }
         catch (Exception ex)
         {
@@ -213,8 +216,8 @@ public sealed class StartupService
 
             try
             {
-                _reg.RestoreAll(TweakId(item));
-                restored++;
+                if (_reg.RestoreAll(TweakId(item)))
+                    restored++;
             }
             catch
             {

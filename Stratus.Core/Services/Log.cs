@@ -7,6 +7,9 @@ namespace Stratus.Core.Services;
 public static class Log
 {
     private const int RetainDays = 14;
+
+    /// <summary>Roll a single day to "file.log.1" once it passes this size, so one chatty day cannot fill the disk.</summary>
+    private const long MaxBytesPerFile = 8L * 1024 * 1024;
     private static readonly object Gate = new();
     private static string _dir = AppPaths.LogsDir;
     private static bool _pruned;
@@ -38,6 +41,12 @@ public static class Log
             var line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + level + "] " + message + Environment.NewLine;
             lock (Gate)
             {
+                var info = new FileInfo(file);
+                if (info.Exists && info.Length > MaxBytesPerFile)
+                {
+                    try { File.Move(file, file + ".1", overwrite: true); } catch { /* keep appending */ }
+                }
+
                 File.AppendAllText(file, line);
             }
         }
@@ -51,7 +60,7 @@ public static class Log
         try
         {
             var cutoff = DateTime.UtcNow.AddDays(-RetainDays);
-            foreach (var file in System.IO.Directory.GetFiles(_dir, "stratus-*.log"))
+            foreach (var file in System.IO.Directory.GetFiles(_dir, "stratus-*.log*"))
                 if (File.GetLastWriteTimeUtc(file) < cutoff)
                     try { File.Delete(file); } catch { }
         }

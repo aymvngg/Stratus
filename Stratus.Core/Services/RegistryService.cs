@@ -141,39 +141,56 @@ public sealed class RegistryService
     public RegistryKey EnsureKey(RegistryHive hive, string path) =>
         OpenBase(hive).CreateSubKey(path, writable: true) ?? throw new InvalidOperationException($"Failed to open/create {hive}\\{path}");
 
-    /// <summary>Restores every backed-up value for a tweak (latest per key), then clears the backups.</summary>
-    public void RestoreAll(string tweakId)
+    /// <summary>
+    /// Restores every backed-up value for a tweak (latest per key) and drops the backups once
+    /// everything was restored. A single bad entry (malformed scope id, access denied) no longer
+    /// aborts the whole revert or silently discards the remaining backups: it is logged, the
+    /// backups are kept and false is returned so the caller can report the partial failure.
+    /// </summary>
+    public bool RestoreAll(string tweakId)
     {
         var entries = _backup.LatestPerKey(tweakId).Where(e => e.ScopeType == ScopeType).ToList();
+        var failed = new List<string>();
+
         foreach (var entry in entries)
         {
-            var parts = entry.ScopeId.Split('|', 3);
-            if (parts.Length != 3)
-                continue;
-
-            var hive = (RegistryHive)Enum.Parse(typeof(RegistryHive), parts[0]);
-            var path = parts[1];
-            var name = parts[2];
-
-            if (!entry.Existed)
+            try
             {
-                try
+                var parts = entry.ScopeId.Split('|', 3);
+                if (parts.Length != 3)
+                    throw new FormatException($"Malformed scope id '{entry.ScopeId}'.");
+
+                var hive = (RegistryHive)Enum.Parse(typeof(RegistryHive), parts[0]);
+                var path = parts[1];
+                var name = parts[2];
+
+                if (!entry.Existed)
                 {
                     using var key = OpenBase(hive).OpenSubKey(path, writable: true);
                     key?.DeleteValue(name, throwOnMissingValue: false);
                 }
-                catch { /* best effort */ }
+                else
+                {
+                    var kind = (RegistryValueKind)int.Parse(entry.ValueKind ?? ((int)RegistryValueKind.String).ToString(), CultureInfo.InvariantCulture);
+                    var value = DeserializeValue(kind, entry.ValueJson ?? "");
+                    using var key = EnsureKey(hive, path);
+                    key.SetValue(name, Normalize(kind, value), kind);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                var kind = (RegistryValueKind)int.Parse(entry.ValueKind ?? ((int)RegistryValueKind.String).ToString(), CultureInfo.InvariantCulture);
-                var value = DeserializeValue(kind, entry.ValueJson ?? "");
-                using var key = EnsureKey(hive, path);
-                key.SetValue(name, Normalize(kind, value), kind);
+                failed.Add($"{entry.ScopeId}: {ex.Message}");
             }
         }
 
-        _backup.Remove(tweakId);
+        if (failed.Count == 0)
+        {
+            _backup.Remove(tweakId);
+            return true;
+        }
+
+        Log.Warn($"Restore of '{tweakId}' left {failed.Count} value(s) unrestored: {string.Join(" | ", failed)}");
+        return false;
     }
 
     public bool HasBackups(string tweakId) => _backup.HasEntries(tweakId);

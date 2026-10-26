@@ -21,6 +21,8 @@ public sealed class UwpRow : ObservableObject
 
     public UwpRow(UwpAppItem item) => Item = item;
 
+    public void MarkFailed(string message) => Result = message;
+
     public async Task<(bool Ok, string Message)> RemoveAsync()
     {
         IsBusy = true;
@@ -29,6 +31,12 @@ public sealed class UwpRow : ObservableObject
             var (ok, message) = await AppServices.Debloat.RemoveAsync(Item);
             Result = ok ? "Removed" : message;
             return (ok, message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Removing '{Item.Name}' failed", ex);
+            Result = ex.Message;
+            return (false, ex.Message);
         }
         finally
         {
@@ -53,6 +61,7 @@ public sealed class DebloatViewModel : ObservableObject
     private string _searchText = "";
     private bool _hasScanned;
     private bool _isBusy;
+    private bool _scanning;
     private string _busyText = "";
     private string _statusMessage = "";
     private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
@@ -119,8 +128,27 @@ public sealed class DebloatViewModel : ObservableObject
 
     public async Task ScanAsync()
     {
+        if (_scanning)
+            return;
+
+        _scanning = true;
         IsBusy = true;
         BusyText = "Scanning installed apps…";
+        try
+        {
+            await ScanCoreAsync();
+        }
+        finally
+        {
+            _scanning = false;
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    /// <summary>Reads both app lists and rebuilds the visible groups. Never throws.</summary>
+    private async Task ScanCoreAsync()
+    {
         try
         {
             var uwpTask = Task.Run(() => AppServices.Debloat.ScanUwp());
@@ -136,10 +164,11 @@ public sealed class DebloatViewModel : ObservableObject
             HasScanned = true;
             Refilter();
         }
-        finally
+        catch (Exception ex)
         {
-            IsBusy = false;
-            BusyText = "";
+            // Called from async void handlers: an escape here would kill the process.
+            Log.Warn("App scan failed: " + ex.Message);
+            ShowStatus($"Scan failed: {ex.Message}", InfoBarSeverity.Error);
         }
     }
 
@@ -198,13 +227,16 @@ public sealed class DebloatViewModel : ObservableObject
 
     public async Task<string> RemoveSelectedAsync()
     {
+        if (IsBusy)
+            return "Another operation is still running.";
+
         var rows = Recommended.Concat(OtherMicrosoft).Concat(ThirdParty).Where(r => r.IsSelected).ToList();
         if (rows.Count == 0)
             return "Nothing selected.";
 
         IsBusy = true;
         var ok = 0;
-        var failed = new List<string>();
+        var failed = new List<(string FullName, string Name, string Message)>();
         try
         {
             for (var i = 0; i < rows.Count; i++)
@@ -212,13 +244,33 @@ public sealed class DebloatViewModel : ObservableObject
                 BusyText = $"Removing {i + 1} of {rows.Count}…";
                 var (success, message) = await rows[i].RemoveAsync();
                 if (success) ok++;
-                else failed.Add($"{rows[i].Name}: {message}");
+                else failed.Add((rows[i].Item.FullName, rows[i].Name, message));
             }
 
-            await ScanAsync();
+            await ScanCoreAsync();
+
+            // The rescan rebuilds every row, so put the error text back on the apps that failed.
+            foreach (var row in _allRecommended.Concat(_allOtherMicrosoft).Concat(_allThirdParty))
+            {
+                foreach (var (fullName, _, message) in failed)
+                {
+                    if (string.Equals(row.Item.FullName, fullName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        row.MarkFailed(message);
+                        break;
+                    }
+                }
+            }
+
             return failed.Count == 0
                 ? $"Removed {Format.Count(ok, "app")}."
-                : $"Removed {Format.Count(ok, "app")}, {failed.Count} failed - {string.Join("; ", failed.Take(3))}";
+                : $"Removed {Format.Count(ok, "app")}, {failed.Count} failed - " +
+                  string.Join("; ", failed.Take(3).Select(f => $"{f.Name}: {f.Message}"));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Removing the selected apps failed", ex);
+            return $"Removal failed: {ex.Message}";
         }
         finally
         {

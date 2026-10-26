@@ -9,7 +9,7 @@
 
             <StackPanel Spacing="3">
                 <TextBlock Text="History" Style="{StaticResource PageHeader}"/>
-                <TextBlock Text="Every change Stratus made, newest first. Undo puts the exact previous value back."
+                <TextBlock Text="Every change Stratus made, newest first. Undo restores the value saved before the change; tweaks without a backup fall back to their documented defaults."
                            Style="{StaticResource PageSubtitle}"/>
             </StackPanel>
 
@@ -18,7 +18,7 @@
                 Message="{x:Bind VM.StatusMessage, Mode=OneWay}"
                 Severity="{x:Bind VM.StatusSeverity, Mode=OneWay}"/>
 
-            <TextBox PlaceholderText="Search changes…" Width="320" HorizontalAlignment="Left"
+            <TextBox x:Name="SearchBox" PlaceholderText="Search changes…" Width="320" HorizontalAlignment="Left"
                      TextChanged="OnSearchChanged"/>
 
             <!-- ============ Change timeline ============ -->
@@ -46,7 +46,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="Nothing recorded yet. Apply a tweak and it shows up here with an Undo button."
+                    <TextBlock Text="{x:Bind VM.EmptyHistoryText, Mode=OneWay}"
                                Style="{StaticResource PageSubtitle}"
                                Visibility="{x:Bind vm:Conv.Vis(VM.EmptyHistory), Mode=OneWay}"/>
 

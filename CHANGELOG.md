@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.5.1
+
+Stratus now starts from its shortcuts, keeps your DNS picker, and reports failures instead of crashing.
+
+### Fixes
+- **Installer and shortcuts**: the app no longer demands administrator rights in its manifest, which made Windows refuse to launch it from Setup, the Start Menu and the Desktop shortcut with error 740. Stratus asks for elevation itself right after launch, so UAC appears once and the installed app starts normally
+- **Sidebar version**: the footer shows the build you are actually running (or "Dev build") instead of a hardcoded v1.2
+- **Administrator badge**: the footer chip no longer claims administrator permanently. It only appears as a warning if the app somehow runs without rights
+- **DNS resolver picker**: the selection is restored from the adapters after a restart instead of showing blank, and the card shows the active resolver. Servers that are not a preset appear as "Custom (x.x.x.x)"
+- **Update button**: "Restart to update" was disabled exactly when a downloaded update was waiting. It works now, and a downloaded update that was never applied is picked up on the next launch
+- **SFC scan output**: `sfc /scannow` writes UTF-16, so its output was garbled and the pass/fail detection never matched. It is decoded correctly and the verdict is shown
+
+### Reliability
+- **Crash hardening**: every page action catches failures and shows a message instead of taking the app down
+- **Atomic data files**: backups, history, settings and scheduled task state are written to a temp file and swapped in, so a crash mid write can no longer wipe your rollback data. Unreadable files are quarantined as `.corrupt` instead of silently starting empty
+- **Revert safety**: a partially failed restore now reports what could not be put back and keeps the backups for a retry
+- **History**: undo warns before deleting a value the tweak created, group restore asks for confirmation, and clearing the timeline also clears the search box
+- **Cleanup guard**: refuses empty paths and drive roots before deleting anything, and removes empty folders deepest first
+- **Debloat**: DISM cleanup runs off the UI thread, uninstall commands with spaces in their path are parsed correctly, and per app failure messages survive the refresh
+- **Startup entries**: HKLM and 32 bit Run entries no longer share an id, so resetting one no longer reverts the other
+- **Hibernation tweak**: detection reads the registry instead of localized `powercfg` text, so it works on French Windows
+- **Logs**: a day file rolls to `.log.1` past 8 MB and rolled files are pruned with the rest
+- **DNS benchmark**: measures secondary resolvers too
+
+### Icon
+- **New logo**: the ribbon S logo ships as a multi size app icon (16 to 256 px) and as the installer splash screen
+
 ## v1.5.0
 
 Stratus is now installed, not unzipped: a real Setup.exe with Start Menu shortcuts, an uninstall entry, and delta updates that replace only what changed.

@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Stratus.Core;
 using Stratus.Core.Models;
+using Stratus.Core.Services;
 
 namespace Stratus.ViewModels;
 
@@ -14,17 +15,19 @@ public sealed class HistoryRow : ObservableObject
     private static readonly SolidColorBrush NeutralBrush = new(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x8A, 0x8A, 0x8A));
 
     private bool _isBusy;
+    private readonly bool _stillApplied;
 
-    public HistoryRow(HistoryEntry entry, Tweak? tweak)
+    public HistoryRow(HistoryEntry entry, Tweak? tweak, bool stillApplied)
     {
         Entry = entry;
         Tweak = tweak;
+        _stillApplied = stillApplied;
     }
 
     public HistoryEntry Entry { get; }
     public Tweak? Tweak { get; }
 
-    public string TimeText => Entry.TimestampUtc.ToLocalTime().ToString("MMM d, HH:mm");
+    public string TimeText => Entry.TimestampUtc.ToLocalTime().ToString("MMM d, HH:mm", System.Globalization.CultureInfo.InvariantCulture);
     public string TweakName => string.IsNullOrWhiteSpace(Entry.TweakName) ? Entry.TweakId : Entry.TweakName;
     public string ActionText => Entry.Action;
     public bool Succeeded => Entry.Success;
@@ -46,13 +49,7 @@ public sealed class HistoryRow : ObservableObject
     }
 
     /// <summary>Undo is offered while the tweak is still applied on this machine.</summary>
-    public bool CanUndo => !_isBusy && Entry.Action == "Applied" && Tweak is not null && IsStillApplied();
-
-    private bool IsStillApplied()
-    {
-        try { return Tweak!.IsApplicable && Tweak.IsApplied; }
-        catch { return false; }
-    }
+    public bool CanUndo => !_isBusy && Entry.Action == "Applied" && Tweak is not null && _stillApplied;
 }
 
 /// <summary>One backed-up value inside a tweak group.</summary>
@@ -75,7 +72,7 @@ public sealed class BackupValueRow
 
     public string ValueText => DecodeValue(Entry);
 
-    public string SavedText => Entry.SavedAtUtc.ToLocalTime().ToString("MMM d, HH:mm");
+    public string SavedText => Entry.SavedAtUtc.ToLocalTime().ToString("MMM d, HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string FormatScope(string scopeId)
     {
@@ -170,6 +167,7 @@ public sealed class HistoryViewModel : ObservableObject
     private string _changesText = "No changes yet";
     private string _backupsText = "No backups stored";
     private bool _emptyHistory = true;
+    private string _emptyHistoryText = "Nothing recorded yet. Apply a tweak and it shows up here with an Undo button.";
     private bool _emptyBackups = true;
     private string _searchText = "";
     private List<HistoryRow> _allChanges = new();
@@ -191,6 +189,9 @@ public sealed class HistoryViewModel : ObservableObject
     public string ChangesText { get => _changesText; set => Set(ref _changesText, value); }
     public string BackupsText { get => _backupsText; set => Set(ref _backupsText, value); }
     public bool EmptyHistory { get => _emptyHistory; set => Set(ref _emptyHistory, value); }
+
+    /// <summary>Empty-state text: distinguishes an empty log from an empty search result.</summary>
+    public string EmptyHistoryText { get => _emptyHistoryText; private set => Set(ref _emptyHistoryText, value); }
     public bool EmptyBackups { get => _emptyBackups; set => Set(ref _emptyBackups, value); }
 
     /// <summary>Debounced refresh, called when the engine reports a change.</summary>
@@ -206,51 +207,72 @@ public sealed class HistoryViewModel : ObservableObject
         });
     }
 
+    /// <summary>Registry probes must never take the page down: a broken key counts as "not applied".</summary>
+    private static bool SafeIsApplied(Tweak tweak)
+    {
+        try { return tweak.IsApplicable && tweak.IsApplied; }
+        catch { return false; }
+    }
+
     public async Task RefreshAsync()
     {
-        var snapshot = await Task.Run(() =>
+        try
         {
-            var history = AppServices.History.All()
-                .Take(100)
-                .Select(e => (Entry: e, Tweak: AppServices.Engine.Find(e.TweakId)))
-                .ToList();
-
-            var backups = AppServices.Backup.All()
-                .GroupBy(e => e.TweakId)
-                .Select(g => (
-                    TweakId: g.Key,
-                    Tweak: AppServices.Engine.Find(g.Key),
-                    Values: g.OrderBy(e => e.SavedAtUtc).ToList()))
-                .OrderBy(g => g.Tweak?.Name ?? g.TweakId, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            return (history, backups);
-        });
-
-        AppServices.OnUi(() =>
-        {
-            _allChanges = snapshot.history
-                .Select(t => new HistoryRow(t.Entry, t.Tweak))
-                .ToList();
-            RefilterChanges();
-
-            Backups.Clear();
-            foreach (var group in snapshot.backups)
+            var snapshot = await Task.Run(() =>
             {
-                var values = group.Values.Select(v => new BackupValueRow(v)).ToList();
-                Backups.Add(new BackupGroupRow(group.TweakId, group.Tweak?.Name ?? group.TweakId, values, group.Tweak));
-            }
+                var history = AppServices.History.All()
+                    .Take(100)
+                    .Select(e =>
+                    {
+                        var tweak = AppServices.Engine.Find(e.TweakId);
+                        // Probe each tweak's live state here, off the UI thread. Doing it in the
+                        // row's CanUndo getter meant registry reads on every search keystroke.
+                        var stillApplied = tweak is not null && SafeIsApplied(tweak);
+                        return (Entry: e, Tweak: tweak, StillApplied: stillApplied);
+                    })
+                    .ToList();
 
-            var totalValues = snapshot.backups.Sum(g => g.Values.Count);
-            ChangesText = _allChanges.Count == 0
-                ? "No changes yet"
-                : $"{_allChanges.Count} recorded change{(_allChanges.Count == 1 ? "" : "s")}, newest first";
-            BackupsText = Backups.Count == 0
-                ? "No backups stored"
-                : $"{Backups.Count} tweak{(Backups.Count == 1 ? "" : "s")}, {totalValues} value{(totalValues == 1 ? "" : "s")}";
-            EmptyHistory = Changes.Count == 0;
-            EmptyBackups = Backups.Count == 0;
-        });
+                var backups = AppServices.Backup.All()
+                    .GroupBy(e => e.TweakId)
+                    .Select(g => (
+                        TweakId: g.Key,
+                        Tweak: AppServices.Engine.Find(g.Key),
+                        Values: g.OrderBy(e => e.SavedAtUtc).ToList()))
+                    .OrderBy(g => g.Tweak?.Name ?? g.TweakId, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return (history, backups);
+            });
+
+            AppServices.OnUi(() =>
+            {
+                _allChanges = snapshot.history
+                    .Select(t => new HistoryRow(t.Entry, t.Tweak, t.StillApplied))
+                    .ToList();
+                RefilterChanges();
+
+                Backups.Clear();
+                foreach (var group in snapshot.backups)
+                {
+                    var values = group.Values.Select(v => new BackupValueRow(v)).ToList();
+                    Backups.Add(new BackupGroupRow(group.TweakId, group.Tweak?.Name ?? group.TweakId, values, group.Tweak));
+                }
+
+                var totalValues = snapshot.backups.Sum(g => g.Values.Count);
+                ChangesText = _allChanges.Count == 0
+                    ? "No changes yet"
+                    : $"{_allChanges.Count} recorded change{(_allChanges.Count == 1 ? "" : "s")}, newest first";
+                BackupsText = Backups.Count == 0
+                    ? "No backups stored"
+                    : $"{Backups.Count} tweak{(Backups.Count == 1 ? "" : "s")}, {totalValues} value{(totalValues == 1 ? "" : "s")}";
+                EmptyHistory = Changes.Count == 0;
+                EmptyBackups = Backups.Count == 0;
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("History refresh failed: " + ex.Message);
+        }
     }
 
     /// <summary>Rebuilds the visible change rows from the backing list using the current search text.</summary>
@@ -266,6 +288,9 @@ public sealed class HistoryViewModel : ObservableObject
             Changes.Add(row);
 
         EmptyHistory = Changes.Count == 0;
+        EmptyHistoryText = _allChanges.Count == 0
+            ? "Nothing recorded yet. Apply a tweak and it shows up here with an Undo button."
+            : "No changes match your search.";
     }
 
     public async Task UndoAsync(HistoryRow row)
@@ -276,14 +301,25 @@ public sealed class HistoryViewModel : ObservableObject
         row.IsBusy = true;
         BusyText = "Undoing " + row.TweakName + "...";
 
-        var result = await AppServices.Engine.RevertAsync(row.Tweak);
-
-        row.IsBusy = false;
-        SetStatus(
-            result.Success
-                ? "Undid " + row.TweakName + ". The previous value is back."
-                : "Could not undo " + row.TweakName + ": " + (result.Error ?? "unknown error"),
-            result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        try
+        {
+            var result = await AppServices.Engine.RevertAsync(row.Tweak);
+            SetStatus(
+                result.Success
+                    ? "Undid " + row.TweakName + ". The previous value is back."
+                    : "Could not undo " + row.TweakName + ": " + (result.Error ?? "unknown error"),
+                result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Undo of '{row.TweakName}' failed", ex);
+            SetStatus("Could not undo " + row.TweakName + ": " + ex.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            row.IsBusy = false;
+            BusyText = "";
+        }
 
         await RefreshAsync();
     }
@@ -296,37 +332,61 @@ public sealed class HistoryViewModel : ObservableObject
         group.IsBusy = true;
         BusyText = "Restoring " + group.TweakName + "...";
 
-        // Tweaks revert through the engine (so the revert is recorded in history).
-        // Anything else, such as a startup entry, is restored straight from its backup.
-        var result = group.Tweak is { } tweak
-            ? await AppServices.Engine.RevertAsync(tweak)
-            : await Task.Run(() =>
-            {
-                try
+        try
+        {
+            // Tweaks revert through the engine (so the revert is recorded in history).
+            // Anything else, such as a startup entry, is restored straight from its backup.
+            var result = group.Tweak is { } tweak
+                ? await AppServices.Engine.RevertAsync(tweak)
+                : await Task.Run(() =>
                 {
-                    AppServices.Registry.RestoreAll(group.TweakId);
-                    return TweakResult.Ok;
-                }
-                catch (Exception ex)
-                {
-                    return TweakResult.Fail(ex.Message);
-                }
-            });
+                    try
+                    {
+                        // RestoreAll keeps the backups when only some values could be written,
+                        // so a retry is possible instead of losing the rollback data.
+                        return AppServices.Registry.RestoreAll(group.TweakId)
+                            ? TweakResult.Ok
+                            : TweakResult.Fail("Some values could not be restored. See the Stratus log for details.");
+                    }
+                    catch (Exception ex)
+                    {
+                        return TweakResult.Fail(ex.Message);
+                    }
+                });
 
-        group.IsBusy = false;
-        SetStatus(
-            result.Success
-                ? "Restored " + group.TweakName + " from its backup."
-                : "Could not restore " + group.TweakName + ": " + (result.Error ?? "unknown error"),
-            result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+            SetStatus(
+                result.Success
+                    ? "Restored " + group.TweakName + " from its backup."
+                    : "Could not restore " + group.TweakName + ": " + (result.Error ?? "unknown error"),
+                result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Restore of '{group.TweakName}' failed", ex);
+            SetStatus("Could not restore " + group.TweakName + ": " + ex.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            group.IsBusy = false;
+            BusyText = "";
+        }
 
         await RefreshAsync();
     }
 
     public async Task ClearHistoryAsync()
     {
-        await Task.Run(AppServices.History.Clear);
-        SetStatus("Change history cleared. Backups are untouched.", InfoBarSeverity.Informational);
+        try
+        {
+            await Task.Run(AppServices.History.Clear);
+            SetStatus("Change history cleared. Backups are untouched.", InfoBarSeverity.Informational);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Clearing the change history failed", ex);
+            SetStatus("Could not clear the change history: " + ex.Message, InfoBarSeverity.Error);
+        }
+
         await RefreshAsync();
     }
 

@@ -114,7 +114,7 @@ public sealed class DashboardViewModel : ObservableObject
     public ObservableCollection<CategoryRow> Categories { get; } = new();
     public ObservableCollection<PresetRow> Presets { get; } = new();
 
-    public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
+    public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) Raise(nameof(CanApplyRecommended)); } }
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
 
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
@@ -141,9 +141,16 @@ public sealed class DashboardViewModel : ObservableObject
 
     public async Task RefreshScoreAsync()
     {
-        var report = await Task.Run(() => AppServices.Engine.Rescore());
-        ApplySnapshot(report);
-        ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
+        try
+        {
+            var report = await Task.Run(() => AppServices.Engine.Rescore());
+            ApplySnapshot(report);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Dashboard score refresh failed: " + ex.Message);
+            ShowStatus($"Could not refresh the score: {ex.Message}", InfoBarSeverity.Warning);
+        }
     }
 
     /// <summary>
@@ -164,6 +171,22 @@ public sealed class DashboardViewModel : ObservableObject
         SyncPresets(BuildPresetRows(report.States));
         Raise(nameof(PendingRecommended), nameof(PendingText),
               nameof(ApplyRecommendedButtonText), nameof(CanApplyRecommended));
+
+        // Every snapshot is a graph point, including applies made from other pages (this method
+        // is the single funnel for engine refreshes). Fire and forget: the store has its own lock.
+        _ = RecordHistoryAsync(report.Score);
+    }
+
+    private async Task RecordHistoryAsync(int score)
+    {
+        try
+        {
+            ScoreHistory = await Task.Run(() => RecordAndReadHistory(score));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Score history update failed: " + ex.Message);
+        }
     }
 
     public async Task RescanAsync()
@@ -186,8 +209,12 @@ public sealed class DashboardViewModel : ObservableObject
             _summary = await summaryTask;
             _powerPlan = (await planTask)?.Name ?? "Unknown";
             ApplySnapshot(report);
-            ScoreHistory = await Task.Run(() => RecordAndReadHistory(report.Score));
             Raise(nameof(Cpu), nameof(Gpu), nameof(Ram), nameof(Os), nameof(ElevatedText), nameof(PowerPlan));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Dashboard rescan failed: " + ex.Message);
+            ShowStatus($"Rescan failed: {ex.Message}", InfoBarSeverity.Warning);
         }
         finally
         {
@@ -245,6 +272,11 @@ public sealed class DashboardViewModel : ObservableObject
             return failed.Count == 0
                 ? $"Applied {Format.Count(applied, "tweak")}. Score: {Score}/100."
                 : $"Applied {Format.Count(applied, "tweak")}, {failed.Count} failed - {string.Join("; ", failed.Take(3).Select(f => $"{f.Key}: {f.Value.Error}"))}";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Apply recommended failed", ex);
+            return $"Apply failed: {ex.Message}";
         }
         finally
         {
@@ -343,6 +375,11 @@ public sealed class DashboardViewModel : ObservableObject
                 ? $"{preset.Name}: applied {Format.Count(applied, "tweak")}. Score: {Score}/100."
                 : $"{preset.Name}: applied {Format.Count(applied, "tweak")}, {failed.Count} failed - {string.Join("; ", failed.Take(3).Select(f => $"{f.Key}: {f.Value.Error}"))}";
         }
+        catch (Exception ex)
+        {
+            Log.Error($"Apply preset '{preset.Name}' failed", ex);
+            return $"{preset.Name}: apply failed - {ex.Message}";
+        }
         finally
         {
             IsBusy = false;
@@ -358,6 +395,11 @@ public sealed class DashboardViewModel : ObservableObject
         {
             var (ok, message) = await Task.Run(() => RestorePointService.Create());
             return ok ? "Restore point created." : $"Restore point failed: {message}";
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Restore point failed: " + ex.Message);
+            return $"Restore point failed: {ex.Message}";
         }
         finally
         {

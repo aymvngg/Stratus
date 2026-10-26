@@ -21,31 +21,9 @@ public sealed class HistoryStore
         _entries = Load();
     }
 
-    private List<HistoryEntry> Load()
-    {
-        try
-        {
-            if (!File.Exists(_filePath))
-                return [];
+    private List<HistoryEntry> Load() => JsonFile.Load(_filePath, "history file", () => new List<HistoryEntry>());
 
-            var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<HistoryEntry>>(json) ?? [];
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
-    private void Save()
-    {
-        var dir = Path.GetDirectoryName(_filePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        var json = JsonSerializer.Serialize(_entries, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(_filePath, json);
-    }
+    private void Save() => JsonFile.Save(_filePath, _entries);
 
     public void Append(HistoryEntry entry)
     {

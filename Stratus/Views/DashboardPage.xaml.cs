@@ -230,7 +230,9 @@ public sealed partial class DashboardPage : Page
 
         try
         {
-            await Task.Run(() => Stratus.Core.Services.ProcessRunner.Run("shutdown.exe", "/r /t 5", 15_000));
+            var result = await Task.Run(() => Stratus.Core.Services.ProcessRunner.Run("shutdown.exe", "/r /t 5", 15_000));
+            if (!result.Success)
+                VM.ShowStatus($"Restart failed: {result.StdErr.Trim()}", InfoBarSeverity.Error);
         }
         catch (Exception ex)
         {
@@ -246,6 +248,12 @@ public sealed partial class DashboardPage : Page
 
     private async Task ApplyPresetFlowAsync(Preset preset)
     {
+        if (VM.IsBusy)
+        {
+            VM.ShowStatus("Another operation is still running. Wait for it to finish first.", InfoBarSeverity.Informational);
+            return;
+        }
+
         var pending = VM.PresetPendingCount(preset);
         if (pending == 0)
         {

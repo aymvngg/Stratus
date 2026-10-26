@@ -97,7 +97,8 @@
 
             <NavigationView.PaneFooter>
                 <StackPanel Margin="0,4,0,10" Spacing="8">
-                    <Border Background="{ThemeResource ControlFillColorDefaultBrush}"
+                    <Border x:Name="ElevationChip"
+                            Background="{ThemeResource ControlFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
                             CornerRadius="6" Padding="10,7">
@@ -108,7 +109,7 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="v1.2 · every change is revertible" FontSize="10"
+                    <TextBlock x:Name="VersionText" Text="Version" FontSize="10"
                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                TextWrapping="Wrap"/>
                 </StackPanel>

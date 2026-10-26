@@ -12,13 +12,7 @@ public sealed class SettingsStore
     public SettingsStore(string filePath)
     {
         _filePath = filePath;
-        try
-        {
-            _values = File.Exists(filePath)
-                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(filePath)) ?? []
-                : [];
-        }
-        catch { _values = []; }
+        _values = JsonFile.Load(filePath, "settings file", () => new Dictionary<string, string>());
     }
 
     public string? Get(string key) { lock (_lock) { return _values.GetValueOrDefault(key); } }
@@ -28,10 +22,15 @@ public sealed class SettingsStore
         lock (_lock)
         {
             _values[key] = value;
-            var dir = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrEmpty(dir))
-                Directory.CreateDirectory(dir);
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(_values, new JsonSerializerOptions { WriteIndented = true }));
+            try
+            {
+                JsonFile.Save(_filePath, _values);
+            }
+            catch (Exception ex)
+            {
+                // A preference that cannot be written must never take the app down.
+                Log.Warn("Could not save the settings file: " + ex.Message);
+            }
         }
     }
 }

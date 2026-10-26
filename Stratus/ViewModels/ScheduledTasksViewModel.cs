@@ -104,15 +104,26 @@ public sealed class ScheduledTasksViewModel : ObservableObject
     public async Task RefreshAsync()
     {
         IsBusy = true;
-        var items = await Task.Run(() => AppServices.ScheduledTasks.Scan());
+        try
+        {
+            var items = await Task.Run(() => AppServices.ScheduledTasks.Scan());
 
-        Rows.Clear();
-        foreach (var item in items)
-            Rows.Add(new ScheduledTaskRow(item) { IsEnabled = item.IsEnabled });
+            Rows.Clear();
+            foreach (var item in items)
+                Rows.Add(new ScheduledTaskRow(item) { IsEnabled = item.IsEnabled });
 
-        HasItems = Rows.Count > 0;
-        UpdateCount();
-        IsBusy = false;
+            HasItems = Rows.Count > 0;
+            UpdateCount();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Scheduled task scan failed: " + ex.Message);
+            ShowStatus($"Could not read the scheduled tasks: {ex.Message}", InfoBarSeverity.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private void UpdateCount()
@@ -126,35 +137,59 @@ public sealed class ScheduledTasksViewModel : ObservableObject
     public async Task<bool> SetEnabledAsync(ScheduledTaskRow row, bool enabled)
     {
         row.IsBusy = true;
-        var result = await Task.Run(() => AppServices.ScheduledTasks.SetEnabled(row.Item, enabled));
-        row.IsBusy = false;
-
-        if (result.Success)
+        try
         {
-            row.IsEnabled = enabled;
-            UpdateCount();
-            ShowStatus(
-                enabled
-                    ? $"{row.Name} will run again."
-                    : $"{row.Name} will no longer run. The task is kept, so this is fully reversible.",
-                InfoBarSeverity.Success);
-        }
-        else
-        {
-            ShowStatus($"Could not change {row.Name}: {result.Error}", InfoBarSeverity.Error);
-        }
+            var result = await Task.Run(() => AppServices.ScheduledTasks.SetEnabled(row.Item, enabled));
 
-        return result.Success;
+            if (result.Success)
+            {
+                row.IsEnabled = enabled;
+                UpdateCount();
+                ShowStatus(
+                    enabled
+                        ? $"{row.Name} will run again."
+                        : $"{row.Name} will no longer run. The task is kept, so this is fully reversible.",
+                    InfoBarSeverity.Success);
+            }
+            else
+            {
+                ShowStatus($"Could not change {row.Name}: {result.Error}", InfoBarSeverity.Error);
+            }
+
+            return result.Success;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not change the scheduled task '{row.Name}'", ex);
+            ShowStatus($"Could not change {row.Name}: {ex.Message}", InfoBarSeverity.Error);
+            return false;
+        }
+        finally
+        {
+            row.IsBusy = false;
+        }
     }
 
     public async Task<string> ResetAllAsync()
     {
         IsBusy = true;
-        var restored = await Task.Run(() => AppServices.ScheduledTasks.ResetAll());
-        await RefreshAsync();
+        try
+        {
+            var restored = await Task.Run(() => AppServices.ScheduledTasks.ResetAll());
+            await RefreshAsync();
 
-        return restored == 0
-            ? "No scheduled task changes to reset."
-            : $"Reset {restored} scheduled {(restored == 1 ? "task" : "tasks")} to the previous state.";
+            return restored == 0
+                ? "No scheduled task changes to reset."
+                : $"Reset {restored} scheduled {(restored == 1 ? "task" : "tasks")} to the previous state.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Resetting the scheduled tasks failed", ex);
+            return $"Could not reset the scheduled tasks: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

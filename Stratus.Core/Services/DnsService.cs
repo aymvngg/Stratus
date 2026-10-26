@@ -36,6 +36,72 @@ public sealed class DnsService
         return names;
     }
 
+    /// <summary>
+    /// Reads the statically configured DNS servers of the connected physical adapters and maps
+    /// them to a known profile. Returns null when the adapters take DNS from DHCP (the normal
+    /// "Automatic" case) and a synthesized "custom" profile when the servers are not a preset,
+    /// so the picker shows the truth instead of staying blank after a restart.
+    ///
+    /// Registry, not WMI: DNSServerSearchOrder also returns servers handed out by DHCP, so it
+    /// cannot tell "Automatic" from "Custom". The per-interface NameServer value is only written
+    /// for static servers; DhcpNameServer holds the DHCP-provided ones.
+    /// </summary>
+    public DnsProfile? GetActiveProfile()
+    {
+        try
+        {
+            using var adapters = new System.Management.ManagementObjectSearcher(
+                "SELECT GUID FROM Win32_NetworkAdapter WHERE NetEnabled = TRUE AND PhysicalAdapter = TRUE");
+
+            foreach (var adapter in adapters.Get())
+            {
+                if (adapter["GUID"] is not string guid || guid.Length == 0)
+                    continue;
+
+                var servers = ReadStaticServers(guid);
+                if (servers.Count == 0)
+                    continue; // DNS comes from DHCP on this adapter: that is "Automatic".
+
+                var known = Profiles.FirstOrDefault(p =>
+                    p.Primary is not null &&
+                    string.Equals(p.Primary, servers[0], StringComparison.OrdinalIgnoreCase));
+
+                return known ?? new DnsProfile(
+                    "custom",
+                    $"Custom ({servers[0]})",
+                    servers[0],
+                    servers.Count > 1 ? servers[1] : null);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read the active DNS servers: " + ex.Message);
+        }
+
+        return null;
+    }
+
+    private static List<string> ReadStaticServers(string adapterGuid)
+    {
+        var servers = new List<string>();
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\" + adapterGuid);
+            if (key?.GetValue("NameServer") is string text)
+            {
+                foreach (var part in text.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries))
+                    servers.Add(part.Trim());
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the DNS servers for adapter {adapterGuid}: " + ex.Message);
+        }
+
+        return servers;
+    }
+
     public (bool Success, string Message) Apply(DnsProfile profile)
     {
         var adapters = GetConnectedAdapters();
@@ -54,7 +120,14 @@ public sealed class DnsService
             {
                 result = ProcessRunner.Run("netsh.exe", $"interface ip set dns name=\"{name}\" static {profile.Primary}");
                 if (profile.Secondary is not null)
-                    ProcessRunner.Run("netsh.exe", $"interface ip add dns name=\"{name}\" {profile.Secondary} index=2");
+                {
+                    var secondary = ProcessRunner.Run(
+                        "netsh.exe", $"interface ip add dns name=\"{name}\" {profile.Secondary} index=2");
+                    // A failed secondary used to be ignored, so the UI reported success while the
+                    // adapter only had one resolver.
+                    if (result.Success && !secondary.Success)
+                        result = secondary;
+                }
             }
 
             if (!result.Success)

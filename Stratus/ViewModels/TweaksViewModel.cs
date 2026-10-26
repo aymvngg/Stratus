@@ -194,8 +194,15 @@ public sealed class TweaksViewModel : ObservableObject
 
     public async Task RefreshStatesAsync()
     {
-        var states = await Task.Run(() => AppServices.Engine.Rescore().States);
-        ApplyStates(states);
+        try
+        {
+            var states = await Task.Run(() => AppServices.Engine.Rescore().States);
+            ApplyStates(states);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Reading the tweak states failed: " + ex.Message);
+        }
     }
 
     /// <summary>Pushes an engine snapshot (registry state read once) into the rows. UI thread.</summary>
@@ -236,16 +243,24 @@ public sealed class TweaksViewModel : ObservableObject
                 return $"Restore point failed: {error} - nothing was changed.";
         }
 
-        var results = await AppServices.Engine.ApplyIdsAsync(pending);
-        await RefreshStatesAsync();
+        try
+        {
+            var results = await AppServices.Engine.ApplyIdsAsync(pending);
+            await RefreshStatesAsync();
 
-        var failed = results.Where(kv => !kv.Value.Success).ToList();
-        if (failed.Count == 0)
-            return $"{group.Title}: applied {pending.Count} tweak{(pending.Count == 1 ? "" : "s")}.";
+            var failed = results.Where(kv => !kv.Value.Success).ToList();
+            if (failed.Count == 0)
+                return $"{group.Title}: applied {pending.Count} tweak{(pending.Count == 1 ? "" : "s")}.";
 
-        var summary = $"{group.Title}: applied {pending.Count - failed.Count} of {pending.Count}. Failed: {string.Join(", ", failed.Select(f => f.Key))}.";
-        if (failed.First().Value.Error is { Length: > 0 } first)
-            summary += $" First error: {first}";
-        return summary;
+            var summary = $"{group.Title}: applied {pending.Count - failed.Count} of {pending.Count}. Failed: {string.Join(", ", failed.Select(f => f.Key))}.";
+            if (failed.First().Value.Error is { Length: > 0 } first)
+                summary += $" First error: {first}";
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Applying the '{group.Title}' category failed", ex);
+            return $"{group.Title}: apply failed - {ex.Message}";
+        }
     }
 }

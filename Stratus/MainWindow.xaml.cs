@@ -49,10 +49,18 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed += OnAppWindowChanged;
 
         var elevated = SystemInfoService.IsElevated();
+        // Stratus always asks for admin at startup, so a permanent "administrator" badge is just
+        // noise. The chip is a warning: it only appears when the app really is not elevated.
+        ElevationChip.Visibility = elevated ? Visibility.Collapsed : Visibility.Visible;
         ElevationText.Text = elevated ? "Running as administrator" : "Standard user - writes will fail";
         ElevationGlyph.Glyph = elevated ? "\uE7EF" : "\uE7BA";
         if (!elevated)
             ElevationText.Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xF1, 0x70, 0x7B));
+
+        // Footer version comes from the running build, never from a hardcoded string.
+        VersionText.Text = UpdateService.CurrentVersion == "0.0.0"
+            ? "Dev build \u00B7 every change is revertible"
+            : $"v{UpdateService.CurrentVersion} \u00B7 every change is revertible";
 
         // Tray presence: close hides to the tray, the tray menu offers a real Exit.
         _tray = new TrayIconManager(

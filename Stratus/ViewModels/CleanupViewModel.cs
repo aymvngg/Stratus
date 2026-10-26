@@ -122,6 +122,11 @@ public sealed class CleanupViewModel : ObservableObject
             UpdateSelectedText();
             Raise(nameof(CleanButtonText), nameof(AllText));
         }
+        catch (Exception ex)
+        {
+            Log.Warn("Cleanup scan failed: " + ex.Message);
+            ShowStatus($"Could not measure the cleanup targets: {ex.Message}", InfoBarSeverity.Warning);
+        }
         finally
         {
             IsBusy = false;
@@ -153,6 +158,11 @@ public sealed class CleanupViewModel : ObservableObject
             Raise(nameof(SessionText), nameof(HasSession));
             await ScanAsync();
             return $"Freed {Format.Bytes(result.FreedBytes)} - {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Cleanup failed", ex);
+            return $"Cleaning failed: {ex.Message}";
         }
         finally
         {

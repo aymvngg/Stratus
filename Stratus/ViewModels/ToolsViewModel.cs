@@ -35,10 +35,18 @@ public sealed class ToolsViewModel : ObservableObject
     public DnsProfile? CurrentDns
     {
         get => _currentDns;
-        private set => Set(ref _currentDns, value);
+        private set
+        {
+            if (Set(ref _currentDns, value))
+                Raise(nameof(CurrentDnsLabel));
+        }
     }
 
-    public IReadOnlyList<DnsProfile> DnsProfiles => DnsService.Profiles;
+    /// <summary>Text for the "Active:" line under the resolver picker.</summary>
+    public string CurrentDnsLabel => CurrentDns?.Label ?? "Automatic (from router)";
+
+    /// <summary>Presets plus the custom entry when the adapters use servers that are not a preset.</summary>
+    public ObservableCollection<DnsProfile> DnsProfiles { get; } = new();
 
     public string ActivePlanText { get => _activePlanText; private set => Set(ref _activePlanText, value); }
     public string AdaptersText => Adapters.Count == 0 ? "no connected physical adapters found" : string.Join(", ", Adapters);
@@ -57,7 +65,7 @@ public sealed class ToolsViewModel : ObservableObject
     public bool HasScan { get => _hasScan; private set => Set(ref _hasScan, value); }
     public bool HasDnsResults => DnsResults.Count > 0;
 
-    public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
+    public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) Raise(nameof(CanCheckForUpdates)); } }
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
 
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
@@ -79,6 +87,7 @@ public sealed class ToolsViewModel : ObservableObject
         {
             var plans = await Task.Run(() => AppServices.Power.ListPlans());
             var adapters = await Task.Run(() => AppServices.Dns.GetConnectedAdapters());
+            var activeDns = await Task.Run(() => AppServices.Dns.GetActiveProfile());
 
             Plans.Clear();
             foreach (var plan in plans)
@@ -88,10 +97,26 @@ public sealed class ToolsViewModel : ObservableObject
             foreach (var adapter in adapters)
                 Adapters.Add(adapter);
 
+            // Restore the resolver picker from the DNS the adapters actually use. Without this
+            // the ComboBox stayed blank after every restart (SelectedDns was never set on load).
+            DnsProfiles.Clear();
+            foreach (var profile in DnsService.Profiles)
+                DnsProfiles.Add(profile);
+            if (activeDns is not null && !DnsProfiles.Contains(activeDns))
+                DnsProfiles.Insert(1, activeDns);
+
+            SelectedDns = activeDns ?? DnsProfiles[0];
+            CurrentDns = activeDns;
+
             var active = plans.FirstOrDefault(p => p.IsActive);
             SelectedPlan = active ?? plans.FirstOrDefault();
             ActivePlanText = active is null ? "Unknown" : $"{active.Name} ({active.Guid:B})";
             Raise(nameof(AdaptersText));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Tools page load failed: " + ex.Message);
+            ShowStatus($"Could not read the system state: {ex.Message}", InfoBarSeverity.Warning);
         }
         finally
         {
@@ -118,6 +143,11 @@ public sealed class ToolsViewModel : ObservableObject
             await AppServices.RefreshFromEngineAsync();
             return $"Active plan: {SelectedPlan.Name}.";
         }
+        catch (Exception ex)
+        {
+            Log.Error("Switching the power plan failed", ex);
+            return $"Could not switch the plan: {ex.Message}";
+        }
         finally
         {
             IsBusy = false;
@@ -139,6 +169,11 @@ public sealed class ToolsViewModel : ObservableObject
                 CurrentDns = SelectedDns;
             return message;
         }
+        catch (Exception ex)
+        {
+            Log.Error("Applying DNS failed", ex);
+            return $"Could not apply DNS: {ex.Message}";
+        }
         finally
         {
             IsBusy = false;
@@ -154,6 +189,11 @@ public sealed class ToolsViewModel : ObservableObject
         {
             var (ok, message) = await Task.Run(() => RestorePointService.Create());
             return ok ? "Restore point created." : $"Restore point failed: {message}";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Creating a restore point failed", ex);
+            return $"Restore point failed: {ex.Message}";
         }
         finally
         {
@@ -181,6 +221,11 @@ public sealed class ToolsViewModel : ObservableObject
                 detail = detail[..220] + "…";
             return $"Component cleanup failed (exit {result.ExitCode}): {detail}";
         }
+        catch (Exception ex)
+        {
+            Log.Error("Component store cleanup failed", ex);
+            return $"Component cleanup failed: {ex.Message}";
+        }
         finally
         {
             IsBusy = false;
@@ -195,21 +240,26 @@ public sealed class ToolsViewModel : ObservableObject
         BusyText = "Reverting tweaks…";
         try
         {
-            var toRevert = AppServices.Engine.Tweaks
+            // Probing IsApplied hits the registry and services: keep it off the UI thread.
+            var toRevert = await Task.Run(() => AppServices.Engine.Tweaks
                 .Where(t => Safe(() => t.IsApplicable, false) && Safe(() => t.IsApplied, false))
-                .ToList();
+                .ToList());
 
             var reverted = 0;
             var failed = new List<string>();
-            foreach (var tweak in toRevert)
+
+            // One bulk scope for the whole batch: the engine coalesces StateChanged, so the
+            // score is recomputed once at the end instead of once per tweak.
+            using (AppServices.Engine.BeginBulk())
             {
-                // Coalesced: one rescoring pass for the whole batch, not one per tweak.
-                using var _bulk = AppServices.Engine.BeginBulk();
-                var result = await AppServices.Engine.RevertAsync(tweak);
-                if (result.Success)
-                    reverted++;
-                else
-                    failed.Add($"{tweak.Id}: {result.Error}");
+                foreach (var tweak in toRevert)
+                {
+                    var result = await AppServices.Engine.RevertAsync(tweak);
+                    if (result.Success)
+                        reverted++;
+                    else
+                        failed.Add($"{tweak.Id}: {result.Error}");
+                }
             }
 
             await AppServices.RefreshFromEngineAsync();
@@ -217,6 +267,11 @@ public sealed class ToolsViewModel : ObservableObject
             return failed.Count == 0
                 ? $"Reverted {Format.Count(reverted, "tweak")} to default settings."
                 : $"Reverted {reverted}, {failed.Count} failed - {string.Join("; ", failed.Take(3))}";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Revert all failed", ex);
+            return $"Could not revert the tweaks: {ex.Message}";
         }
         finally
         {
@@ -244,7 +299,8 @@ public sealed class ToolsViewModel : ObservableObject
             ScanSummary = result.Summary;
             var detail = result.Detail;
             if (detail.Length > 12_000)
-                detail = detail[..12_000] + Environment.NewLine + "… output truncated, full text is in the Stratus log.";
+                detail = "… earlier output truncated, the full text is in the Stratus log." +
+                         Environment.NewLine + detail[^12_000..];
             ScanDetail = detail;
             HasScan = true;
 
@@ -252,6 +308,11 @@ public sealed class ToolsViewModel : ObservableObject
                 ? $"{result.Duration.TotalMinutes:F0} min"
                 : $"{result.Duration.TotalSeconds:F0} s";
             return $"{result.Title}: {result.Summary} ({minutes})";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Health scan failed", ex);
+            return $"Scan failed: {ex.Message}";
         }
         finally
         {
@@ -268,8 +329,13 @@ public sealed class ToolsViewModel : ObservableObject
         BusyText = "Resetting the Windows Update cache…";
         try
         {
-            var (ok, message) = await Task.Run(UpdateResetService.Reset);
-            return ok ? message : message;
+            var (_, message) = await Task.Run(UpdateResetService.Reset);
+            return message;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Windows Update reset failed", ex);
+            return $"Could not reset the Windows Update cache: {ex.Message}";
         }
         finally
         {
@@ -284,8 +350,13 @@ public sealed class ToolsViewModel : ObservableObject
         BusyText = "Resetting the network stack…";
         try
         {
-            var (ok, message) = await Task.Run(NetworkResetService.Reset);
+            var (_, message) = await Task.Run(NetworkResetService.Reset);
             return message;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Network reset failed", ex);
+            return $"Could not reset the network stack: {ex.Message}";
         }
         finally
         {
@@ -316,6 +387,11 @@ public sealed class ToolsViewModel : ObservableObject
                 ? "Every resolver timed out. Check the network connection."
                 : $"Fastest resolver: {fastest.Label} at {fastest.LatencyText}.";
         }
+        catch (Exception ex)
+        {
+            Log.Error("DNS benchmark failed", ex);
+            return $"Benchmark failed: {ex.Message}";
+        }
         finally
         {
             IsBusy = false;
@@ -345,6 +421,11 @@ public sealed class ToolsViewModel : ObservableObject
             });
 
             return $"System report saved to {path}.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Writing the system report failed", ex);
+            return $"Could not write the report: {ex.Message}";
         }
         finally
         {
@@ -390,7 +471,7 @@ public sealed class ToolsViewModel : ObservableObject
         : "Automatic checks are off. Use the button to check by hand.";
 
     public bool HasUpdate { get => _hasUpdate; private set { if (Set(ref _hasUpdate, value)) Raise(nameof(UpdateTitleText)); } }
-    public bool IsDownloading { get => _isDownloading; private set => Set(ref _isDownloading, value); }
+    public bool IsDownloading { get => _isDownloading; private set { if (Set(ref _isDownloading, value)) Raise(nameof(CanCheckForUpdates)); } }
     public bool IsUpdateReady { get => _isUpdateReady; private set { if (Set(ref _isUpdateReady, value)) Raise(nameof(UpdateButtonText), nameof(CanCheckForUpdates)); } }
     public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
     public string UpdateStatusText { get => _updateStatusText; private set => Set(ref _updateStatusText, value); }
@@ -403,7 +484,11 @@ public sealed class ToolsViewModel : ObservableObject
     public string UpdateButtonText =>
         IsUpdateReady ? "Restart to update" : "Check for updates";
 
-    public bool CanCheckForUpdates => !IsBusy && !IsDownloading && !IsUpdateReady;
+    /// <summary>
+    /// The button stays enabled once an update is ready: it then reads "Restart to update".
+    /// Disabling it on IsUpdateReady made the restart (and the pending-update recovery) unreachable.
+    /// </summary>
+    public bool CanCheckForUpdates => !IsBusy && !IsDownloading;
 
     /// <summary>Restores the persisted auto-check preference and any downloaded-but-unapplied update.</summary>
     public void LoadUpdateState()
@@ -430,7 +515,7 @@ public sealed class ToolsViewModel : ObservableObject
     /// <summary>Silent startup check, throttled to once a day, followed by a background download.</summary>
     public async Task StartupCheckAsync()
     {
-        if (!AutoCheck || UpdateService.IsDevBuild || HasUpdate || IsUpdateReady)
+        if (!AutoCheck || UpdateService.IsDevBuild || HasUpdate || IsUpdateReady || IsBusy || IsDownloading)
             return;
 
         if (AppServices.Settings.Get(LastCheckKey) is { } stamp &&
@@ -438,10 +523,12 @@ public sealed class ToolsViewModel : ObservableObject
             DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc) < TimeSpan.FromHours(24))
             return;
 
-        AppServices.Settings.Set(LastCheckKey, DateTime.UtcNow.Ticks.ToString());
-
         var (info, _) = await UpdateService.CheckAsync();
-        if (info is null || !UpdateService.IsNewer(info.Version))
+        if (info is null)
+            return; // Offline: do not start the 24 hour window, so the next launch retries.
+
+        AppServices.Settings.Set(LastCheckKey, DateTime.UtcNow.Ticks.ToString());
+        if (!UpdateService.IsNewer(info.Version))
             return;
 
         _updateInfo = info;
@@ -493,6 +580,12 @@ public sealed class ToolsViewModel : ObservableObject
                 ? $"{info.Tag} is downloaded and ready to install."
                 : $"Found {info.Tag} but the download failed: {UpdateStatusText}";
         }
+        catch (Exception ex)
+        {
+            Log.Error("Update check failed", ex);
+            UpdateStatusText = $"Update check failed: {ex.Message}";
+            return UpdateStatusText;
+        }
         finally
         {
             IsBusy = false;
@@ -522,6 +615,13 @@ public sealed class ToolsViewModel : ObservableObject
             IsUpdateReady = true;
             UpdateProgress = 100;
             UpdateStatusText = $"{info.Tag} is downloaded. Restart to finish the update.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Update download failed", ex);
+            UpdateStatusText = $"Download failed: {ex.Message}";
+            if (!silent)
+                ShowStatus(UpdateStatusText, InfoBarSeverity.Warning);
         }
         finally
         {

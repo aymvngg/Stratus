@@ -76,8 +76,7 @@ public sealed class RegistryTweak : Tweak
         try
         {
             var hadBackups = _registry.HasBackups(Id);
-            if (hadBackups)
-                _registry.RestoreAll(Id);
+            var restored = !hadBackups || _registry.RestoreAll(Id);
 
             // For values that never got a backup entry (tweak applied by hand or by another tool
             // before Stratus saw it), fall back to the declared default.
@@ -93,6 +92,9 @@ public sealed class RegistryTweak : Tweak
                 if (stillTweaked)
                     _registry.WriteValueRaw(a.Hive, a.Path, a.Name, a.Kind, a.DefaultValue);
             }
+
+            if (!restored)
+                return TweakResult.Fail("Some values could not be restored. See the Stratus log for details.");
 
             return TweakResult.Ok;
         }

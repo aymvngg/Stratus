@@ -75,7 +75,8 @@ public static class UpdateService
         var numbers = new int[3];
         for (var i = 0; i < parts.Length && i < 3; i++)
         {
-            if (!int.TryParse(parts[i], out numbers[i]))
+            // Negative parts parse fine but Version's constructor rejects them.
+            if (!int.TryParse(parts[i], out numbers[i]) || numbers[i] < 0)
                 return null;
         }
 
@@ -167,9 +168,9 @@ public static class UpdateService
                 return false;
             }
 
-            // Prefer the release we downloaded in this session; fall back to a pending
-            // one from an earlier run (wrapped, because Update.exe stores an asset).
-            var update = _downloaded ?? mgr.CheckForUpdatesAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            // The button only offers a restart after a download in this session or a pending
+            // asset from an earlier run, so no network round trip is needed (and none on the UI thread).
+            UpdateInfo? update = _downloaded;
             if (update is null && mgr.UpdatePendingRestart is { } pending)
                 update = new UpdateInfo(pending, isDowngrade: false);
 

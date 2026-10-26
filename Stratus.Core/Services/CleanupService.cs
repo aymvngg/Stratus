@@ -254,6 +254,14 @@ public sealed class CleanupService
         long freed = 0;
         int deleted = 0, failed = 0;
 
+        // A bad target definition must never turn into "delete the whole disk": refuse empty
+        // paths and drive roots before recursing.
+        if (string.IsNullOrWhiteSpace(path) || IsRootPath(path))
+        {
+            Log.Warn($"Cleanup skipped an unsafe target path: '{path}'.");
+            return (0, 0, 0);
+        }
+
         var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
         foreach (var file in Directory.EnumerateFiles(path, "*", opts))
         {
@@ -267,13 +275,37 @@ public sealed class CleanupService
             catch { failed++; }
         }
 
-        // Remove now-empty subdirectories (bottom-up), keep the root itself.
-        foreach (var dir in Directory.EnumerateDirectories(path, "*", opts).OrderByDescending(d => d.Length))
+        // Remove now-empty subdirectories (bottom-up), keep the root itself. Order by depth,
+        // not string length: a shallow folder can have a longer path than a deeper one.
+        foreach (var dir in Directory.EnumerateDirectories(path, "*", opts)
+                     .OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar))
+                     .ThenByDescending(d => d.Length))
         {
             try { Directory.Delete(dir, recursive: false); } catch { /* not empty or locked */ }
         }
 
         return (freed, deleted, failed);
+    }
+
+    /// <summary>True for "C:\" style paths, which must never be cleaned recursively.</summary>
+    private static bool IsRootPath(string path)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(full);
+            if (string.IsNullOrEmpty(root))
+                return true;
+
+            return string.Equals(
+                full.TrimEnd(Path.DirectorySeparatorChar),
+                root.TrimEnd(Path.DirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return true; // Unparseable path: treat as unsafe and skip.
+        }
     }
 
     private static (long freed, int deleted, int failed) CleanFiles(string root, string[] globs)

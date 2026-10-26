@@ -26,31 +26,9 @@ public sealed class BackupStore : IBackupStore
         _entries = Load();
     }
 
-    private List<BackupEntry> Load()
-    {
-        try
-        {
-            if (!File.Exists(_filePath))
-                return [];
+    private List<BackupEntry> Load() => JsonFile.Load(_filePath, "backup file", () => new List<BackupEntry>());
 
-            var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<BackupEntry>>(json) ?? [];
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
-    private void Save()
-    {
-        var dir = Path.GetDirectoryName(_filePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        var json = JsonSerializer.Serialize(_entries, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(_filePath, json);
-    }
+    private void Save() => JsonFile.Save(_filePath, _entries);
 
     public void Append(BackupEntry entry)
     {

@@ -51,7 +51,8 @@
                                   SelectedItem="{x:Bind VM.SelectedPlan, Mode=TwoWay}"/>
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Activate" Click="OnApplyPlan" Style="{StaticResource AccentButtonStyle}"/>
+                            <Button Content="Activate" Click="OnApplyPlan" Style="{StaticResource AccentButtonStyle}"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                             <Button Content="Refresh" Click="OnReload"/>
                         </StackPanel>
 
@@ -87,7 +88,12 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
 
-                        <Button Content="Apply DNS" Click="OnApplyDns" Style="{StaticResource AccentButtonStyle}"/>
+                        <Button Content="Apply DNS" Click="OnApplyDns" Style="{StaticResource AccentButtonStyle}"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                            <Run Text="Active: "/><Run Text="{x:Bind VM.CurrentDnsLabel, Mode=OneWay}" FontWeight="SemiBold"/>
+                        </TextBlock>
 
                         <TextBlock FontSize="11" TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}">
@@ -113,11 +119,13 @@
                                    Text="Create a System Restore point before big changes. Backups of every registry value Stratus touched live in ProgramData."/>
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Create restore point" Click="OnRestorePoint"/>
+                            <Button Content="Create restore point" Click="OnRestorePoint"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                             <Button Content="System report" Click="OnCreateReport"/>
                             <Button Content="Open data folder" Click="OnOpenFolder"/>
                             <Button Content="Open logs" Click="OnOpenLogs"/>
-                            <Button Content="Component store cleanup" Click="OnComponentCleanup"/>
+                            <Button Content="Component store cleanup" Click="OnComponentCleanup"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -147,6 +155,7 @@
                                    Text="Reverts every tweak detected as applied - including changes made by hand or by other tools - using the exact values backed up at change time."/>
 
                         <Button Content="Revert all tweaks" Click="OnRevertAll"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"
                                 Background="#66C42B1C" Foreground="#FFF48B8B"/>
                     </StackPanel>
                 </Border>
@@ -169,9 +178,12 @@
                                Text="SFC checks protected system files. DISM checks and repairs the component store that SFC restores from. Long jobs, keep the machine plugged in."/>
 
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Scan system files (SFC)" Click="OnSfc" Style="{StaticResource AccentButtonStyle}"/>
-                        <Button Content="Scan component store" Click="OnDismScan"/>
-                        <Button Content="Repair component store" Click="OnDismRestore"/>
+                        <Button Content="Scan system files (SFC)" Click="OnSfc" Style="{StaticResource AccentButtonStyle}"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Content="Scan component store" Click="OnDismScan"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Content="Repair component store" Click="OnDismRestore"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -226,7 +238,8 @@
                         <TextBlock Style="{StaticResource PageSubtitle}"
                                    Text="Stops the update services, moves the download cache and the cryptography catalogue aside, then restarts them. Windows rebuilds both on the next check. Nothing is deleted: the old folders are kept with a timestamp."/>
 
-                        <Button Content="Reset update cache" Click="OnResetWindowsUpdate"/>
+                        <Button Content="Reset update cache" Click="OnResetWindowsUpdate"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                     </StackPanel>
                 </Border>
 
@@ -245,7 +258,8 @@
                         <TextBlock Style="{StaticResource PageSubtitle}"
                                    Text="Resets winsock, the TCP/IP stack and the DNS cache, then re-registers DNS. Use it when connections fail while other devices on the network work. Restart afterwards."/>
 
-                        <Button Content="Reset network stack" Click="OnResetNetwork"/>
+                        <Button Content="Reset network stack" Click="OnResetNetwork"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                     </StackPanel>
                 </Border>
 
@@ -265,7 +279,8 @@
                                    Text="Sends live DNS queries straight to each public resolver, three times each, and averages the round trip. Bypasses the Windows cache, so the numbers are what a new lookup would cost."/>
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Benchmark resolvers" Click="OnBenchmarkDns"/>
+                            <Button Content="Benchmark resolvers" Click="OnBenchmarkDns"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                             <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center" FontSize="11"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </StackPanel>

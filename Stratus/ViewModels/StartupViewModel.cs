@@ -105,18 +105,29 @@ public sealed class StartupViewModel : ObservableObject
     public async Task RefreshAsync()
     {
         IsBusy = true;
-        var items = await Task.Run(() => AppServices.Startup.Scan());
-
-        Rows.Clear();
-        foreach (var item in items)
+        try
         {
-            var row = new StartupRow(item) { IsEnabled = item.IsEnabled };
-            Rows.Add(row);
-        }
+            var items = await Task.Run(() => AppServices.Startup.Scan());
 
-        HasItems = Rows.Count > 0;
-        UpdateCount();
-        IsBusy = false;
+            Rows.Clear();
+            foreach (var item in items)
+            {
+                var row = new StartupRow(item) { IsEnabled = item.IsEnabled };
+                Rows.Add(row);
+            }
+
+            HasItems = Rows.Count > 0;
+            UpdateCount();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Startup scan failed: " + ex.Message);
+            ShowStatus($"Could not read the startup entries: {ex.Message}", InfoBarSeverity.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private void UpdateCount()
@@ -130,35 +141,59 @@ public sealed class StartupViewModel : ObservableObject
     public async Task<bool> SetEnabledAsync(StartupRow row, bool enabled)
     {
         row.IsBusy = true;
-        var result = await Task.Run(() => AppServices.Startup.SetEnabled(row.Item, enabled));
-        row.IsBusy = false;
-
-        if (result.Success)
+        try
         {
-            row.IsEnabled = enabled;
-            UpdateCount();
-            ShowStatus(
-                enabled
-                    ? $"{row.Name} will start with Windows."
-                    : $"{row.Name} will no longer start with Windows. The command is kept, so this is fully reversible.",
-                InfoBarSeverity.Success);
-        }
-        else
-        {
-            ShowStatus($"Could not change {row.Name}: {result.Error}", InfoBarSeverity.Error);
-        }
+            var result = await Task.Run(() => AppServices.Startup.SetEnabled(row.Item, enabled));
 
-        return result.Success;
+            if (result.Success)
+            {
+                row.IsEnabled = enabled;
+                UpdateCount();
+                ShowStatus(
+                    enabled
+                        ? $"{row.Name} will start with Windows."
+                        : $"{row.Name} will no longer start with Windows. The command is kept, so this is fully reversible.",
+                    InfoBarSeverity.Success);
+            }
+            else
+            {
+                ShowStatus($"Could not change {row.Name}: {result.Error}", InfoBarSeverity.Error);
+            }
+
+            return result.Success;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not change the startup entry '{row.Name}'", ex);
+            ShowStatus($"Could not change {row.Name}: {ex.Message}", InfoBarSeverity.Error);
+            return false;
+        }
+        finally
+        {
+            row.IsBusy = false;
+        }
     }
 
     public async Task<string> ResetAllAsync()
     {
         IsBusy = true;
-        var restored = await Task.Run(() => AppServices.Startup.ResetAll());
-        await RefreshAsync();
+        try
+        {
+            var restored = await Task.Run(() => AppServices.Startup.ResetAll());
+            await RefreshAsync();
 
-        return restored == 0
-            ? "No startup changes to reset."
-            : $"Reset {restored} startup {(restored == 1 ? "entry" : "entries")} to the previous state.";
+            return restored == 0
+                ? "No startup changes to reset."
+                : $"Reset {restored} startup {(restored == 1 ? "entry" : "entries")} to the previous state.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Resetting the startup entries failed", ex);
+            return $"Could not reset the startup entries: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

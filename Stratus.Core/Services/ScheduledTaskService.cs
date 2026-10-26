@@ -195,25 +195,11 @@ public sealed class ScheduledTaskService
 
     private void Load()
     {
-        try
+        var stored = JsonFile.Load(_stateFile, "scheduled task state file", () => new Dictionary<string, bool>());
+        lock (_gate)
         {
-            if (!File.Exists(_stateFile))
-                return;
-
-            var json = File.ReadAllText(_stateFile);
-            var stored = JsonSerializer.Deserialize<Dictionary<string, bool>>(json);
-            if (stored is null)
-                return;
-
-            lock (_gate)
-            {
-                foreach (var (key, value) in stored)
-                    _original[key] = value;
-            }
-        }
-        catch
-        {
-            // A damaged state file only costs us the reset, never a crash.
+            foreach (var (key, value) in stored)
+                _original[key] = value;
         }
     }
 
@@ -221,12 +207,12 @@ public sealed class ScheduledTaskService
     {
         try
         {
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_stateFile)!);
-            File.WriteAllText(_stateFile, JsonSerializer.Serialize(_original, new JsonSerializerOptions { WriteIndented = true }));
+            JsonFile.Save(_stateFile, _original);
         }
-        catch
+        catch (Exception ex)
         {
-            // Best effort.
+            // A damaged state file only costs us the reset, never a crash.
+            Log.Warn("Could not save the scheduled task state file: " + ex.Message);
         }
     }
 
