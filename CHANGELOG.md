@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.1
+
+### Fixes
+- **Reboot banner false positive**: the "Restart required" banner could stay visible after a reboot when Windows kept a leftover file rename operation (the Gaming Services proxy DLL re-registers its rename on every boot). Empty and known self-perpetuating rename entries are now ignored; the banner only appears for real servicing, Windows Update or file rename operations
+
 ## v1.4.0
 
 Stratus now updates itself: it checks GitHub once a day, downloads a newer build in the background and swaps it in on the next restart.
