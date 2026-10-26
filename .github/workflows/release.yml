@@ -33,6 +33,19 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           dotnet tool install --global vpk
+          New-Item -ItemType Directory -Force Releases | Out-Null
+          # Delta packages are built against the previous release, so fetch its full
+          # package into the output folder first. Without this every CI run starts
+          # empty and users download the whole app instead of a few MB.
+          try {
+            $previous = gh release list --limit 1 --json tagName --jq '.[0].tagName'
+            if ($previous -and $previous -ne "${{ github.ref_name }}") {
+              gh release download $previous --pattern "*-full.nupkg" --dir Releases
+              Write-Host "Delta base: $previous"
+            }
+          } catch {
+            Write-Warning "No previous package to diff against, building a full update only."
+          }
           vpk pack -u Stratus -v $version `
             -p publish/Stratus-win-x64 `
             -e Stratus.exe `
