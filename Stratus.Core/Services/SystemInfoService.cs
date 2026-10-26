@@ -127,11 +127,36 @@ public static class SystemInfoService
 
             using var session = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
                 @"SYSTEM\CurrentControlSet\Control\Session Manager");
-            return session?.GetValue("PendingFileRenameOperations") is string[] { Length: > 0 };
+            return HasMeaningfulRenames(session?.GetValue("PendingFileRenameOperations"));
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// PendingFileRenameOperations is noisy: Windows leaves a trailing empty entry after
+    /// processing, and the Gaming Services proxy DLL re-registers its rename on every boot
+    /// (the service re-locks gamingservicesproxy*.dll.0, so the entry never clears).
+    /// Only entries outside those cases mean a real restart is still owed.
+    /// </summary>
+    private static bool HasMeaningfulRenames(object? value)
+    {
+        if (value is not string[] entries)
+            return false;
+
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry))
+                continue;
+
+            if (entry.Contains("gamingservicesproxy", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            return true;
+        }
+
+        return false;
     }
 }
