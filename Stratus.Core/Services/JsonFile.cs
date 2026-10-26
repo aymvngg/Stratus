@@ -38,9 +38,19 @@ internal static class JsonFile
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
 
-        var temp = path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(value, Options));
-        File.Move(temp, path, overwrite: true);
+        // A unique temp name per save: the app and the CLI can persist to the same
+        // ProgramData file, and a shared ".tmp" name would let them overwrite each other.
+        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temp, JsonSerializer.Serialize(value, Options));
+            File.Move(temp, path, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(temp); } catch { /* best effort cleanup */ }
+            throw;
+        }
     }
 
     private static void Quarantine(string path, string label)

@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
-using Stratus.Core.Tweaks;
 
 namespace Stratus.Core.Tweaks;
 
@@ -64,8 +63,8 @@ public static class NagleTweak
 
             foreach (var path in ifaces)
             {
-                registry.WriteValue(RegistryHive.LocalMachine, path, "TcpAckFrequency", RegistryValueKind.DWord, 1, TweakId);
-                registry.WriteValue(RegistryHive.LocalMachine, path, "TCPNoDelay", RegistryValueKind.DWord, 1, TweakId);
+                WriteIfChanged(registry, path, "TcpAckFrequency");
+                WriteIfChanged(registry, path, "TCPNoDelay");
             }
             return TweakResult.Ok;
         }
@@ -75,12 +74,28 @@ public static class NagleTweak
         }
     }
 
+    /// <summary>
+    /// First writer wins: when a value is already at the target (a previous run of this tweak,
+    /// or a default that equals the target) it is left untouched, so re-applying never replaces
+    /// the stored backup of the original state with already-tweaked values.
+    /// </summary>
+    private static void WriteIfChanged(RegistryService registry, string path, string name)
+    {
+        var current = registry.Read(RegistryHive.LocalMachine, path, name);
+        if (current.Exists && RegistryService.ValuesEqual(RegistryValueKind.DWord, current.Value, 1))
+            return;
+
+        registry.WriteValue(RegistryHive.LocalMachine, path, name, RegistryValueKind.DWord, 1, TweakId);
+    }
+
     public static TweakResult Revert(RegistryService registry)
     {
         try
         {
-            registry.RestoreAll(TweakId);
-            return TweakResult.Ok;
+            var restored = registry.RestoreAll(TweakId);
+            return restored
+                ? TweakResult.Ok
+                : TweakResult.Fail("Some Nagle registry values could not be restored. See the Stratus log for details.");
         }
         catch (Exception ex)
         {

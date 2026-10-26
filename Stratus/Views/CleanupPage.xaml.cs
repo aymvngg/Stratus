@@ -67,6 +67,11 @@ public sealed partial class CleanupPage : Page
             return;
 
         var message = await VM.CleanAsync(_includeRecycleBin);
-        VM.ShowStatus(message, InfoBarSeverity.Success);
+        VM.ShowStatus(message,
+            message.StartsWith("Cleaning failed", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Error
+                : message.StartsWith("Another operation", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Warning
+                    : InfoBarSeverity.Success);
     }
 }

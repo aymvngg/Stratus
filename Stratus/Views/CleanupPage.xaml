@@ -24,7 +24,8 @@
                               VerticalAlignment="Center"/>
                 <TextBlock Text="{x:Bind VM.BusyText, Mode=OneWay}" VerticalAlignment="Center" FontSize="11"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                <Button Content="Scan" Click="OnScan" Style="{StaticResource AccentButtonStyle}"/>
+                <Button Content="Scan" Click="OnScan" Style="{StaticResource AccentButtonStyle}"
+                        IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
             </StackPanel>
         </Grid>
 
@@ -58,7 +59,8 @@
                               Checked="OnRecycleChanged" Unchecked="OnRecycleChanged"/>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="{x:Bind VM.CleanButtonText, Mode=OneWay}" Click="OnClean"
-                                Style="{StaticResource AccentButtonStyle}"/>
+                                Style="{StaticResource AccentButtonStyle}"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                         <Button Content="Select all" Click="OnSelectAll"/>
                         <Button Content="Recommended" Click="OnSelectRecommended"/>
                         <Button Content="None" Click="OnSelectNone"/>

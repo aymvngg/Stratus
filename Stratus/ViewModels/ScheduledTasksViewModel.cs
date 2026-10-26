@@ -209,7 +209,26 @@ public sealed class ScheduledTasksViewModel : ObservableObject
 
     public async Task RefreshAsync()
     {
+        if (IsBusy)
+        {
+            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
+            return;
+        }
+
         IsBusy = true;
+        try
+        {
+            await RefreshCoreAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Loads the task list and rebuilds the filters. Failures are reported in the status bar. Never throws.</summary>
+    private async Task RefreshCoreAsync()
+    {
         try
         {
             var items = await Task.Run(() => AppServices.ScheduledTasks.Scan());
@@ -240,10 +259,6 @@ public sealed class ScheduledTasksViewModel : ObservableObject
         {
             Log.Warn("Scheduled task scan failed: " + ex.Message);
             ShowStatus($"Could not read the scheduled tasks: {ex.Message}", InfoBarSeverity.Warning);
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -291,60 +306,109 @@ public sealed class ScheduledTasksViewModel : ObservableObject
         }
     }
 
-    /// <summary>Applies one state to every ticked row.</summary>
-    public async Task<string> SetCheckedAsync(bool enabled)
+    /// <summary>Applies one state to every ticked row and reports the batch outcome in the status bar.</summary>
+    public async Task SetCheckedAsync(bool enabled)
     {
-        var rows = Rows.Where(r => r.IsChecked).ToList();
-        if (rows.Count == 0)
-            return "Tick at least one task first.";
-
-        var ok = 0;
-        foreach (var row in rows)
+        if (IsBusy)
         {
-            if (await SetEnabledAsync(row, enabled))
-                ok++;
+            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
+            return;
         }
 
-        var verb = enabled ? "Enabled" : "Disabled";
-        return $"{verb} {ok} of {rows.Count} selected {(rows.Count == 1 ? "task" : "tasks")}.";
+        var rows = Rows.Where(r => r.IsChecked).ToList();
+        if (rows.Count == 0)
+        {
+            ShowStatus("Tick at least one task first.", InfoBarSeverity.Warning);
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var ok = 0;
+            foreach (var row in rows)
+            {
+                if (await SetEnabledAsync(row, enabled))
+                    ok++;
+            }
+
+            var verb = enabled ? "Enabled" : "Disabled";
+            ShowStatus(
+                $"{verb} {ok} of {rows.Count} selected {(rows.Count == 1 ? "task" : "tasks")}.",
+                BatchSeverity(ok, rows.Count));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    /// <summary>Turns a whole task group on or off, used by the preset menu.</summary>
-    public async Task<string> ApplyGroupAsync(string group, bool enabled)
+    /// <summary>Turns a whole task group on or off, used by the preset menu. Reports the batch outcome in the status bar.</summary>
+    public async Task ApplyGroupAsync(string group, bool enabled)
     {
+        if (IsBusy)
+        {
+            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
+            return;
+        }
+
         var rows = Rows
             .Where(r => string.Equals(r.GroupText, group, StringComparison.OrdinalIgnoreCase))
             .ToList();
         if (rows.Count == 0)
-            return $"No {group} tasks exist on this machine.";
-
-        var ok = 0;
-        foreach (var row in rows)
         {
-            if (await SetEnabledAsync(row, enabled))
-                ok++;
+            ShowStatus($"No {group} tasks exist on this machine.", InfoBarSeverity.Warning);
+            return;
         }
 
-        var verb = enabled ? "Enabled" : "Disabled";
-        return $"{verb} {ok} {group} {(ok == 1 ? "task" : "tasks")}.";
+        IsBusy = true;
+        try
+        {
+            var ok = 0;
+            foreach (var row in rows)
+            {
+                if (await SetEnabledAsync(row, enabled))
+                    ok++;
+            }
+
+            var verb = enabled ? "Enabled" : "Disabled";
+            ShowStatus(
+                $"{verb} {ok} {group} {(ok == 1 ? "task" : "tasks")}.",
+                BatchSeverity(ok, rows.Count));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    public async Task<string> ResetAllAsync()
+    private static InfoBarSeverity BatchSeverity(int ok, int total) =>
+        ok == total ? InfoBarSeverity.Success : ok == 0 ? InfoBarSeverity.Error : InfoBarSeverity.Warning;
+
+    public async Task ResetAllAsync()
     {
+        if (IsBusy)
+        {
+            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
+            return;
+        }
+
         IsBusy = true;
         try
         {
             var restored = await Task.Run(() => AppServices.ScheduledTasks.ResetAll());
-            await RefreshAsync();
+            await RefreshCoreAsync();
 
-            return restored == 0
-                ? "No scheduled task changes to reset."
-                : $"Reset {restored} scheduled {(restored == 1 ? "task" : "tasks")} to the previous state.";
+            ShowStatus(
+                restored == 0
+                    ? "No scheduled task changes to reset."
+                    : $"Reset {restored} scheduled {(restored == 1 ? "task" : "tasks")} to the previous state.",
+                InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {
             Log.Error("Resetting the scheduled tasks failed", ex);
-            return $"Could not reset the scheduled tasks: {ex.Message}";
+            ShowStatus($"Could not reset the scheduled tasks: {ex.Message}", InfoBarSeverity.Error);
         }
         finally
         {

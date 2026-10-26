@@ -206,38 +206,14 @@ public sealed class StartupService
     }
 
     /// <summary>
-    /// Pulls the file path out of a command line. Quoted paths are used as-is;
-    /// unquoted paths grow word by word until an existing file matches.
+    /// Pulls the file path out of a command line. Environment variables are expanded,
+    /// then the shared <see cref="CommandLine"/> splitter resolves quoted and unquoted
+    /// paths against the disk.
     /// </summary>
     private static string? ResolvePath(string command)
     {
         var text = Environment.ExpandEnvironmentVariables(command.Trim());
-        if (text.Length == 0)
-            return null;
-
-        if (text[0] == '"')
-        {
-            var close = text.IndexOf('"', 1);
-            if (close <= 1)
-                return null;
-
-            var quoted = text[1..close];
-            return File.Exists(quoted) ? quoted : null;
-        }
-
-        if (File.Exists(text))
-            return text;
-
-        var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var candidate = "";
-        foreach (var part in parts)
-        {
-            candidate = candidate.Length == 0 ? part : candidate + " " + part;
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        return null;
+        return CommandLine.ResolveExistingPath(text);
     }
 
     /// <summary>Follows a Startup folder shortcut to the executable it launches.</summary>

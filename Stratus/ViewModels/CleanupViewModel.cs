@@ -105,8 +105,25 @@ public sealed class CleanupViewModel : ObservableObject
 
     public async Task ScanAsync()
     {
+        if (IsBusy)
+            return;
+
         IsBusy = true;
         BusyText = "Measuring folders…";
+        try
+        {
+            await ScanCoreAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    /// <summary>Measures every target and rebuilds the rows. Failures are reported in the status bar. Never throws.</summary>
+    private async Task ScanCoreAsync()
+    {
         try
         {
             var targets = await Task.Run(() => AppServices.Cleanup.Scan());
@@ -134,11 +151,6 @@ public sealed class CleanupViewModel : ObservableObject
             Log.Warn("Cleanup scan failed: " + ex.Message);
             ShowStatus($"Could not measure the cleanup targets: {ex.Message}", InfoBarSeverity.Warning);
         }
-        finally
-        {
-            IsBusy = false;
-            BusyText = "";
-        }
     }
 
     private void UpdateSelectedText()
@@ -152,6 +164,9 @@ public sealed class CleanupViewModel : ObservableObject
 
     public async Task<string> CleanAsync(bool includeRecycleBin)
     {
+        if (IsBusy)
+            return "Another operation is still running.";
+
         var selected = Rows.Where(r => r.IsChecked && r.Target.Exists).Select(r => r.Target).ToList();
         if (selected.Count == 0 && !includeRecycleBin)
             return "Nothing selected.";
@@ -163,7 +178,7 @@ public sealed class CleanupViewModel : ObservableObject
             var result = await Task.Run(() => AppServices.Cleanup.Clean(selected, includeRecycleBin));
             _sessionFreed += result.FreedBytes;
             Raise(nameof(SessionText), nameof(HasSession));
-            await ScanAsync();
+            await ScanCoreAsync();
             return $"Freed {Format.Bytes(result.FreedBytes)} - {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped.";
         }
         catch (Exception ex)

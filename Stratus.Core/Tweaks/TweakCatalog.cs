@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
-using Stratus.Core.Tweaks;
 
 namespace Stratus.Core.Tweaks;
 
@@ -88,16 +87,6 @@ public static class TweakCatalog
             })
         { Weight = 1, Risk = RiskLevel.Safe });
 
-        tweaks.Add(new RegistryTweak("game-gamebar-startup-off", "Keep the Game Bar out of the way",
-            "Stops the Game Bar panel from opening at sign-in and from taking over the Xbox button. Press Win+G when you actually want it.",
-            TweakCategory.Gaming, reg,
-            new[]
-            {
-                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\GameBar", "ShowStartupPanel", 0, 1),
-                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0, 1)
-            })
-        { Weight = 1, Risk = RiskLevel.Safe });
-
         tweaks.Add(new RegistryTweak("game-gamebar-notifications-off", "Silence Game Bar notifications",
             "Turns off the achievement and recording popups that can steal focus and drop frames in full-screen games.",
             TweakCategory.Gaming, reg,
@@ -109,12 +98,12 @@ public static class TweakCatalog
 
         tweaks.Add(new ServiceTweak("game-xbox-save-service", "Park the Xbox save sync service",
             "Sets the Xbox game save service to manual. Saves still work locally; cloud sync starts again the next time a game needs it.",
-            "XblGameSave", ServiceStartupType.Manual, backup, weight: 1)
+            "XblGameSave", ServiceStartupType.Manual, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("game-xbox-net-service", "Park the Xbox networking service",
             "Sets the Xbox Live networking service to manual. Only needed for Xbox multiplayer and the Xbox app, which restart it on demand.",
-            "XboxNetApiSvc", ServiceStartupType.Manual, backup, weight: 1)
+            "XboxNetApiSvc", ServiceStartupType.Manual, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         // ---------------- Visuals ----------------
@@ -143,7 +132,7 @@ public static class TweakCatalog
         { Weight = 3, Risk = RiskLevel.Recommended });
 
         tweaks.Add(new RegistryTweak("menu-delay", "Instant menu delay",
-            "MenuShowDelay 400ms → 0ms: context menus and drop-downs open instantly.",
+            "MenuShowDelay 400ms -> 0ms: context menus and drop-downs open instantly.",
             TweakCategory.Visuals, reg,
             new[]
             {
@@ -152,7 +141,7 @@ public static class TweakCatalog
         { Weight = 1, Risk = RiskLevel.Safe });
 
         tweaks.Add(new RegistryTweak("hover-time", "Fast tooltip hover time",
-            "MouseHoverTime 400ms → 8ms: tooltips appear almost instantly. Purely a responsiveness nicety.",
+            "MouseHoverTime 400ms -> 8ms: tooltips appear almost instantly. Purely a responsiveness nicety.",
             TweakCategory.Visuals, reg,
             new[]
             {
@@ -299,87 +288,87 @@ public static class TweakCatalog
 
         tweaks.Add(new ServiceTweak("svc-diagtrack", "Disable DiagTrack (Connected User Experiences and Telemetry)",
             "The telemetry service. Collects and uploads usage data to Microsoft. Zero user-facing functionality is lost.",
-            "DiagTrack", ServiceStartupType.Automatic, backup, weight: 3)
+            "DiagTrack", ServiceStartupType.Disabled, ServiceStartupType.Automatic, backup, weight: 3)
         { Risk = RiskLevel.Recommended });
 
         tweaks.Add(new ServiceTweak("svc-dmwappush", "Disable WAP Push Message Routing (dmwappushservice)",
             "Legacy SMS/WAP enterprise management channel. Not used on consumer PCs.",
-            "dmwappushservice", ServiceStartupType.Manual, backup, weight: 1)
+            "dmwappushservice", ServiceStartupType.Disabled, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Recommended });
 
         tweaks.Add(new ServiceTweak("svc-sysmain", "Disable SysMain (Superfetch)",
             "Preloads frequently-used apps into RAM. Debated: can help HDD systems, often causes disk churn mid-game. Skip if you're on a slow HDD and like fast app launches.",
-            "SysMain", ServiceStartupType.Automatic, backup, weight: 1)
+            "SysMain", ServiceStartupType.Disabled, ServiceStartupType.Automatic, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-remoteregistry", "Disable Remote Registry",
             "Allows remote machines to edit your registry. Disabled by default attack-surface-wise on most setups; nothing local uses it.",
-            "RemoteRegistry", ServiceStartupType.Manual, backup, weight: 1)
+            "RemoteRegistry", ServiceStartupType.Disabled, ServiceStartupType.Disabled, backup, weight: 1)
         { Risk = RiskLevel.Recommended });
 
         tweaks.Add(new ServiceTweak("svc-fax", "Disable Fax",
             "Nobody faxes. Not even in 2026.",
-            "Fax", ServiceStartupType.Manual, backup, weight: 1)
+            "Fax", ServiceStartupType.Disabled, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Safe });
 
         tweaks.Add(new ServiceTweak("svc-spooler", "Disable Print Spooler",
             "Only choose this if you never print. Also closes a well-known escalation path (PrintNightmare).",
-            "Spooler", ServiceStartupType.Automatic, backup, weight: 1)
+            "Spooler", ServiceStartupType.Disabled, ServiceStartupType.Automatic, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-mapsbroker", "Disable Downloaded Maps Manager",
             "Background service for the offline Maps app. If you don't use Maps, it's dead weight.",
-            "MapsBroker", ServiceStartupType.AutomaticDelayed, backup, weight: 1)
+            "MapsBroker", ServiceStartupType.Disabled, ServiceStartupType.AutomaticDelayed, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-retaildemo", "Disable Retail Demo Service",
             "Shop-floor demo mode for retail stores. Removed on retail machines by the store; harmless to disable if present.",
-            "RetailDemo", ServiceStartupType.Manual, backup, weight: 1)
+            "RetailDemo", ServiceStartupType.Disabled, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-wer", "Disable Windows Error Reporting",
             "Sends crash dumps to Microsoft and queues report uploads. Apps still crash the same way; you just stop paying the background upload and disk cost.",
-            "WerSvc", ServiceStartupType.Manual, backup, weight: 1)
+            "WerSvc", ServiceStartupType.Disabled, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Recommended });
 
         tweaks.Add(new ServiceTweak("svc-trx", "Disable Distributed Link Tracking Client",
             "Tracks shortcuts and file moves across volumes for roaming profiles. Pointless on a single-PC setup.",
-            "TrkWks", ServiceStartupType.Automatic, backup, weight: 1)
+            "TrkWks", ServiceStartupType.Disabled, ServiceStartupType.Automatic, backup, weight: 1)
         { Risk = RiskLevel.Recommended });
 
         tweaks.Add(new ServiceTweak("svc-wmpnet", "Disable Media Player Network Sharing",
             "Shares your media library over the network via UPnP. Only needed if you stream from this PC to a TV or console.",
-            "WMPNetworkSvc", ServiceStartupType.Manual, backup, weight: 1)
+            "WMPNetworkSvc", ServiceStartupType.Disabled, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Safe });
 
         tweaks.Add(new ServiceTweak("svc-phonesvc", "Disable Phone Service",
             "Brokers calls and SMS between Windows and a paired phone. Dead weight unless you actually link a phone to the PC.",
-            "PhoneSvc", ServiceStartupType.Manual, backup, weight: 1)
+            "PhoneSvc", ServiceStartupType.Disabled, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Safe });
 
         tweaks.Add(new ServiceTweak("svc-xbox-auth", "Park the Xbox Live auth service",
             "Sets the Xbox Live authentication service to manual. Signing into the Xbox app or a Game Pass title starts it again on demand.",
-            "XblAuthManager", ServiceStartupType.Manual, backup, weight: 1)
+            "XblAuthManager", ServiceStartupType.Manual, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-xbox-accessory", "Park the Xbox accessory service",
             "Sets the Xbox controller accessory service to manual. Wired and Bluetooth controllers still work; the service starts when a game asks for it.",
-            "XboxGipSvc", ServiceStartupType.Manual, backup, weight: 1)
+            "XboxGipSvc", ServiceStartupType.Manual, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-rras", "Disable the legacy routing service",
             "Turns off Routing and Remote Access, the service behind dial-up and old VPN setups. Home networks and modern VPN clients do not use it.",
-            "RemoteAccess", ServiceStartupType.Disabled, backup, weight: 1)
+            "RemoteAccess", ServiceStartupType.Disabled, ServiceStartupType.Disabled, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-dps", "Park the diagnostic policy service",
             "Sets the Diagnostic Policy Service to manual. Windows troubleshooting wizards still work; the always-on background diagnostics stop.",
-            "DPS", ServiceStartupType.Manual, backup, weight: 1)
+            "DPS", ServiceStartupType.Manual, ServiceStartupType.Automatic, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         tweaks.Add(new ServiceTweak("svc-upnphost", "Park the UPnP device host",
             "Sets the UPnP device host to manual. Only needed when sharing media to a TV or console, which starts it on demand.",
-            "upnphost", ServiceStartupType.Manual, backup, weight: 1)
+            "upnphost", ServiceStartupType.Manual, ServiceStartupType.Manual, backup, weight: 1)
         { Risk = RiskLevel.Advanced });
 
         // ---------------- Privacy ----------------
@@ -475,11 +464,12 @@ public static class TweakCatalog
         { Weight = 1, Risk = RiskLevel.Safe });
 
         tweaks.Add(new RegistryTweak("priv-cloud-content", "Disable consumer features & app pushes",
-            "DisableWindowsConsumerFeatures=1: no automatic installs of promoted Store apps, no 'suggested' content in the shell. The single most effective anti-bloat policy.",
+            "DisableWindowsConsumerFeatures=1 (HKCU and the HKLM policy hive): no automatic installs of promoted Store apps, no suggested content in the Start menu or the shell. The single most effective anti-bloat policy.",
             TweakCategory.Privacy, reg,
             new[]
             {
-                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\CloudContent", "DisableWindowsConsumerFeatures", 1, 0)
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\CloudContent", "DisableWindowsConsumerFeatures", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\CloudContent", "DisableWindowsConsumerFeatures", 1, 0)
             })
         { Weight = 2, Risk = RiskLevel.Recommended });
 
@@ -649,7 +639,12 @@ public static class TweakCatalog
                 .StdOut.Contains("0x00000002", StringComparison.OrdinalIgnoreCase),
             () =>
             {
-                ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
+                var ac = ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
+                var dc = ProcessRunner.Run("powercfg.exe", "/setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
+                if (!ac.Success)
+                    return TweakResult.Fail($"powercfg setacvalueindex failed with exit code {ac.ExitCode}: {ac.StdErr.Trim()}");
+                if (!dc.Success)
+                    return TweakResult.Fail($"powercfg setdcvalueindex failed with exit code {dc.ExitCode}: {dc.StdErr.Trim()}");
                 var active = ProcessRunner.Run("powercfg.exe", "/setactive SCHEME_CURRENT", 10_000);
                 return active.Success
                     ? TweakResult.Ok
@@ -657,7 +652,13 @@ public static class TweakCatalog
             },
             () =>
             {
-                ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 0", 10_000);
+                // 2 is the Windows factory default (Aggressive).
+                var ac = ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
+                var dc = ProcessRunner.Run("powercfg.exe", "/setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
+                if (!ac.Success)
+                    return TweakResult.Fail($"powercfg setacvalueindex failed with exit code {ac.ExitCode}: {ac.StdErr.Trim()}");
+                if (!dc.Success)
+                    return TweakResult.Fail($"powercfg setdcvalueindex failed with exit code {dc.ExitCode}: {dc.StdErr.Trim()}");
                 var active = ProcessRunner.Run("powercfg.exe", "/setactive SCHEME_CURRENT", 10_000);
                 return active.Success
                     ? TweakResult.Ok

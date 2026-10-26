@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.6.1
+
+Correctness and reliability pass over the whole app: several tweaks did the wrong thing or reported the wrong outcome, and a few operations could overlap.
+
+### Fixes
+- **Service tweaks did the opposite of their description**: entries that promised "manual, starts on demand" actually disabled the service outright, which broke cloud saves, troubleshooters and on-demand starts. Each service entry now applies the start type its description promises, detection matches that target, and revert restores the exact original (or the Windows factory default)
+- **Consumer features tweak was a no-op**: DisableWindowsConsumerFeatures was written to a registry path Windows ignores. It now also writes the policy hive where the setting is honored, so Start menu suggestions actually stop
+- **CPU boost tweak de-powered laptops**: it set the boost mode on wall power only and reverted to "boost disabled" instead of the factory default. It now covers wall and battery power and reverts to the Windows default on both
+- **Duplicate tweak removed**: "Open Game Bar using the controller button" existed twice with identical registry values; one entry is gone
+- **Half-finished tweaks**: a multi-value tweak that failed partway stayed half applied. Apply now rolls back the values it already wrote and reports the failure
+- **Nagle tweak**: re-applying it could overwrite the stored original values, and a failed revert still reported success. Both fixed
+- **Wrong status colors**: Tools page failures (health scan, DNS benchmark, update and network resets) showed a green Success bar; the Scheduled tasks and Startup pages always reported Success regardless of outcome. Severity now follows the real result, including partial success
+- **Overlapping operations**: Cleanup, Scheduled tasks and Debloat let a second click start while the first was still running. Buttons now disable during long operations
+- **Restore point frequency**: if restore point creation failed once, Windows kept creating a point on every change until you noticed. The setting is now always restored
+- **Windows Update pause**: Resume no longer deletes a pause that was set from Windows Settings instead of Stratus
+- **Debloat removal scope**: when elevated, package removal now removes for all users, matching the all-users scan
+- **Hyper-V removal warns** that it breaks WSL2 and Windows Sandbox before you can pick it
+- **Scheduled task reset**: a failed enable or disable no longer marks the task as changed
+
+### Reliability and performance
+- **No more possible hang**: a child process keeping the output pipes open could freeze Stratus forever; the wait is now capped
+- **French output fixed**: PowerShell output from French Windows no longer shows garbled accents
+- **Cleanup is scoped and faster**: the NVIDIA and AMD targets now clean only the real driver cache folders (AMD's settings data is no longer touched), and size scans no longer stat every file twice
+- **Atomic score history**: the dashboard score history is written atomically like every other data file, and two Stratus processes can no longer corrupt each other's saves
+- **No phantom backups**: a registry write that failed mid-flight no longer leaves a restore entry for a value that never changed
+
+### Tests
+- **First test suite**: command line parsing, registry value handling, the atomic stores and catalog integrity (unique tweak ids, no duplicate actions) are now covered by 27 automated tests
+
 ## v1.6.0
 
 Stratus reaches further into the machine: 26 new tweaks, four more cleanup targets, filters and bulk actions for scheduled tasks and startup, optional feature and provisioned app removal, and restore point, update pause and TCP tools.
@@ -15,9 +44,8 @@ Stratus reaches further into the machine: 26 new tweaks, four more cleanup targe
 ### Scheduled tasks
 - **Columns**: last run, next run and author are shown per task, so a task that never runs or belongs to a third-party app is easy to spot
 - **Search and folder filter**: filter by name, path or author and narrow the list to one task folder
-- **Presets**: one click selects a known group (telemetry, Xbox, feedback), and the checked count is shown before you disable anything
+- **Presets**: one click selects a known group (telemetry, compatibility, feedback, diagnostics), and the checked count is shown before you disable anything
 - **Bulk actions**: enable or disable every checked task at once, plus select all and select none
-- **Xbox tasks**: the catalog now covers the Xbox Game Bar and related scheduled tasks
 
 ### Startup
 - **More detail per entry**: publisher, executable path, file size and a startup impact hint based on the entry location and size

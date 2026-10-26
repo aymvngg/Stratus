@@ -32,13 +32,19 @@ public sealed partial class StartupPage : Page
         if ((sender as FrameworkElement)?.Tag is not string scope)
             return;
 
-        VM.ShowStatus(await VM.SetScopeAsync(scope, enabled: false), InfoBarSeverity.Success);
+        var message = await VM.SetScopeAsync(scope, enabled: false);
+        var severity = message.StartsWith("No startup entries", StringComparison.OrdinalIgnoreCase)
+            ? InfoBarSeverity.Warning
+            : message.Contains("already", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Informational
+                : InfoBarSeverity.Success;
+        VM.ShowStatus(message, severity);
     }
 
-    private void OnOpenLocation(object sender, RoutedEventArgs e)
+    private async void OnOpenLocation(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is StartupRow row)
-            VM.OpenLocation(row);
+            await VM.OpenLocationAsync(row);
     }
 
     private async void OnResetAll(object sender, RoutedEventArgs e)
@@ -62,7 +68,12 @@ public sealed partial class StartupPage : Page
             return;
 
         var message = await VM.ResetAllAsync();
-        VM.ShowStatus(message, InfoBarSeverity.Success);
+        var severity = message.StartsWith("Could not", StringComparison.OrdinalIgnoreCase)
+            ? InfoBarSeverity.Error
+            : message.StartsWith("No startup changes", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Informational
+                : InfoBarSeverity.Success;
+        VM.ShowStatus(message, severity);
     }
 
     private async void OnToggle(object sender, RoutedEventArgs e)

@@ -139,20 +139,27 @@ public sealed class DebloatService
         return items.OrderBy(i => i.Group).ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    /// <summary>Removes one UWP package for the current user and deprovisions it (so new users never get it).</summary>
+    /// <summary>
+    /// Removes one UWP package and deprovisions it (so new users never get it).
+    /// Elevated, it is removed for every user account because the elevated scan lists
+    /// packages from all profiles; otherwise it falls back to the current user.
+    /// </summary>
     public async Task<(bool Success, string Message)> RemoveAsync(UwpAppItem item)
     {
         if (string.IsNullOrWhiteSpace(item.FullName))
             return (false, "This entry has no package name and cannot be removed.");
 
         var manager = new Windows.Management.Deployment.PackageManager();
+        var options = SystemInfoService.IsElevated()
+            ? Windows.Management.Deployment.RemovalOptions.RemoveForAllUsers
+            : Windows.Management.Deployment.RemovalOptions.None;
 
         // Deployment calls can block for minutes when the servicing stack is busy, and one
         // stuck package used to freeze the whole batch. Cap every step.
         using var removeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         try
         {
-            var result = await manager.RemovePackageAsync(item.FullName).AsTask(removeTimeout.Token);
+            var result = await manager.RemovePackageAsync(item.FullName, options).AsTask(removeTimeout.Token);
             if (result.ErrorText.Length > 0)
             {
                 Log.Warn("Debloat remove failed for " + item.Name + ": " + result.ErrorText);
@@ -257,7 +264,7 @@ public sealed class DebloatService
     {
         try
         {
-            var (exe, args) = SplitCommand(item.UninstallString);
+            var (exe, args) = CommandLine.Split(item.UninstallString);
 
             // MsiExec /X{guid} needs a silent flag we cannot assume - keep it interactive.
             var psi = new System.Diagnostics.ProcessStartInfo { FileName = exe, Arguments = args, UseShellExecute = true };
@@ -281,7 +288,7 @@ public sealed class DebloatService
 
         try
         {
-            var (exe, args) = SplitCommand(item.SilentCommand);
+            var (exe, args) = CommandLine.Split(item.SilentCommand);
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = exe,
@@ -316,36 +323,6 @@ public sealed class DebloatService
             Log.Warn($"Silent uninstall of {item.DisplayName} failed: {ex.Message}");
             return (false, ex.Message);
         }
-    }
-
-    /// <summary>
-    /// Splits an uninstall command into executable and arguments. Quoted paths are used as-is;
-    /// unquoted paths with spaces are resolved by growing the prefix until a file matches.
-    /// </summary>
-    private static (string Exe, string Args) SplitCommand(string command)
-    {
-        var s = command.Trim();
-        if (s.StartsWith('"'))
-        {
-            var end = s.IndexOf('"', 1);
-            if (end < 0)
-                return (s.Trim('"'), "");
-
-            return (s[1..end], s[(end + 1)..].Trim());
-        }
-
-        if (System.IO.File.Exists(s))
-            return (s, "");
-
-        for (var space = s.IndexOf(' '); space > 0; space = s.IndexOf(' ', space + 1))
-        {
-            var candidate = s[..space];
-            if (System.IO.File.Exists(candidate))
-                return (candidate, s[(space + 1)..].Trim());
-        }
-
-        var firstSpace = s.IndexOf(' ');
-        return firstSpace < 0 ? (s, "") : (s[..firstSpace], s[(firstSpace + 1)..].Trim());
     }
 
     /// <summary>

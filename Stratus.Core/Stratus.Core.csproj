@@ -16,4 +16,10 @@
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The test project covers the pure logic: command line parsing, registry value
+         handling and the atomic JSON stores. -->
+    <InternalsVisibleTo Include="Stratus.Tests" />
+  </ItemGroup>
+
 </Project>

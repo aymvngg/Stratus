@@ -37,8 +37,10 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Button Content="Reset changes" Click="OnResetAll"/>
-                            <Button Content="Refresh" Click="OnRefresh"/>
+                            <Button Content="Reset changes" Click="OnResetAll"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                            <Button Content="Refresh" Click="OnRefresh"
+                                    IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                         </StackPanel>
                     </Grid>
 
@@ -47,7 +49,8 @@
                         <ComboBox MinWidth="190"
                                   ItemsSource="{x:Bind VM.Folders, Mode=OneWay}"
                                   SelectedItem="{x:Bind VM.FolderFilter, Mode=TwoWay}"/>
-                        <Button Content="Presets">
+                        <Button Content="Presets"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}">
                             <Button.Flyout>
                                 <MenuFlyout>
                                     <MenuFlyoutItem Text="Disable telemetry tasks" Tag="Telemetry" Click="OnPresetDisable"/>
@@ -71,8 +74,10 @@
                         <TextBlock Text="{x:Bind VM.SelectionText, Mode=OneWay}"
                                    VerticalAlignment="Center"
                                    Style="{StaticResource PageSubtitle}"/>
-                        <Button Content="Enable selected" Click="OnEnableChecked"/>
-                        <Button Content="Disable selected" Click="OnDisableChecked"/>
+                        <Button Content="Enable selected" Click="OnEnableChecked"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Content="Disable selected" Click="OnDisableChecked"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                     </StackPanel>
 
                     <TextBlock Text="{x:Bind VM.EmptyText, Mode=OneWay}"

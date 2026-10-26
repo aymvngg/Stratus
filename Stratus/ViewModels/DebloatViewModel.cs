@@ -513,13 +513,26 @@ public sealed class DebloatViewModel : ObservableObject
         if (IsBusy)
             return "Another operation is still running.";
 
-        var (ok, message) = await row.RemoveAsync();
-        if (!ok)
-            return $"Could not remove {row.Name}: {message}";
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await row.RemoveAsync();
+            if (!ok)
+                return $"Could not remove {row.Name}: {message}";
 
-        Features.Remove(row);
-        RaiseCounts();
-        return $"{row.Name} removed. A restart may be needed to finish.";
+            Features.Remove(row);
+            RaiseCounts();
+            return $"{row.Name} removed. A restart may be needed to finish.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Removing the optional feature '{row.Name}' failed", ex);
+            return $"Could not remove {row.Name}: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public async Task<string> UninstallWin32Async(Win32Row row, bool silent)
@@ -571,12 +584,25 @@ public sealed class DebloatViewModel : ObservableObject
         if (IsBusy)
             return "Another operation is still running.";
 
-        var (ok, message) = await row.RemoveAsync();
-        if (!ok)
-            return $"Could not remove {row.DisplayName}: {message}";
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await row.RemoveAsync();
+            if (!ok)
+                return $"Could not remove {row.DisplayName}: {message}";
 
-        Provisioned.Remove(row);
-        RaiseCounts();
-        return $"{row.DisplayName} is no longer provisioned for new users.";
+            Provisioned.Remove(row);
+            RaiseCounts();
+            return $"{row.DisplayName} is no longer provisioned for new users.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Removing the provisioned package '{row.DisplayName}' failed", ex);
+            return $"Could not remove {row.DisplayName}: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

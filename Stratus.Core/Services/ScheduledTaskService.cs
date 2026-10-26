@@ -109,6 +109,10 @@ public sealed class ScheduledTaskService
             if (current is null)
                 return TweakResult.Fail("That task no longer exists on this machine.");
 
+            session.Set(path, enabled);
+
+            // Record the pre-change state only after a successful toggle: a failed set
+            // must not mark the task as modified.
             lock (_gate)
             {
                 if (!_original.ContainsKey(path))
@@ -118,7 +122,6 @@ public sealed class ScheduledTaskService
                 }
             }
 
-            session.Set(path, enabled);
             Log.Info((enabled ? "Enabled" : "Disabled") + " scheduled task: " + path);
             return TweakResult.Ok;
         }

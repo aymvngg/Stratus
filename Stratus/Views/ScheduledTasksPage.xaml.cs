@@ -41,18 +41,14 @@ public sealed partial class ScheduledTasksPage : Page
         if ((sender as FrameworkElement)?.Tag is not string group)
             return;
 
-        VM.ShowStatus(await VM.ApplyGroupAsync(group, enabled), InfoBarSeverity.Success);
+        await VM.ApplyGroupAsync(group, enabled);
     }
 
-    private async void OnEnableChecked(object sender, RoutedEventArgs e)
-    {
-        VM.ShowStatus(await VM.SetCheckedAsync(true), InfoBarSeverity.Success);
-    }
+    private async void OnEnableChecked(object sender, RoutedEventArgs e) =>
+        await VM.SetCheckedAsync(true);
 
-    private async void OnDisableChecked(object sender, RoutedEventArgs e)
-    {
-        VM.ShowStatus(await VM.SetCheckedAsync(false), InfoBarSeverity.Success);
-    }
+    private async void OnDisableChecked(object sender, RoutedEventArgs e) =>
+        await VM.SetCheckedAsync(false);
 
     private void OnSelectAll(object sender, RoutedEventArgs e)
     {
@@ -86,8 +82,7 @@ public sealed partial class ScheduledTasksPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ResetAllAsync();
-        VM.ShowStatus(message, InfoBarSeverity.Success);
+        await VM.ResetAllAsync();
     }
 
     private async void OnToggle(object sender, RoutedEventArgs e)
@@ -98,6 +93,13 @@ public sealed partial class ScheduledTasksPage : Page
         var desired = toggle.IsOn;
         if (row.IsBusy || desired == row.IsEnabled)
             return;
+
+        // A bulk operation is running: snap the toggle back instead of starting another one.
+        if (VM.IsBusy)
+        {
+            toggle.IsOn = row.IsEnabled;
+            return;
+        }
 
         var ok = await VM.SetEnabledAsync(row, desired);
         if (!ok)

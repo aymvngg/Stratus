@@ -50,24 +50,28 @@ public sealed class RegistryTweak : Tweak
 
     public override TweakResult Apply()
     {
+        var written = new List<RegistryAction>();
         try
         {
             foreach (var a in _actions)
             {
                 if (a.Op == RegistryOp.DeleteValue)
-                {
                     _registry.DeleteValue(a.Hive, a.Path, a.Name, Id);
-                }
                 else
-                {
                     _registry.WriteValue(a.Hive, a.Path, a.Name, a.Kind, a.TweakedValue, Id);
-                }
+                written.Add(a);
             }
             return TweakResult.Ok;
         }
         catch (Exception ex)
         {
-            return TweakResult.Fail(ex.Message);
+            // Multi-value tweaks must not stay half applied: put the values written in
+            // this attempt back and report the failure.
+            var restored = written.Count == 0 || _registry.RestoreAll(Id);
+            var message = restored
+                ? ex.Message
+                : $"{ex.Message} The half-finished changes could not be rolled back; see the Stratus log.";
+            return TweakResult.Fail(message);
         }
     }
 

@@ -11,6 +11,7 @@ public interface IBackupStore
     List<BackupEntry> LatestPerKey(string tweakId);
     List<BackupEntry> All();
     void Remove(string tweakId);
+    void RemoveOne(string tweakId, string scopeType, string scopeId, string key);
 }
 
 /// <summary>Persists every pre-change system value to a JSON file so all tweaks are exactly reversible.</summary>
@@ -74,6 +75,18 @@ public sealed class BackupStore : IBackupStore
         lock (_lock)
         {
             _entries.RemoveAll(e => e.TweakId == tweakId);
+            Save();
+        }
+    }
+
+    public void RemoveOne(string tweakId, string scopeType, string scopeId, string key)
+    {
+        lock (_lock)
+        {
+            _entries.RemoveAll(e => e.TweakId == tweakId
+                                    && e.ScopeType == scopeType
+                                    && e.ScopeId == scopeId
+                                    && e.Key == key);
             Save();
         }
     }

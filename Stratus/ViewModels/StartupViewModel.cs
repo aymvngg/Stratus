@@ -260,7 +260,7 @@ public sealed class StartupViewModel : ObservableObject
     }
 
     /// <summary>Opens Explorer with the entry's executable selected.</summary>
-    public void OpenLocation(StartupRow row)
+    public async Task OpenLocationAsync(StartupRow row)
     {
         var path = row.Item.ExecutablePath;
         if (string.IsNullOrWhiteSpace(path))
@@ -272,8 +272,8 @@ public sealed class StartupViewModel : ObservableObject
         try
         {
             // explorer.exe returns a non-zero exit code even when the window opens,
-            // so only an exception counts as a failure here.
-            ProcessRunner.Run("explorer.exe", $"/select,\"{path}\"", 5_000);
+            // so only an exception counts as a failure here. The wait runs off the UI thread.
+            await Task.Run(() => ProcessRunner.Run("explorer.exe", $"/select,\"{path}\"", 5_000));
         }
         catch (Exception ex)
         {

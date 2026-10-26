@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Stratus.Core.Models;
 
 namespace Stratus.Core.Services;
@@ -56,27 +55,14 @@ public sealed class ScoreHistoryStore
 
     private List<ScoreSnapshot> Load()
     {
-        try
-        {
-            if (!File.Exists(_filePath))
-                return new List<ScoreSnapshot>();
-
-            using var stream = File.OpenRead(_filePath);
-            return JsonSerializer.Deserialize<List<ScoreSnapshot>>(stream) ?? new List<ScoreSnapshot>();
-        }
-        catch
-        {
-            return new List<ScoreSnapshot>();
-        }
+        return JsonFile.Load(_filePath, "Score history", () => new List<ScoreSnapshot>());
     }
 
     private void Save()
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            using var stream = File.Create(_filePath);
-            JsonSerializer.Serialize(stream, _entries, new JsonSerializerOptions { WriteIndented = true });
+            JsonFile.Save(_filePath, _entries);
         }
         catch
         {

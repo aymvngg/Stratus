@@ -1,5 +1,3 @@
-using Stratus.Core.Services;
-
 namespace Stratus.Core.Services;
 
 /// <summary>
@@ -44,8 +42,12 @@ public sealed class CleanupService
             Path.Combine(LocalAppData, @"Microsoft\Windows\Explorer"), true,
             FileGlobs: new[] { "thumbcache_*.db", "iconcache_*.db" }),
         new("d3ds-cache", "DirectX shader cache", Path.Combine(LocalAppData, "D3DSCache"), true),
-        new("nv-dxcache", "NVIDIA shader caches", Path.Combine(LocalAppData, "NVIDIA"), true),
-        new("amd-cache", "AMD shader caches", Path.Combine(LocalAppData, "AMD"), true),
+        new("nv-dxcache", "NVIDIA driver caches",
+            Path.Combine(LocalAppData, "NVIDIA"), true,
+            CacheDirNames: new[] { "DXCache", "GLCache", "NV_Cache", "LocalCache" }),
+        new("amd-cache", "AMD driver caches",
+            Path.Combine(LocalAppData, "AMD"), true,
+            CacheDirNames: new[] { "DXCache", "GLCache", "VkCache" }),
         new("edge-cache", "Microsoft Edge caches",
             Path.Combine(LocalAppData, @"Microsoft\Edge\User Data"), true,
             CacheDirNames: BrowserCacheDirNames.Split('|')),
@@ -81,7 +83,10 @@ public sealed class CleanupService
 
     public List<CleanupTarget> Scan()
     {
-        foreach (var t in Targets)
+        // Work on per-scan copies: the catalog is shared static state and a second scan
+        // (or a clean running in parallel) must never mutate rows someone else is reading.
+        var targets = Targets.Select(t => t with { }).ToList();
+        foreach (var t in targets)
         {
             t.Exists = Directory.Exists(t.Path);
             if (!t.Exists)
@@ -105,7 +110,7 @@ public sealed class CleanupService
                 t.FileCount = 0;
             }
         }
-        return Targets;
+        return targets;
     }
 
     public CleanResult Clean(IEnumerable<CleanupTarget> selected, bool includeRecycleBin)
@@ -163,14 +168,16 @@ public sealed class CleanupService
         var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
         long size = 0;
         var count = 0;
-        foreach (var f in Directory.EnumerateFiles(path, "*", opts))
+        // DirectoryInfo enumeration carries the length in the find data, so files are not
+        // stat-ed a second time the way Directory.EnumerateFiles + new FileInfo does.
+        foreach (var f in new DirectoryInfo(path).EnumerateFiles("*", opts))
         {
             try
             {
-                size += new FileInfo(f).Length;
+                size += f.Length;
                 count++;
             }
-            catch { /* file vanished */ }
+            catch { /* file vanished mid scan */ }
         }
         return (size, count);
     }
@@ -190,18 +197,19 @@ public sealed class CleanupService
 
     private static (long, int) MeasureFiles(string root, string[] globs)
     {
-        long size = 0;
+        var size = 0L;
         var count = 0;
+        var dir = new DirectoryInfo(root);
         foreach (var glob in globs)
         {
-            foreach (var file in Directory.EnumerateFiles(root, glob, new EnumerationOptions { IgnoreInaccessible = true }))
+            foreach (var file in dir.EnumerateFiles(glob, new EnumerationOptions { IgnoreInaccessible = true }))
             {
                 try
                 {
-                    size += new FileInfo(file).Length;
+                    size += file.Length;
                     count++;
                 }
-                catch { /* file vanished */ }
+                catch { /* file vanished mid scan */ }
             }
         }
         return (size, count);
@@ -210,10 +218,10 @@ public sealed class CleanupService
     private static IEnumerable<string> MatchedCacheDirs(string root, string[] names)
     {
         var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
-        foreach (var dir in Directory.EnumerateDirectories(root, "*", opts))
+        foreach (var dir in new DirectoryInfo(root).EnumerateDirectories("*", opts))
         {
-            if (names.Contains(Path.GetFileName(dir)))
-                yield return dir;
+            if (names.Contains(dir.Name))
+                yield return dir.FullName;
         }
     }
 
@@ -271,12 +279,12 @@ public sealed class CleanupService
         }
 
         var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
-        foreach (var file in Directory.EnumerateFiles(path, "*", opts))
+        foreach (var file in new DirectoryInfo(path).EnumerateFiles("*", opts))
         {
             try
             {
-                var len = new FileInfo(file).Length;
-                File.Delete(file);
+                var len = file.Length;
+                File.Delete(file.FullName);
                 freed += len;
                 deleted++;
             }
@@ -285,11 +293,11 @@ public sealed class CleanupService
 
         // Remove now-empty subdirectories (bottom-up), keep the root itself. Order by depth,
         // not string length: a shallow folder can have a longer path than a deeper one.
-        foreach (var dir in Directory.EnumerateDirectories(path, "*", opts)
-                     .OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar))
-                     .ThenByDescending(d => d.Length))
+        foreach (var dir in new DirectoryInfo(path).EnumerateDirectories("*", opts)
+                     .OrderByDescending(d => d.FullName.Count(c => c == Path.DirectorySeparatorChar))
+                     .ThenByDescending(d => d.FullName.Length))
         {
-            try { Directory.Delete(dir, recursive: false); } catch { /* not empty or locked */ }
+            try { dir.Delete(recursive: false); } catch { /* not empty or locked */ }
         }
 
         return (freed, deleted, failed);
@@ -323,12 +331,12 @@ public sealed class CleanupService
 
         foreach (var glob in globs)
         {
-            foreach (var file in Directory.EnumerateFiles(root, glob, new EnumerationOptions { IgnoreInaccessible = true }))
+            foreach (var file in new DirectoryInfo(root).EnumerateFiles(glob, new EnumerationOptions { IgnoreInaccessible = true }))
             {
                 try
                 {
-                    var len = new FileInfo(file).Length;
-                    File.Delete(file);
+                    var len = file.Length;
+                    File.Delete(file.FullName);
                     freed += len;
                     deleted++;
                 }

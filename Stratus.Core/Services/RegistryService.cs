@@ -102,8 +102,18 @@ public sealed class RegistryService
     {
         Backup(hive, path, name, kind, tweakId);
 
-        using var key = EnsureKey(hive, path);
-        key.SetValue(name, Normalize(kind, value), kind);
+        try
+        {
+            using var key = EnsureKey(hive, path);
+            key.SetValue(name, Normalize(kind, value), kind);
+        }
+        catch
+        {
+            // The write failed, so the backup taken above would restore a value that
+            // was never changed. Drop it again before the failure surfaces.
+            _backup.RemoveOne(tweakId, ScopeType, $"{hive}|{path}|{name}", name);
+            throw;
+        }
     }
 
     public void WriteValueRaw(RegistryHive hive, string path, string name, RegistryValueKind kind, object? value)
@@ -116,8 +126,16 @@ public sealed class RegistryService
     {
         Backup(hive, path, name, RegistryValueKind.None, tweakId);
 
-        using var key = OpenBase(hive).OpenSubKey(path, writable: true);
-        key?.DeleteValue(name, throwOnMissingValue: false);
+        try
+        {
+            using var key = OpenBase(hive).OpenSubKey(path, writable: true);
+            key?.DeleteValue(name, throwOnMissingValue: false);
+        }
+        catch
+        {
+            _backup.RemoveOne(tweakId, ScopeType, $"{hive}|{path}|{name}", name);
+            throw;
+        }
     }
 
     private void Backup(RegistryHive hive, string path, string name, RegistryValueKind kind, string tweakId)

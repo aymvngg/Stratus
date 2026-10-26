@@ -23,16 +23,25 @@ public static class RestorePointService
     {
         var script = """
             $ErrorActionPreference = 'Stop'
+            $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\SystemRestore'
+            $prev = $null
             try {
-              $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\SystemRestore'
               $prev = (Get-ItemProperty $key -Name SystemRestorePointCreationFrequency -ErrorAction SilentlyContinue).SystemRestorePointCreationFrequency
               Set-ItemProperty $key -Name SystemRestorePointCreationFrequency -Value 0 -Type DWord -ErrorAction SilentlyContinue
               Enable-ComputerRestore -Drive "$env:SystemDrive\"
               Checkpoint-Computer -Description 'Stratus Optimizer' -RestorePointType MODIFY_SETTINGS
-              if ($null -ne $prev) { Set-ItemProperty $key -Name SystemRestorePointCreationFrequency -Value $prev -Type DWord -ErrorAction SilentlyContinue }
               'STRATUS_OK'
             } catch {
               'STRATUS_FAIL: ' + $_.Exception.Message
+            } finally {
+              # Always put the frequency limit back, even when the checkpoint failed,
+              # otherwise the machine keeps the lifted limit forever.
+              if ($null -ne $prev) {
+                Set-ItemProperty $key -Name SystemRestorePointCreationFrequency -Value $prev -Type DWord -ErrorAction SilentlyContinue
+              } else {
+                # There was no limit value before, so remove the one we created (Windows then uses its default).
+                Remove-ItemProperty $key -Name SystemRestorePointCreationFrequency -ErrorAction SilentlyContinue
+              }
             }
             """;
 

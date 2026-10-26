@@ -104,7 +104,12 @@ public sealed partial class ToolsPage : Page
     private async void OnApplyPlan(object sender, RoutedEventArgs e)
     {
         var message = await VM.ApplyPlanAsync();
-        VM.ShowStatus(message, message.Contains("failed") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        VM.ShowStatus(message,
+            message.StartsWith("Active plan", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Success
+                : message.StartsWith("Pick a plan", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Informational
+                    : InfoBarSeverity.Error);
     }
 
     private async void OnApplyDns(object sender, RoutedEventArgs e)
@@ -224,7 +229,12 @@ public sealed partial class ToolsPage : Page
             return;
 
         var message = await VM.RevertAllAsync();
-        VM.ShowStatus(message, message.Contains("failed") ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+        VM.ShowStatus(message,
+            message.StartsWith("Could not", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Error
+                : message.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Warning
+                    : InfoBarSeverity.Success);
     }
 
     // ================= R3: health scans =================
@@ -273,8 +283,10 @@ public sealed partial class ToolsPage : Page
     private async Task RunScan(Task<string> scan)
     {
         var message = await scan;
-        VM.ShowStatus(message, message.Contains("could not", StringComparison.OrdinalIgnoreCase)
-            ? InfoBarSeverity.Warning
+        // The scan ran to completion: findings live in the scan card, only a thrown
+        // exception ("Scan failed: ...") means the scan did not run at all.
+        VM.ShowStatus(message, message.StartsWith("Scan failed", StringComparison.OrdinalIgnoreCase)
+            ? InfoBarSeverity.Error
             : InfoBarSeverity.Success);
     }
 
@@ -315,7 +327,12 @@ public sealed partial class ToolsPage : Page
             return;
 
         var message = await VM.ResetWindowsUpdateAsync();
-        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        VM.ShowStatus(message,
+            message.StartsWith("Update cache reset", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Success
+                : message.StartsWith("Nothing to reset", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Warning
+                    : InfoBarSeverity.Error);
     }
 
     private async void OnResetNetwork(object sender, RoutedEventArgs e)
@@ -353,7 +370,12 @@ public sealed partial class ToolsPage : Page
             return;
 
         var message = await VM.ResetNetworkAsync();
-        VM.ShowStatus(message, message.StartsWith("Partial") ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+        VM.ShowStatus(message,
+            message.StartsWith("Partial reset", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Warning
+                : message.StartsWith("Network stack reset complete", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Success
+                    : InfoBarSeverity.Error);
     }
 
     // ================= R3: DNS benchmark and report =================
@@ -361,7 +383,12 @@ public sealed partial class ToolsPage : Page
     private async void OnBenchmarkDns(object sender, RoutedEventArgs e)
     {
         var message = await VM.BenchmarkDnsAsync();
-        VM.ShowStatus(message, message.Contains("timed out") ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+        VM.ShowStatus(message,
+            message.StartsWith("Benchmark failed", StringComparison.OrdinalIgnoreCase)
+                ? InfoBarSeverity.Error
+                : message.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+                    ? InfoBarSeverity.Warning
+                    : InfoBarSeverity.Success);
     }
 
     private async void OnCreateReport(object sender, RoutedEventArgs e)

@@ -16,7 +16,7 @@ public sealed class OptionalFeatureService
 {
     private const string FeatureScript = """
         $ErrorActionPreference = 'Stop'
-        $names = @('WorkFolders-Client','FaxServicesClientPackage','Printing-XPSServices-Features','Internet-Explorer-Optional-amd64','WindowsMediaPlayer','MediaPlayback','SMB1Protocol','SearchEngine-Client-Package','Microsoft-Hyper-V-All')
+        $names = @('WorkFolders-Client','FaxServicesClientPackage','Printing-XPSServices-Features','Internet-Explorer-Optional-amd64','WindowsMediaPlayer','MediaPlayback','SearchEngine-Client-Package','Microsoft-Hyper-V-All')
         try {
             Get-WindowsOptionalFeature -Online | Where-Object { $names -contains $_.FeatureName } | ForEach-Object { "$($_.FeatureName)|$([string]$_.State)" }
         } catch {
@@ -44,9 +44,9 @@ public sealed class OptionalFeatureService
         ["Internet-Explorer-Optional-amd64"] = "Internet Explorer 11",
         ["WindowsMediaPlayer"] = "Windows Media Player",
         ["MediaPlayback"] = "Media playback",
-        ["SMB1Protocol"] = "SMB 1.0 file sharing",
         ["SearchEngine-Client-Package"] = "Windows Search engine client",
-        ["Microsoft-Hyper-V-All"] = "Hyper-V",
+        // Hyper-V is listed because it is large, but removing it takes WSL2 and Windows Sandbox with it.
+        ["Microsoft-Hyper-V-All"] = "Hyper-V (removing it breaks WSL2 and Windows Sandbox)",
     };
 
     private static readonly (string Prefix, string Label)[] FriendlyCapabilities =
@@ -92,9 +92,11 @@ public sealed class OptionalFeatureService
     /// <summary>Disables a feature or removes a capability. A restart may be needed for features.</summary>
     public (bool Success, string Message) Remove(OptionalFeatureItem item)
     {
+        // The name goes into a single-quoted PowerShell string: double any quote it carries.
+        var safeName = item.Name.Replace("'", "''", StringComparison.Ordinal);
         var script = item.Kind.Equals("Capability", StringComparison.OrdinalIgnoreCase)
-            ? $"$ErrorActionPreference = 'Stop'; try {{ Remove-WindowsCapability -Online -Name '{item.Name}' | Out-Null; 'ok' }} catch {{ $_.Exception.Message; exit 1 }}"
-            : $"$ErrorActionPreference = 'Stop'; try {{ Disable-WindowsOptionalFeature -Online -FeatureName '{item.Name}' -NoRestart | Out-Null; 'ok' }} catch {{ $_.Exception.Message; exit 1 }}";
+            ? $"$ErrorActionPreference = 'Stop'; try {{ Remove-WindowsCapability -Online -Name '{safeName}' | Out-Null; 'ok' }} catch {{ $_.Exception.Message; exit 1 }}"
+            : $"$ErrorActionPreference = 'Stop'; try {{ Disable-WindowsOptionalFeature -Online -FeatureName '{safeName}' -NoRestart | Out-Null; 'ok' }} catch {{ $_.Exception.Message; exit 1 }}";
 
         try
         {
@@ -103,6 +105,8 @@ public sealed class OptionalFeatureService
             {
                 var error = string.IsNullOrWhiteSpace(result.StdErr) ? result.StdOut : result.StdErr;
                 var message = Shorten(error.Trim());
+                if (message.Length == 0)
+                    message = "PowerShell returned no error text (exit code " + result.ExitCode + ").";
                 Log.Warn($"Removing {item.Name} failed: {message}");
                 return (false, message);
             }
@@ -124,7 +128,14 @@ public sealed class OptionalFeatureService
         try
         {
             var result = ProcessRunner.PowerShell(script, 180_000);
-            if (!result.Success || string.IsNullOrWhiteSpace(result.StdOut))
+            if (!result.Success)
+            {
+                var error = string.IsNullOrWhiteSpace(result.StdErr) ? result.StdOut : result.StdErr;
+                Log.Warn("Optional feature list failed: " + Shorten(error.Trim()));
+                return items;
+            }
+
+            if (string.IsNullOrWhiteSpace(result.StdOut))
                 return items;
 
             foreach (var raw in result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
