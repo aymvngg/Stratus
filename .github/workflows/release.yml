@@ -30,6 +30,11 @@ jobs:
 
       - name: Pack installer
         shell: pwsh
+        env:
+          # gh needs a token here too, not only on the release step: without it the
+          # previous release cannot be listed or downloaded, and vpk silently builds
+          # a full package instead of a delta.
+          GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           dotnet tool install --global vpk
@@ -39,9 +44,15 @@ jobs:
           # empty and users download the whole app instead of a few MB.
           try {
             $previous = gh release list --limit 1 --json tagName --jq '.[0].tagName'
-            if ($previous -and $previous -ne "${{ github.ref_name }}") {
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Could not list the releases, building a full update only."
+            } elseif ($previous -and $previous -ne "${{ github.ref_name }}") {
               gh release download $previous --pattern "*-full.nupkg" --dir Releases
-              Write-Host "Delta base: $previous"
+              if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Could not download the $previous package, building a full update only."
+              } else {
+                Write-Host "Delta base: $previous"
+              }
             }
           } catch {
             Write-Warning "No previous package to diff against, building a full update only."
@@ -52,7 +63,8 @@ jobs:
             --packTitle Stratus `
             --icon packaging/app.ico `
             --splashImage packaging/splash.png `
-            --channel win-x64
+            --channel win-x64 `
+            --delta BestSpeed
           Get-ChildItem Releases -File | Select-Object -ExpandProperty Name
 
       - name: Create GitHub release
