@@ -135,7 +135,7 @@ public sealed class ProfileViewModel : ObservableObject
         BusyText = "Reading the current setup...";
         try
         {
-            var profile = await AppServices.Profiles.CaptureAsync();
+            var profile = await Task.Run(() => AppServices.Profiles.CaptureAsync());
             var json = ProfileService.Serialize(profile);
             var path = ProfileService.DefaultExportPath();
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -189,7 +189,7 @@ public sealed class ProfileViewModel : ObservableObject
             }
 
             _pending = profile;
-            SetPreview(await AppServices.Profiles.PreviewAsync(profile),
+            SetPreview(await Task.Run(() => AppServices.Profiles.PreviewAsync(profile)),
                 $"Preview for {profile.MachineName} ({profile.ExportedAtUtc.ToLocalTime():g})");
             SummaryText = "";
             ShowStatus("Review the list below, then choose Apply.", InfoBarSeverity.Informational);
@@ -225,7 +225,7 @@ public sealed class ProfileViewModel : ObservableObject
         try
         {
             var progress = new Progress<string>(step => BusyText = step);
-            var report = await AppServices.Profiles.ApplyAsync(_pending, progress);
+            var report = await Task.Run(() => AppServices.Profiles.ApplyAsync(_pending, progress));
             await AppServices.RefreshFromEngineAsync();
 
             SummaryText = report.Summary;
@@ -237,7 +237,7 @@ public sealed class ProfileViewModel : ObservableObject
                 : report.Applied > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Error);
 
             // Keep the loaded profile so a failed run can be retried; show what is left to do.
-            SetPreview(await AppServices.Profiles.PreviewAsync(_pending), PreviewTitle);
+            SetPreview(await Task.Run(() => AppServices.Profiles.PreviewAsync(_pending)), PreviewTitle);
         }
         catch (Exception ex)
         {

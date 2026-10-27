@@ -264,8 +264,13 @@ public sealed class ProfileService
                 () => Task.FromResult(FromResult(_features.Enable(target)))));
         }
 
-        var installed = await _winget.GetInstalledIdsAsync();
-        foreach (var id in Distinct(profile.Apps))
+        // The winget export is slow (up to two minutes); skip it when the profile
+        // wants no apps at all.
+        var wantedApps = Distinct(profile.Apps).ToList();
+        var installedApps = wantedApps.Count == 0
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : await _winget.GetInstalledIdsAsync();
+        foreach (var id in wantedApps)
         {
             var app = AppCatalog.Apps.FirstOrDefault(entry =>
                 string.Equals(entry.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -275,7 +280,7 @@ public sealed class ProfileService
                 continue;
             }
 
-            if (installed.Contains(id))
+            if (installedApps.Contains(id))
             {
                 plan.Add(new Planned("App", app.Name, "Already installed", false, null));
                 continue;
