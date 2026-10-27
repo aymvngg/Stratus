@@ -92,6 +92,7 @@ Three implementations:
 | `CommandLine` | Shared command line splitter. |
 | `WingetService` / `AppCatalog` | Installs, upgrades and removes catalog apps through winget; installed state comes from `winget export` JSON, never from localized text. |
 | `DocGenerator` | Renders the compiled catalog as markdown and JSON for `stratus docgen`. |
+| `ProfileService` / `StratusProfile` | Captures every selection into a versioned JSON profile and applies one with a preview. Imports are additive only. |
 | `Log` | Daily log files under `%ProgramData%\Stratus\logs`. |
 
 ## Storage
@@ -111,7 +112,7 @@ Every store goes through `JsonFile`, which writes to a unique temp file and move
 
 ## UI
 
-`MainWindow` hosts a `NavigationView`. Pages: Dashboard, Tweaks, Startup, Tasks, Debloat, Install, Cleanup, History, Tools, Settings.
+`MainWindow` hosts a `NavigationView`. Pages: Dashboard, Tweaks, Startup, Tasks, Debloat, Install, Cleanup, History, Tools, Profile.
 
 - Pages bind to a view model with `{x:Bind}`. Every page caches its navigation state where it makes sense.
 - Long operations set `IsBusy`, show `BusyText`, disable their buttons and report through one `InfoBar`.
@@ -126,6 +127,7 @@ Stratus.Cli apply <tweak-id> | revert <tweak-id>
 Stratus.Cli apply --preset <preset-id> | revert --preset <preset-id>
 Stratus.Cli dns-bench | report
 Stratus.Cli docgen [--json] [path]
+Stratus.Cli export [path] | import <path> [--dry-run]
 ```
 
 Run it elevated for changes to succeed. It builds the same service graph as the app, so a CLI result is a valid check of the engine without the UI.
@@ -139,6 +141,7 @@ Run it elevated for changes to succeed. It builds the same service graph as the 
 - atomic stores, backup replacement and quarantine
 - catalog integrity: unique ids, described entries, no duplicate registry action sets, every preset id resolves
 - app catalog integrity and doc generator output (markdown and JSON)
+- profile round trip, item count, version guard and invalid file handling
 
 Run:
 
@@ -168,3 +171,5 @@ Pushing a tag (`v1.7.0`) triggers `.github/workflows/release.yml`, which publish
 **Add an app to the Install page:** add an `AppEntry` to `AppCatalog.Apps` with the exact winget package id, a name, a description, a category and a recommended flag. Do not add install logic to the page; `WingetService` owns the commands.
 
 **Add a Windows feature:** add the feature name to `OptionalFeatureService` and a friendly name. Removal and enablement share the same list.
+
+**Add a profile field:** add the property to `StratusProfile`, capture it in `ProfileService.CaptureAsync`, plan it in `BuildPlanAsync`, and bump `StratusProfile.CurrentVersion`. `Deserialize` must keep rejecting profiles written by a newer version.

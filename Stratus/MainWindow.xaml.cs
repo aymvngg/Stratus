@@ -194,6 +194,7 @@ public sealed partial class MainWindow : Window
             "cleanup" => typeof(CleanupPage),
             "history" => typeof(HistoryPage),
             "tools" => typeof(ToolsPage),
+            "profile" => typeof(ProfilePage),
             _ => null,
         };
 

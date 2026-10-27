@@ -98,6 +98,11 @@
                         <FontIcon Glyph="&#xE90F;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Profile" Tag="profile">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE74E;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>

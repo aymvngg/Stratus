@@ -25,6 +25,9 @@ public static class AppServices
     public static readonly ScheduledTaskService ScheduledTasks = new(AppPaths.TasksFile);
     public static readonly WingetService Winget = new();
 
+    // After Winget: field initializers run in declaration order and Profiles needs every service above.
+    public static readonly ProfileService Profiles = new(Engine, Startup, ScheduledTasks, OptionalFeatures, Winget, Dns, Power, Settings);
+
     /// <summary>
     /// One engine snapshot for every listener: StateChanged, bulk operations and the Tools page
     /// plan switch all funnel here, so each tweak's registry state is read once per change.

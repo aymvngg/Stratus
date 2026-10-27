@@ -6,7 +6,7 @@ using Stratus.Core.Tweaks;
 namespace Stratus.Cli;
 
 /// <summary>
-/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | docgen [--json] [path] | apply &lt;id&gt; | revert &lt;id&gt; | apply --preset &lt;id&gt; | revert --preset &lt;id&gt;
+/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | docgen [--json] [path] | export [path] | import &lt;path&gt; [--dry-run] | apply &lt;id&gt; | revert &lt;id&gt; | apply --preset &lt;id&gt; | revert --preset &lt;id&gt;
 /// Run from an elevated terminal for HKLM/service changes.
 /// </summary>
 internal static class Program
@@ -33,7 +33,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|docgen [--json] [path]|apply <id>|revert <id>|apply --preset <id>|revert --preset <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|docgen [--json] [path]|export [path]|import <path> [--dry-run]|apply <id>|revert <id>|apply --preset <id>|revert --preset <id>]");
             return 0;
         }
 
@@ -83,6 +83,12 @@ internal static class Program
 
             case "docgen":
                 return RunDocgen(engine, args);
+
+            case "export":
+                return RunExport(BuildProfileService(engine, startup, scheduledTasks, power, settings), args);
+
+            case "import":
+                return RunImport(BuildProfileService(engine, startup, scheduledTasks, power, settings), args);
 
             case "presets":
                 foreach (var preset in PresetCatalog.All)
@@ -262,6 +268,138 @@ internal static class Program
             Console.WriteLine($"Could not write {target}: {ex.Message}");
             return 1;
         }
+    }
+
+    /// <summary>
+    /// Builds the profile service on demand so the other commands never pay for the extra
+    /// service instances. The three services not created in Main are cheap to construct.
+    /// </summary>
+    private static ProfileService BuildProfileService(
+        TweakEngine engine,
+        StartupService startup,
+        ScheduledTaskService tasks,
+        PowerPlanService power,
+        SettingsStore settings)
+        => new(engine, startup, tasks, new OptionalFeatureService(), new WingetService(),
+            new DnsService(), power, settings);
+
+    /// <summary>
+    /// Writes the live state of this machine to a portable JSON profile. The parent
+    /// directory is created, so a nested path works without preparing it first.
+    /// </summary>
+    private static int RunExport(ProfileService profiles, string[] args)
+    {
+        var requested = args.Length > 1 ? args[1] : null;
+        var target = string.IsNullOrWhiteSpace(requested)
+            ? ProfileService.DefaultExportPath()
+            : requested;
+
+        try
+        {
+            var profile = profiles.CaptureAsync().GetAwaiter().GetResult();
+            var fullPath = Path.GetFullPath(target);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            File.WriteAllText(fullPath, ProfileService.Serialize(profile));
+
+            Log.Info($"Profile exported to {fullPath}");
+            Console.WriteLine($"Exported {profile.ItemCount} items to {fullPath}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not export the profile to {target}: {ex.Message}");
+            Console.WriteLine($"Could not export the profile: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Shows what a profile would change here and, unless --dry-run is given, applies it.
+    /// The preview is always printed first so a real import is never blind.
+    /// </summary>
+    private static int RunImport(ProfileService profiles, string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Usage: stratus import <path> [--dry-run]");
+            return 1;
+        }
+
+        var path = args[1];
+        var dryRun = args.Skip(2).Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
+
+        if (!File.Exists(path))
+        {
+            Console.WriteLine($"Profile not found: {path}.");
+            return 1;
+        }
+
+        StratusProfile profile;
+        try
+        {
+            var (loaded, error) = ProfileService.Deserialize(File.ReadAllText(path));
+            if (loaded is null)
+            {
+                Console.WriteLine(error ?? "That file is not a valid Stratus profile.");
+                return 1;
+            }
+
+            profile = loaded;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the profile at {path}: {ex.Message}");
+            Console.WriteLine($"Could not read the profile: {ex.Message}");
+            return 1;
+        }
+
+        Console.WriteLine($"Profile from {profile.MachineName}, exported {profile.ExportedAtUtc.ToLocalTime():g}: {profile.ItemCount} items.");
+
+        List<ProfileAction> preview;
+        try
+        {
+            preview = profiles.PreviewAsync(profile).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not preview the profile at {path}: {ex.Message}");
+            Console.WriteLine($"Could not preview the profile: {ex.Message}");
+            return 1;
+        }
+
+        foreach (var action in preview)
+        {
+            var mark = action.WillChange ? "[change]" : "[skip]";
+            Console.WriteLine($"  {mark,-8} {action.Category,-8} {action.Name} - {action.Action}");
+        }
+
+        if (dryRun)
+        {
+            var changes = preview.Count(a => a.WillChange);
+            Console.WriteLine($"Dry run: {changes} items would change.");
+            return 0;
+        }
+
+        ProfileApplyReport report;
+        try
+        {
+            report = profiles.ApplyAsync(profile).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not apply the profile at {path}: {ex.Message}");
+            Console.WriteLine($"Could not apply the profile: {ex.Message}");
+            return 1;
+        }
+
+        Console.WriteLine(report.Summary);
+        foreach (var message in report.Messages)
+            Console.WriteLine($"  {message}");
+
+        return report.Failed == 0 ? 0 : 1;
     }
 
     /// <summary>

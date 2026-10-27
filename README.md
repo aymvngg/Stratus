@@ -47,6 +47,8 @@ dotnet run --project Stratus.Cli -c Release -- apply --preset <preset-id>
 dotnet run --project Stratus.Cli -c Release -- revert --preset <preset-id>
 dotnet run --project Stratus.Cli -c Release -- docgen
 dotnet run --project Stratus.Cli -c Release -- docgen --json
+dotnet run --project Stratus.Cli -c Release -- export
+dotnet run --project Stratus.Cli -c Release -- import <profile.json> --dry-run
 ```
 
 (Run from an elevated terminal for changes to succeed.)
@@ -95,6 +97,10 @@ The Debloat page lists optional features and capabilities in both directions: in
 ## Install apps
 
 The Install page drives winget from a curated catalog of 68 apps across browsers, communication, development, media, productivity, utilities and gaming. Search by name or filter by category, install or upgrade a single app, remove one, or run "Upgrade installed" to walk every catalog app that is currently installed. Installed state comes from the `winget export` JSON, never from parsing localized command output, and "already installed" or "already up to date" are reported as success rather than as errors. New apps are one `AppEntry` in `AppCatalog`, with no install logic in the page.
+
+## Profiles
+
+The Profile page saves every selection the app knows about into one versioned JSON file: applied tweaks, disabled startup entries and scheduled tasks, enabled Windows features, apps picked on Install, the cleanup selection, DNS profile, power plan and TCP settings. Import the file on another machine to reproduce the setup. Importing always shows a preview first, with each item marked "Will change" or "Skipped" and the reason, and it is additive only: it applies what is missing and never reverts a tweak, re-enables a task, uninstalls an app or removes a feature. A file written by a newer Stratus is refused with a clear message instead of being half read. The same file works headless through `stratus export` and `stratus import`.
 
 ## DNS and network tools
 

@@ -40,6 +40,7 @@ These are not optional:
 - A cleanup target is one `CleanupTarget` in `CleanupService.Targets`. Prefer scoped `CacheDirNames` or `FileGlobs` over deleting a tree.
 - A new Windows feature goes in `OptionalFeatureService` with a friendly name, and must work for both removal and enablement.
 - A new Install page app is one `AppEntry` in `AppCatalog.Apps` with the exact winget id. The page holds no install logic; `WingetService` owns every command.
+A profile import is additive only: never revert a tweak, re-enable a task, uninstall an app or remove a feature. Bump `StratusProfile.CurrentVersion` when the shape changes; `Deserialize` rejects newer files.
 - A new store must use `JsonFile`. Do not hand roll file IO.
 - A new page needs a view model, an `IsBusy` guard on long actions, and severity that follows the real result.
 

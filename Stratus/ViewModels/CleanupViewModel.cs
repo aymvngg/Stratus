@@ -128,14 +128,17 @@ public sealed class CleanupViewModel : ObservableObject
         {
             var targets = await Task.Run(() => AppServices.Cleanup.Scan());
 
-            // Preserve user check state across rescans.
+            // Preserve user check state across rescans, unless a saved selection exists.
             var previous = Rows.ToDictionary(r => r.Target.Id, r => r.IsChecked);
+            var savedIds = ReadSavedSelection();
 
             Rows.Clear();
             foreach (var target in targets)
             {
                 var row = new CleanupRow(target);
-                if (previous.TryGetValue(target.Id, out var wasChecked))
+                if (savedIds != null)
+                    row.IsChecked = savedIds.Contains(target.Id);
+                else if (previous.TryGetValue(target.Id, out var wasChecked))
                     row.IsChecked = wasChecked;
                 row.Changed = UpdateSelectedText;
                 row.RefreshVisual();
@@ -160,6 +163,38 @@ public sealed class CleanupViewModel : ObservableObject
             ? "-"
             : $"{Format.Bytes(selected.Sum(r => r.Target.SizeBytes))} selected";
         Raise(nameof(CleanButtonText));
+        PersistSelection();
+    }
+
+    private void PersistSelection()
+    {
+        try
+        {
+            var ids = string.Join(",", Rows.Where(r => r.IsChecked).Select(r => r.Target.Id));
+            AppServices.Settings.Set(ProfileService.CleanupSelectionKey, ids);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Persisting the cleanup selection failed: " + ex.Message);
+        }
+    }
+
+    private HashSet<string>? ReadSavedSelection()
+    {
+        try
+        {
+            var saved = AppServices.Settings.Get(ProfileService.CleanupSelectionKey);
+            if (string.IsNullOrWhiteSpace(saved))
+                return null;
+            return new HashSet<string>(
+                saved.Split(',').Select(id => id.Trim()).Where(id => id.Length > 0),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Reading the saved cleanup selection failed: " + ex.Message);
+            return null;
+        }
     }
 
     public async Task<string> CleanAsync(bool includeRecycleBin)

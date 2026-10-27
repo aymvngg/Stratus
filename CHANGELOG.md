@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.8.0
+
+Your selections now travel: one file saves every choice across the app and restores it on another machine.
+
+### Profiles
+- **Export everything**: the Profile page writes one versioned JSON file with the tweaks you applied, the startup entries and scheduled tasks you disabled, the Windows features you enabled, the apps you picked on Install, your cleanup selection, DNS profile, power plan and TCP settings
+- **Preview before import**: importing lists every item as "Will change" or "Skipped" with the reason, so nothing is applied unseen
+- **Additive only**: an import applies what is missing and never reverts a tweak, re-enables a task, uninstalls an app or removes a feature. The machine's current state is never undone by a profile
+- **Version guard**: a profile written by a newer Stratus is refused with a clear message instead of being half read
+- **Cleanup remembers**: the Cleanup page now keeps your checked targets between scans and restarts
+
+### CLI
+- `stratus export [path]` writes the same profile, and `stratus import <path>` previews it with `--dry-run` or applies it headless
+
+### Tests
+- 54 tests, including profile round trip, item count, the version guard and invalid file handling
+
 ## v1.7.0
 
 Coverage release: the catalog grows from 73 to 92 tweaks, six global presets run from the app or the CLI, DNS gains 11 providers with IPv6, a new Install page drives winget, and the Debloat and Tools pages learn new tricks.

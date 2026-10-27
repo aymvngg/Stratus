@@ -13,4 +13,5 @@ public static class AppPaths
     public static readonly string TasksFile = Path.Combine(ProgramData, "tasks.json");
     public static readonly string LogsDir = Path.Combine(ProgramData, "logs");
     public static readonly string ReportsDir = Path.Combine(ProgramData, "reports");
+    public static readonly string ProfilesDir = Path.Combine(ProgramData, "profiles");
 }
