@@ -6,7 +6,7 @@ using Stratus.Core.Tweaks;
 namespace Stratus.Cli;
 
 /// <summary>
-/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | apply &lt;id&gt; | revert &lt;id&gt;
+/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | apply &lt;id&gt; | revert &lt;id&gt; | apply --preset &lt;id&gt; | revert --preset &lt;id&gt;
 /// Run from an elevated terminal for HKLM/service changes.
 /// </summary>
 internal static class Program
@@ -33,7 +33,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|apply <id>|revert <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|apply <id>|revert <id>|apply --preset <id>|revert --preset <id>]");
             return 0;
         }
 
@@ -198,6 +198,8 @@ internal static class Program
                     Console.WriteLine($"Missing tweak id. Example: stratus {args[0]} game-dvr-off");
                     return 1;
                 }
+                if (string.Equals(args[1], "--preset", StringComparison.OrdinalIgnoreCase))
+                    return RunPreset(engine, args[0].ToLowerInvariant() == "apply", args);
                 var tweak = engine.Find(args[1]);
                 if (tweak is null)
                 {
@@ -220,6 +222,82 @@ internal static class Program
 
     private static bool SafeIsApplied(Tweak t) { try { return t.IsApplied; } catch { return false; } }
     private static bool SafeIsApplicable(Tweak t) { try { return t.IsApplicable; } catch { return false; } }
+
+    /// <summary>
+    /// Applies or reverts a whole preset. Unknown, not-applicable and already-in-that-state
+    /// tweaks are skipped; every attempted tweak prints its own result line.
+    /// </summary>
+    private static int RunPreset(TweakEngine engine, bool apply, string[] args)
+    {
+        var validIds = string.Join(", ", PresetCatalog.All.Select(p => p.Id));
+
+        if (args.Length < 3)
+        {
+            Console.WriteLine($"Missing preset id. Valid ids: {validIds}");
+            return 1;
+        }
+
+        var preset = PresetCatalog.All.FirstOrDefault(p =>
+            string.Equals(p.Id, args[2], StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Name, args[2], StringComparison.OrdinalIgnoreCase));
+        if (preset is null)
+        {
+            Console.WriteLine($"Unknown preset '{args[2]}'. Valid ids: {validIds}");
+            return 1;
+        }
+
+        var succeeded = 0;
+        var failed = 0;
+        var skipped = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // One bulk scope so the app rescores once at the end instead of per tweak.
+        using var bulk = engine.BeginBulk();
+
+        foreach (var id in preset.TweakIds)
+        {
+            if (!seen.Add(id))
+                continue;
+
+            var tweak = engine.Find(id);
+            if (tweak is null || !SafeIsApplicable(tweak))
+            {
+                skipped++;
+                continue;
+            }
+
+            var alreadyApplied = SafeIsApplied(tweak);
+            if (apply ? alreadyApplied : !alreadyApplied)
+            {
+                skipped++;
+                continue;
+            }
+
+            var result = apply
+                ? engine.ApplyAsync(tweak).GetAwaiter().GetResult()
+                : engine.RevertAsync(tweak).GetAwaiter().GetResult();
+
+            if (result.Success)
+            {
+                succeeded++;
+                Console.WriteLine($"  ok   {tweak.Id} - {tweak.Name}");
+            }
+            else
+            {
+                failed++;
+                Console.WriteLine($"  FAIL {tweak.Id} - {tweak.Name}: {result.Error ?? "unknown error"}");
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(apply
+            ? $"Applied {succeeded} of {preset.TweakIds.Count} tweaks in preset '{preset.Name}'."
+            : $"Reverted {succeeded} of {preset.TweakIds.Count} tweaks in preset '{preset.Name}'.");
+        if (skipped > 0)
+            Console.WriteLine($"Skipped {skipped}: unknown, not applicable on this PC, or already in that state.");
+
+        return failed == 0 ? 0 : 1;
+    }
 
     private static string FormatBytes(long bytes)
         => bytes <= 0 ? "0 B"

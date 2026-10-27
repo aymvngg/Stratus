@@ -10,8 +10,28 @@ public static class PresetCatalog
 {
     public static IReadOnlyList<Preset> All =>
     [
-        Gaming, Balanced, MaxPrivacy,
+        Minimal, Standard, Gaming, Balanced, MaxPrivacy, Advanced,
     ];
+
+    public static Preset Minimal { get; } = new(
+        "minimal", "Minimal",
+        "The smallest useful set: telemetry, activity history and cloud content off, Windows Update P2P uploads stopped.",
+        "\uE74C",
+        [
+            "priv-telemetry", "priv-cloud-content", "priv-activity", "net-delivery-optimization",
+        ]);
+
+    public static Preset Standard { get; } = new(
+        "standard", "Standard",
+        "Everyday safe set: background capture and Game Bar pop-ups off, faster menus, network throttles removed, telemetry and ad/tracking data off, two telemetry services disabled.",
+        "\uE73E",
+        [
+            "game-dvr-off", "gamebar-popups-off", "menu-delay", "hover-time",
+            "visual-aero-shake-off", "visual-widgets-off", "net-throttling-off", "net-system-responsiveness",
+            "net-delivery-optimization", "priv-telemetry", "priv-adid", "priv-activity", "priv-suggestions",
+            "priv-feedback", "priv-tailored", "priv-cloud-content", "svc-diagtrack", "svc-dmwappush",
+            "power-fast-startup-off",
+        ]);
 
     public static Preset Gaming { get; } = new(
         "gaming", "Gaming PC",
@@ -45,5 +65,17 @@ public static class PresetCatalog
             "priv-input", "priv-feedback", "priv-tailored", "priv-cloud-content", "priv-sync-provider",
             "priv-explorer-recent", "priv-app-tracking", "priv-web-search",
             "svc-diagtrack", "svc-dmwappush", "svc-remoteregistry", "svc-wer", "svc-trx", "svc-wmpnet", "svc-phonesvc",
+        ]);
+
+    public static Preset Advanced { get; } = new(
+        "advanced", "Advanced",
+        "Everything in Standard plus the rest: more background services disabled, Copilot, Recall and search telemetry off, Nagle off, Ultimate Performance plan and performance visuals.",
+        "\uE7BA",
+        [
+            // Spread from Standard so the two sets can never drift apart.
+            .. Standard.TweakIds,
+            "svc-remoteregistry", "svc-wer", "svc-trx", "priv-copilot", "priv-recall", "priv-input",
+            "priv-sync-provider", "priv-explorer-recent", "priv-app-tracking", "priv-web-search",
+            "net-nagle-off", "power-ultimate", "visualfx-performance",
         ]);
 }

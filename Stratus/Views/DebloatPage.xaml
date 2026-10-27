@@ -234,7 +234,7 @@
                         <Grid>
                             <StackPanel Spacing="1">
                                 <TextBlock Text="{x:Bind VM.FeaturesCount, Mode=OneWay}" Style="{StaticResource CardTitle}"/>
-                                <TextBlock Text="Optional features and capabilities Windows installed. Removing one is reversible from Windows Features or Windows Update."
+                                <TextBlock Text="Optional features and capabilities Windows knows about. Installed ones can be removed, missing ones can be enabled, and both are reversible from Windows Features or Windows Update."
                                            Style="{StaticResource PageSubtitle}"/>
                             </StackPanel>
                             <Button Content="Scan features"
@@ -264,14 +264,21 @@
                                             <TextBlock Text="{x:Bind Name}" FontSize="12.5"/>
                                             <TextBlock Text="{x:Bind KindText}" FontSize="10.5"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock Text="{x:Bind StateText, Mode=OneWay}" FontSize="10"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                             <TextBlock Text="{x:Bind Result, Mode=OneWay}" FontSize="10.5"
                                                        VerticalAlignment="Center"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <Button Content="Enable" Click="OnEnableFeature"
+                                                    FontSize="11.5"
+                                                    IsEnabled="{x:Bind CanEnable, Mode=OneWay}"
+                                                    Visibility="{x:Bind vm:Conv.Vis(CanEnable), Mode=OneWay}"/>
                                             <Button Content="Remove" Click="OnRemoveFeature"
                                                     FontSize="11.5"
-                                                    IsEnabled="{x:Bind CanInteract, Mode=OneWay}"/>
+                                                    IsEnabled="{x:Bind CanInteract, Mode=OneWay}"
+                                                    Visibility="{x:Bind vm:Conv.Vis(CanRemove), Mode=OneWay}"/>
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>

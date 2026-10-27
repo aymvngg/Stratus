@@ -397,6 +397,35 @@ public sealed partial class ToolsPage : Page
         VM.ShowStatus(message, message.StartsWith("System report saved") ? InfoBarSeverity.Success : InfoBarSeverity.Error);
     }
 
+    // ================= v1.5: fixes and Windows tools =================
+
+    private async void OnFixNtp(object sender, RoutedEventArgs e)
+    {
+        var (ok, message) = await VM.FixNtpAsync();
+        VM.ShowStatus(message, ok ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private async void OnRestoreNtp(object sender, RoutedEventArgs e)
+    {
+        var (ok, message) = await VM.RestoreNtpAsync();
+        VM.ShowStatus(message, ok ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private async void OnRepairWinget(object sender, RoutedEventArgs e)
+    {
+        var (ok, message) = await VM.RepairWingetAsync();
+        VM.ShowStatus(message, ok ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private void OnOpenWindowsTool(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string target)
+            return;
+
+        var (ok, message) = VM.OpenWindowsTool(target);
+        VM.ShowStatus(message, ok ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
     // ================= v1.4: updates =================
 
     private async void OnUpdateAction(object sender, RoutedEventArgs e)

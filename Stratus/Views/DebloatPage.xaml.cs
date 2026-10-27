@@ -134,6 +134,40 @@ public sealed partial class DebloatPage : Page
         VM.ShowStatus(message, Failed(message) ? InfoBarSeverity.Error : InfoBarSeverity.Success);
     }
 
+    private async void OnEnableFeature(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: FeatureRow row })
+            return;
+
+        var dialog = new ContentDialog
+        {
+            Title = $"Enable {row.Name}?",
+            Content = new TextBlock
+            {
+                Text = "Windows installs the feature's files and turns it on. A restart may be needed, and you can turn it back off from Windows Features.",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 420,
+            },
+            PrimaryButtonText = "Enable",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var message = await VM.EnableFeatureAsync(row);
+        VM.ShowStatus(message, EnableSeverity(message));
+    }
+
+    private static InfoBarSeverity EnableSeverity(string message) =>
+        message.StartsWith("Another operation", StringComparison.OrdinalIgnoreCase)
+            ? InfoBarSeverity.Warning
+            : Failed(message)
+                ? InfoBarSeverity.Error
+                : InfoBarSeverity.Success;
+
     private async void OnRemoveProvisioned(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: ProvisionedRow row })

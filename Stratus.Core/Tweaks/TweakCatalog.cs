@@ -205,6 +205,115 @@ public static class TweakCatalog
             })
         { Weight = 1, Risk = RiskLevel.Safe });
 
+        tweaks.Add(new RegistryTweak("pref-taskbar-align-left", "Align the taskbar to the left",
+            "Moves the Start button and taskbar icons from the center to the left edge, like Windows 10.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAl", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-search-icon-only", "Show search as an icon only",
+            "Shrinks the taskbar search box down to the small icon. The search page itself is unchanged.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "SearchboxTaskbarMode", 1, 2)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-hide-taskview", "Hide the Task View button",
+            "Removes the Task View button from the taskbar. Win+Tab still opens Task View.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ShowTaskViewButton", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-hide-chat-icon", "Hide the chat icon",
+            "Removes the Teams chat icon from the taskbar on Windows 11 builds that still show one.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarMn", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-show-file-extensions", "Show file name extensions",
+            "Clears HideFileExt, so known file types show their extension in File Explorer. Fewer double-extension surprises.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "HideFileExt", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-show-hidden-files", "Show hidden files",
+            "Shows files and folders marked hidden in File Explorer. Protected operating system files stay hidden unless you also enable them in Folder Options.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "Hidden", 1, 2)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-dark-mode", "Enable dark mode",
+            "Switches Windows and app themes to dark (AppsUseLightTheme and SystemUsesLightTheme are both 0).",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 0, 1),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "SystemUsesLightTheme", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-clock-seconds", "Show seconds on the taskbar clock",
+            "Adds seconds to the taskbar clock, at the cost of a small extra repaint each second.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ShowSecondsInSystemClock", 1, 0)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-end-task-taskbar", "Add 'End task' to the taskbar menu",
+            "Adds an 'End task' entry to the taskbar right-click menu, so a frozen app can be killed without opening Task Manager.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarEndTask", 1, 0)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-numlock-on-boot", "Turn NumLock on at sign-in",
+            "NumLock is on at the lock screen and right after sign-in.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetString(RegistryHive.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "2", "0")
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("pref-sticky-keys-shortcut-off", "Turn off the Sticky Keys shortcut",
+            "Stops five Shift presses from turning Sticky Keys on. The feature itself still works from the Accessibility settings.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetString(RegistryHive.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "506", "510")
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("visual-classic-context-menu", "Use the classic File Explorer context menu",
+            "Brings back the full classic right-click menu instead of the compact Windows 11 one. Sign out or restart Explorer to see it; revert removes the override.",
+            TweakCategory.Visuals, reg,
+            new[]
+            {
+                RegistryAction.SetString(RegistryHive.CurrentUser, @"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32", "", "", null)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
         // ---------------- Network ----------------
 
         tweaks.Add(NagleTweak.Create(reg));
@@ -571,6 +680,116 @@ public static class TweakCatalog
             })
         { Weight = 1, Risk = RiskLevel.Safe });
 
+        tweaks.Add(new RegistryTweak("pref-bing-search-off", "Disable Bing in Start search",
+            "Start menu searches local files and apps only: no web results and nothing sent to Bing.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Search", "BingSearchEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Search", "CortanaConsent", 0, 1)
+            })
+        { Weight = 1, Risk = RiskLevel.Safe });
+
+        tweaks.Add(new RegistryTweak("edge-policy-debloat", "Debloat Edge with policies",
+            "Turns off Edge shopping, recommendations, personalization reporting, feedback, collections, followed creators, widgets, search suggestions, sponsored error pages, asset delivery, mini menu, wallet donations and Discover. Revert puts the policies back.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "EdgeShoppingAssistantEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "ShowRecommendationsEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "PersonalizationReportingEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "UserFeedbackAllowed", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "EdgeCollectionsEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "EdgeFollowEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "WebWidgetAllowed", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "SearchSuggestEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "AlternateErrorPagesEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "EdgeAssetDeliveryServiceEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "QuickSearchShowMiniMenu", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "WalletDonationEnabled", 0, 1),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Edge", "EdgeDiscoverEnabled", 0, 1)
+            })
+        { Weight = 2, Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new RegistryTweak("brave-policy-debloat", "Debloat Brave with policies",
+            "Turns off Brave Rewards, wallet, VPN, AI chat, Tor, sync, metrics, background mode, News, Talk, Web Discovery and Speedreader through policy. Revert puts the policies back.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveRewardsDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveWalletDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveVPNDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveAIChatEnabled", 0, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "TorDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "SyncDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "MetricsReportingEnabled", 0, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BackgroundModeEnabled", 0, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveNewsDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveTalkDisabled", 1, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveWebDiscoveryEnabled", 0, 0),
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\BraveSoftware\Brave", "BraveSpeedreaderEnabled", 0, 0)
+            })
+        { Weight = 2, Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new RegistryTweak("priv-wpbt-off", "Block WPBT firmware execution",
+            "Blocks the Windows Platform Binary Table, which lets motherboard firmware drop an executable into Windows on every boot. Revert removes the block.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager", "DisableWpbtExecution", 1, 0)
+            })
+        { Weight = 2, Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new RegistryTweak("priv-reserved-storage-off", "Free up reserved storage",
+            "Frees the several GB Windows reserves for updates. Updates still need free space, so keep some. Revert restores the reserve.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager", "ShippedWithReserves", 0, 1)
+            })
+        { Weight = 2, Risk = RiskLevel.Advanced });
+
+        tweaks.Add(new RegistryTweak("priv-device-metadata-off", "Stop device metadata downloads",
+            "Stops Windows downloading vendor apps and metadata for connected devices. Revert allows it again.",
+            TweakCategory.Privacy, reg,
+            new[]
+            {
+                RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata", "PreventDeviceMetadataFromNetwork", 1, 0)
+            })
+        { Weight = 1, Risk = RiskLevel.Recommended });
+
+        tweaks.Add(new DelegateTweak(
+            "priv-onedrive-remove", "Remove OneDrive",
+            "Runs the bundled OneDriveSetup.exe /uninstall: removes the OneDrive app from this machine and stops it from starting with Windows. Files in your OneDrive folder are not deleted. Reverting reinstalls the app, and you sign in again.",
+            TweakCategory.Privacy,
+            OneDriveIsRemoved,
+            () =>
+            {
+                var setup = OneDriveSetupPath();
+                if (setup is null)
+                    return TweakResult.Fail("The OneDrive setup program was not found, so OneDrive cannot be removed safely.");
+
+                var run = ProcessRunner.Run(setup, "/uninstall", 180_000);
+                if (run.Success)
+                    return TweakResult.Ok;
+
+                // The uninstaller sometimes reports details on stdout only, so fall back to it.
+                var output = run.StdErr.Trim().Length > 0 ? run.StdErr : run.StdOut;
+                return TweakResult.Fail($"The OneDrive uninstaller failed with exit code {run.ExitCode}: {output.Trim()}");
+            },
+            () =>
+            {
+                var setup = OneDriveSetupPath();
+                if (setup is null)
+                    return TweakResult.Fail("OneDrive cannot be reinstalled automatically because OneDriveSetup.exe is missing. Install OneDrive from Microsoft.");
+
+                var run = ProcessRunner.Run(setup, "", 180_000);
+                return run.Success
+                    ? TweakResult.Ok
+                    : TweakResult.Fail($"The OneDrive installer failed with exit code {run.ExitCode}.");
+            })
+        { Weight = 1, Risk = RiskLevel.Advanced });
+
         // ---------------- Power ----------------
 
         tweaks.Add(new DelegateTweak(
@@ -667,5 +886,28 @@ public static class TweakCatalog
         { Weight = 2, Risk = RiskLevel.Advanced });
 
         return tweaks;
+    }
+
+    /// <summary>OneDrive counts as removed when its exe is gone from both per-machine and per-user install roots.</summary>
+    private static bool OneDriveIsRemoved()
+    {
+        var programFiles = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft OneDrive", "OneDrive.exe");
+        var localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "OneDrive", "OneDrive.exe");
+        return !File.Exists(programFiles) && !File.Exists(localAppData);
+    }
+
+    /// <summary>
+    /// SysWOW64 first: that is where the 32-bit uninstaller lives on 64-bit Windows,
+    /// System32 on 32-bit installs or after OneDrive ships a 64-bit uninstaller.
+    /// </summary>
+    private static string? OneDriveSetupPath()
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var wow64 = Path.Combine(windows, "SysWOW64", "OneDriveSetup.exe");
+        if (File.Exists(wow64))
+            return wow64;
+
+        var system32 = Path.Combine(windows, "System32", "OneDriveSetup.exe");
+        return File.Exists(system32) ? system32 : null;
     }
 }

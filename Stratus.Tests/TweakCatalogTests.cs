@@ -55,6 +55,37 @@ public class TweakCatalogTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A preset that names a tweak which no longer exists silently applies less than it
+    /// promises, so every id is resolved against the live catalog.
+    /// </summary>
+    [Fact]
+    public void Presets_ReferenceOnlyRealTweaks()
+    {
+        var ids = BuildCatalog().Select(t => t.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.NotEmpty(PresetCatalog.All);
+
+        foreach (var preset in PresetCatalog.All)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(preset.Name), $"{preset.Id} has no name");
+            Assert.False(string.IsNullOrWhiteSpace(preset.Description), $"{preset.Id} has no description");
+            Assert.NotEmpty(preset.TweakIds);
+
+            foreach (var id in preset.TweakIds)
+                Assert.True(ids.Contains(id), $"Preset {preset.Id} references unknown tweak {id}");
+        }
+    }
+
+    [Fact]
+    public void Presets_HaveNoDuplicateIdsOrNames()
+    {
+        var ids = PresetCatalog.All.Select(p => p.Id).ToList();
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        var names = PresetCatalog.All.Select(p => p.Name).ToList();
+        Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
     [Fact]
     public void Catalog_KnownIdsAreStable()
     {

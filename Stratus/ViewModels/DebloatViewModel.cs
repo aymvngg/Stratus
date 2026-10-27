@@ -105,11 +105,30 @@ public sealed class Win32Row : ObservableObject
 
 public sealed class FeatureRow : ObservableObject
 {
-    public FeatureRow(OptionalFeatureItem item) => Item = item;
+    public FeatureRow(OptionalFeatureItem item)
+    {
+        Item = item;
+        _isInstalled = item.IsInstalled;
+    }
 
     public OptionalFeatureItem Item { get; }
     public string Name => Item.DisplayName;
     public string KindText => Item.Kind;
+
+    private bool _isInstalled;
+    public bool IsInstalled
+    {
+        get => _isInstalled;
+        private set
+        {
+            if (Set(ref _isInstalled, value))
+                Raise(nameof(StateText), nameof(CanRemove), nameof(CanEnable));
+        }
+    }
+
+    public string StateText => IsInstalled ? "Installed" : "Not installed";
+    public bool CanRemove => IsInstalled && !IsBusy;
+    public bool CanEnable => !IsInstalled && !IsBusy;
 
     private string? _result;
     public string? Result { get => _result; private set => Set(ref _result, value); }
@@ -121,11 +140,13 @@ public sealed class FeatureRow : ObservableObject
         private set
         {
             if (Set(ref _isBusy, value))
-                Raise(nameof(CanInteract));
+                Raise(nameof(CanInteract), nameof(CanRemove), nameof(CanEnable));
         }
     }
 
     public bool CanInteract => !IsBusy;
+
+    public void MarkInstalled() => IsInstalled = true;
 
     public async Task<(bool Ok, string Message)> RemoveAsync()
     {
@@ -139,6 +160,29 @@ public sealed class FeatureRow : ObservableObject
         catch (Exception ex)
         {
             Log.Error($"Removing optional feature '{Item.Name}' failed", ex);
+            Result = ex.Message;
+            return (false, ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<(bool Ok, string Message)> EnableAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await Task.Run(() => AppServices.OptionalFeatures.Enable(Item));
+            Result = ok ? "Enabled" : message;
+            if (ok)
+                MarkInstalled();
+            return (ok, message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Enabling optional feature '{Item.Name}' failed", ex);
             Result = ex.Message;
             return (false, ex.Message);
         }
@@ -492,8 +536,8 @@ public sealed class DebloatViewModel : ObservableObject
             RaiseCounts();
             ShowStatus(
                 Features.Count == 0
-                    ? "No removable optional features are installed."
-                    : $"{Features.Count} optional {(Features.Count == 1 ? "feature is" : "features are")} installed and can be removed.",
+                    ? "No optional features were found."
+                    : $"{Features.Count} optional features found. Installed ones can be removed, missing ones can be enabled.",
                 InfoBarSeverity.Informational);
         }
         catch (Exception ex)
@@ -528,6 +572,32 @@ public sealed class DebloatViewModel : ObservableObject
         {
             Log.Error($"Removing the optional feature '{row.Name}' failed", ex);
             return $"Could not remove {row.Name}: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<string> EnableFeatureAsync(FeatureRow row)
+    {
+        if (IsBusy)
+            return "Another operation is still running.";
+
+        IsBusy = true;
+        try
+        {
+            var (ok, message) = await row.EnableAsync();
+            if (!ok)
+                return $"Could not enable {row.Name}: {message}";
+
+            RaiseCounts();
+            return $"{row.Name} enabled. A restart may be needed to finish.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Enabling the optional feature '{row.Name}' failed", ex);
+            return $"Could not enable {row.Name}: {ex.Message}";
         }
         finally
         {

@@ -111,6 +111,91 @@ Stops shaking a window from minimizing everything else. Usually an accident, nev
 
 Removes the taskbar Widgets button and stops the widget feed host running in the background.
 
+### pref-taskbar-align-left
+**Taskbar icons on the left** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarAl = 0` (default 1)
+
+Puts the taskbar buttons at the left edge instead of the Windows 11 centered layout.
+
+### pref-search-icon-only
+**Search as an icon** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\SearchboxTaskbarMode = 1` (default 2)
+
+Shrinks the taskbar search box to a single icon. 0 hides search entirely, 1 is the icon, 2 the full box.
+
+### pref-hide-taskview
+**Hide Task View button** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowTaskViewButton = 0` (default 1)
+
+Removes the Task View button. Win+Tab still opens it.
+
+### pref-hide-chat-icon
+**Hide the Chat icon** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarMn = 0` (default 1)
+
+Removes the Chat/Teams consumer icon from the taskbar.
+
+### pref-show-file-extensions
+**Show file extensions** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\HideFileExt = 0` (default 1)
+
+Explorer shows full file names such as `report.pdf` instead of `report`.
+
+### pref-show-hidden-files
+**Show hidden files** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Hidden = 1` (default 2)
+
+Shows hidden files and folders in Explorer. 2 is the Windows default (hidden files off).
+
+### pref-dark-mode
+**Dark mode for apps and Windows** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme = 0` (default 1)
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme = 0` (default 1)
+
+Pins both the app and the system theme to dark, so it no longer follows the light default.
+
+### pref-clock-seconds
+**Seconds in the taskbar clock** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowSecondsInSystemClock = 1` (default 0)
+
+Shows `hh:mm:ss` in the notification area instead of `hh:mm`.
+
+### pref-end-task-taskbar
+**End task from the taskbar** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarEndTask = 1` (default 0)
+
+Adds "End task" to the right-click menu of a taskbar button, the same action Task Manager offers.
+
+### pref-numlock-on-boot
+**NumLock on at boot** - Safe, no restart.
+
+- `HKCU\Control Panel\Keyboard\InitialKeyboardIndicators = "2"` (default "0")
+
+Turns NumLock on at the lock screen and keeps it on after sign-in.
+
+### pref-sticky-keys-shortcut-off
+**Sticky Keys shortcut off** - Safe, no restart.
+
+- `HKCU\Control Panel\Accessibility\StickyKeys\Flags = "506"` (default "510")
+
+Stops five quick Shift presses from opening the Sticky Keys prompt. The feature itself still works from Settings.
+
+### visual-classic-context-menu
+**Classic right-click menu** - Safe, no restart (Explorer restart needed to see it).
+
+- `HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32\(Default) = ""`
+
+Restores the full Windows 10 style context menu instead of the compact Windows 11 one with "Show more options". Sign out or restart Explorer to apply; revert removes the override.
+
 ## Network
 
 ### net-nagle-off
@@ -323,6 +408,79 @@ Windows stops recording which programs you launch.
 - `HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search\ConnectedSearchUseWeb = 0` (default 1)
 
 Start search becomes local-only: no Bing queries, no web suggestions. Faster, and no keystrokes leave the PC.
+
+### pref-bing-search-off
+**Bing results in Start search** - Safe, no restart.
+
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Search\BingSearchEnabled = 0` (default 1)
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Search\CortanaConsent = 0` (default 1)
+
+A lighter version of the web search tweak: no web results in the Start menu, no policy hive writes. Use the full tweak when you also want the search policy locked at machine level.
+
+### edge-policy-debloat
+**Edge shopping and recommendations off** - Advanced, no restart.
+
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\EdgeShoppingAssistantEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\ShowRecommendationsEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\PersonalizationReportingEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\UserFeedbackAllowed = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\EdgeCollectionsEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\EdgeFollowEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\WebWidgetAllowed = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\SearchSuggestEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\AlternateErrorPagesEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\EdgeAssetDeliveryServiceEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\QuickSearchShowMiniMenu = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\WalletDonationEnabled = 0` (default 1)
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge\EdgeDiscoverEnabled = 0` (default 1)
+
+Removes the shopping assistant, recommendations, personalization reporting, feedback prompts, collections, followed creators, widgets, search suggestions, sponsored error pages, asset delivery, the mini menu, wallet donations and Discover. The browser still works normally.
+
+### brave-policy-debloat
+**Brave extras off** - Advanced, no restart.
+
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveRewardsDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveWalletDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveVPNDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveAIChatEnabled = 0` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\TorDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\SyncDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\MetricsReportingEnabled = 0` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BackgroundModeEnabled = 0` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveNewsDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveTalkDisabled = 1` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveWebDiscoveryEnabled = 0` (default 0)
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\BraveSpeedreaderEnabled = 0` (default 0)
+
+Turns off Rewards, the wallet, the VPN, AI chat, Tor, sync, metrics, background mode, News, Talk, Web Discovery and Speedreader through policy. Brave itself stays installed.
+
+### priv-wpbt-off
+**Block firmware executables (WPBT)** - Advanced, no restart.
+
+- `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\DisableWpbtExecution = 1` (default 0)
+
+The Windows Platform Binary Table lets motherboard firmware drop an executable into Windows on every boot. Blocking it stops that path. Some vendor utilities rely on it.
+
+### priv-reserved-storage-off
+**Disable reserved storage** - Advanced, no restart.
+
+- `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager\ShippedWithReserves = 0` (default 1)
+
+Frees the several GB Windows reserves for updates and temporary files. Updates still need free disk space, so keep some headroom.
+
+### priv-device-metadata-off
+**No device metadata downloads** - Recommended, no restart.
+
+- `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata\PreventDeviceMetadataFromNetwork = 1` (default 0)
+
+Stops Windows downloading vendor apps and metadata packages when a device is plugged in.
+
+### priv-onedrive-remove
+**Remove OneDrive** - Advanced, no restart.
+
+Runs `OneDriveSetup.exe /uninstall` from `%SystemRoot%\SysWOW64` (or `System32` on 32-bit).
+
+Removes the OneDrive app for this machine. Your local files are not deleted. Reverting runs the same setup program to reinstall it, then you sign in again.
 
 ## Power
 

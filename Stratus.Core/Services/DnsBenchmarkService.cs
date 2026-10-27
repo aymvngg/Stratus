@@ -25,7 +25,9 @@ public static class DnsBenchmarkService
 
         foreach (var profile in DnsService.Profiles)
         {
-            if (profile.Primary is null)
+            // IPv6-only rows would double the table without telling the user anything the IPv4
+            // row does not already show.
+            if (profile.Primary is null || !profile.BenchmarkEligible)
                 continue;
 
             results.Add(Measure(profile.Label, profile.Primary, samplesPerServer));

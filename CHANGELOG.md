@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.7.0
+
+Coverage release: the catalog grows from 73 to 92 tweaks, six global presets run from the app or the CLI, DNS gains 11 providers with IPv6, and the Debloat and Tools pages learn new tricks.
+
+### Tweaks
+- **19 new tweaks** (73 to 92). Eleven taskbar and Explorer preferences: left-aligned taskbar, search icon only, hide Task view, hide the chat icon, show file extensions, show hidden files, dark mode, clock seconds, End task in the taskbar menu, NumLock at boot, and no Sticky Keys shortcut. Plus the classic right-click menu, Bing-free Start search, a 13-policy Edge debloat, a 12-policy Brave debloat, WPBT blocking, reserved storage off, device metadata downloads off, and OneDrive removal
+- **Two new policy sets**: Edge and Brave entries turn off shopping, recommendations, rewards, wallet, VPN, AI chat, metrics and similar features through the vendor policy hives. Revert removes the policies again
+- **OneDrive removal** is a one-shot action with an explicit warning: the app is removed, local files stay, and reverting reinstalls the app
+- **No duplicate entries**: the catalog test that detects two tweaks writing the same values now runs on every push
+
+### Presets
+- **Six global sets**: Minimal, Standard, Gaming PC, Balanced, Max Privacy and Advanced. Advanced is built from Standard plus the rest, so the two can never drift apart
+- **Runnable headless**: `stratus apply --preset standard` and `stratus revert --preset standard` apply or revert a whole set, skip what is unknown, not applicable or already in that state, and report each tweak plus a summary
+- **Dashboard** lists all six with live progress and the pending count, no extra UI needed
+
+### DNS
+- **11 providers**: Cloudflare (plain, malware blocking, family), Google, Quad9 (filtered and unfiltered), OpenDNS (standard and family) and AdGuard (standard and family), plus automatic from the router
+- **IPv6**: each provider carries its IPv6 pair. Apply sets IPv4 first, then IPv6 best effort, so an adapter with IPv6 unbound never breaks a working IPv4 setup. Detection now reads static IPv6 servers too
+- **Benchmark** still measures the IPv4 pair of each provider and skips the automatic entry
+
+### Windows features
+- **Enable as well as remove**: the Debloat page now lists missing features next to installed ones. Windows Subsystem for Linux (with Virtual Machine Platform), Hyper-V, Windows Sandbox, .NET Framework 3.5 and the NFS client can be enabled in one click
+- **Clear state per row**: each feature shows Installed or Not installed and offers only the action that applies
+- **Restart note**: enabling reports that a restart may be needed to finish
+
+### Tools
+- **Fixes card**: point Windows time at pool.ntp.org, restore the Windows default time server, and reset and update the winget sources when winget misbehaves
+- **Windows tools card**: 18 classic consoles (Computer management, Device manager, Services, Task scheduler, Disk management, Event viewer, Firewall, System properties and more) behind a fixed allowlist
+
+### Docs and tests
+- **SPEC.md and AGENTS.md** at the repo root: architecture, service map, storage layout, the tweak contract, safety invariants and contribution rules
+- **README and docs/tweaks.md** updated for the new counts, presets, DNS providers, features and tools
+- **33 tests**: the suite now also checks that every preset id resolves to a real tweak, that preset ids and names are unique, and that DNS profiles have valid addresses and IPv6 pairs
+- **CI runs the tests** on every push, before the CLI smoke test
+
 ## v1.6.1
 
 Correctness and reliability pass over the whole app: several tweaks did the wrong thing or reported the wrong outcome, and a few operations could overlap.

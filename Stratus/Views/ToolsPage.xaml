@@ -501,6 +501,136 @@
                 </StackPanel>
             </Border>
 
+            <!-- ============ Fixes ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Style="{StaticResource IconBadge}">
+                            <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE90F;"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="Fixes" Style="{StaticResource CardTitle}"/>
+                            <TextBlock Text="Common Windows repairs" Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource PageSubtitle}"
+                               Text="One-click repairs for common Windows problems. These change system settings, not Stratus tweaks."/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Use pool.ntp.org" Click="OnFixNtp"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Content="Restore Windows time server" Click="OnRestoreNtp"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Content="Repair winget" Click="OnRepairWinget"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                    </StackPanel>
+
+                    <TextBlock FontSize="11" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Repair winget needs App Installer (winget) from the Microsoft Store."/>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ Windows tools ============ -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Style="{StaticResource IconBadge}">
+                            <FontIcon Style="{StaticResource BadgeGlyph}" Glyph="&#xE7F8;"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="Windows tools" Style="{StaticResource CardTitle}"/>
+                            <TextBlock Text="Classic management consoles" Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource PageSubtitle}"
+                               Text="Open the classic Windows management consoles without hunting through menus."/>
+
+                    <Grid ColumnSpacing="8" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Button Content="Computer management" Tag="compmgmt.msc" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Column="1" Content="Installed apps" Tag="appwiz.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="1" Content="Network adapters" Tag="ncpa.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="1" Grid.Column="1" Content="Power options" Tag="powercfg.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="2" Content="Device manager" Tag="devmgmt.msc" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="2" Grid.Column="1" Content="Services" Tag="services.msc" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="3" Content="Task scheduler" Tag="taskschd.msc" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="3" Grid.Column="1" Content="Windows Features" Tag="optionalfeatures.exe" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="4" Content="Firewall" Tag="firewall.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="4" Grid.Column="1" Content="System properties" Tag="sysdm.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="5" Content="Disk management" Tag="diskmgmt.msc" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="5" Grid.Column="1" Content="Event viewer" Tag="eventvwr.msc" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="6" Content="System information" Tag="msinfo32.exe" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="6" Grid.Column="1" Content="Date and time" Tag="timedate.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="7" Content="Mouse" Tag="main.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="7" Grid.Column="1" Content="Game controllers" Tag="joy.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+
+                        <Button Grid.Row="8" Content="Display" Tag="desk.cpl" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                        <Button Grid.Row="8" Grid.Column="1" Content="Control panel" Tag="control.exe" Click="OnOpenWindowsTool"
+                                HorizontalAlignment="Stretch" FontSize="11.5"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- ============ Preferences ============ -->
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="12">

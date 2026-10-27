@@ -656,6 +656,161 @@ public sealed class ToolsViewModel : ObservableObject
         }
     }
 
+    // ================= v1.5: fixes and Windows tools =================
+
+    /// <summary>
+    /// Points the Windows time service at pool.ntp.org and forces a resync.
+    /// The resync is allowed to fail softly: a freshly restarted w32time sometimes needs a moment.
+    /// </summary>
+    public async Task<(bool Ok, string Message)> FixNtpAsync()
+    {
+        if (IsBusy)
+            return (false, "Another action is already running.");
+
+        IsBusy = true;
+        BusyText = "Pointing the time service at pool.ntp.org...";
+        try
+        {
+            var config = await Task.Run(() => ProcessRunner.Run("w32tm.exe",
+                "/config /syncfromflags:manual /manualpeerlist:\"pool.ntp.org,0x8\" /update", 30000));
+            if (!config.Success)
+                return (false, "Could not point Windows time at pool.ntp.org: " + ProcessError(config));
+
+            var restart = await Task.Run(() =>
+                ProcessRunner.PowerShell("Restart-Service w32time -Force -ErrorAction Stop", 60000));
+            if (!restart.Success)
+                return (false, "The time service could not be restarted: " + ProcessError(restart));
+
+            var message = "Time sync now uses pool.ntp.org.";
+            var resync = await Task.Run(() => ProcessRunner.Run("w32tm.exe", "/resync /force", 30000));
+            if (!resync.Success)
+                message += " The first resync failed, Windows will retry on its own schedule: " + ProcessError(resync);
+
+            Log.Info("Time sync switched to pool.ntp.org.");
+            return (true, message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Fixing the time sync failed", ex);
+            return (false, $"Could not fix the time sync: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    /// <summary>Points the Windows time service back at its default server (time.windows.com).</summary>
+    public async Task<(bool Ok, string Message)> RestoreNtpAsync()
+    {
+        if (IsBusy)
+            return (false, "Another action is already running.");
+
+        IsBusy = true;
+        BusyText = "Restoring the Windows default time server...";
+        try
+        {
+            var config = await Task.Run(() => ProcessRunner.Run("w32tm.exe",
+                "/config /syncfromflags:manual /manualpeerlist:\"time.windows.com,0x9\" /update", 30000));
+            if (!config.Success)
+                return (false, "Could not point Windows time at time.windows.com: " + ProcessError(config));
+
+            var restart = await Task.Run(() =>
+                ProcessRunner.PowerShell("Restart-Service w32time -Force -ErrorAction Stop", 60000));
+            if (!restart.Success)
+                return (false, "The time service could not be restarted: " + ProcessError(restart));
+
+            Log.Info("Time sync restored to time.windows.com.");
+            return (true, "Windows time sync is back on the Windows default server.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restoring the time sync failed", ex);
+            return (false, $"Could not restore the time sync: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    /// <summary>Resets and updates the winget sources (fixes most "winget is broken" states).</summary>
+    public async Task<(bool Ok, string Message)> RepairWingetAsync()
+    {
+        if (IsBusy)
+            return (false, "Another action is already running.");
+
+        IsBusy = true;
+        BusyText = "Repairing the winget sources...";
+        try
+        {
+            var version = await Task.Run(() => ProcessRunner.Run("winget.exe", "--version", 30000));
+            if (!version.Success)
+                return (false, "winget is not installed on this machine. Install App Installer from the Microsoft Store first.");
+
+            var reset = await Task.Run(() => ProcessRunner.Run("winget.exe", "source reset --force", 120000));
+            if (!reset.Success)
+                return (false, "Resetting the winget sources failed: " + ProcessError(reset));
+
+            var update = await Task.Run(() => ProcessRunner.Run("winget.exe", "source update", 120000));
+            if (!update.Success)
+                return (false, "Updating the winget sources failed: " + ProcessError(update));
+
+            Log.Info("Winget sources reset and updated.");
+            return (true, "The winget sources were reset and updated.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Repairing winget failed", ex);
+            return (false, $"Could not repair winget: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+        }
+    }
+
+    private static string ProcessError(ProcessResult result)
+    {
+        var detail = result.StdErr.Length > 0 ? result.StdErr : result.StdOut;
+        detail = detail.Replace("\r", "").Replace("\n", " ").Trim();
+        return detail.Length > 220 ? detail[..220] + "..." : detail;
+    }
+
+    /// <summary>Static whitelist: the only Windows tools this page may launch by name.</summary>
+    private static readonly string[] WindowsToolTargets =
+    [
+        "compmgmt.msc", "appwiz.cpl", "ncpa.cpl", "powercfg.cpl", "devmgmt.msc",
+        "services.msc", "taskschd.msc", "control.exe", "optionalfeatures.exe",
+        "firewall.cpl", "sysdm.cpl", "diskmgmt.msc", "eventvwr.msc", "msinfo32.exe",
+        "timedate.cpl", "main.cpl", "joy.cpl", "desk.cpl",
+    ];
+
+    /// <summary>Opens a whitelisted Windows management console. Synchronous: Process.Start is instant.</summary>
+    public (bool Ok, string Message) OpenWindowsTool(string target)
+    {
+        if (!WindowsToolTargets.Contains(target))
+            return (false, "That Windows tool is not on the allowed list.");
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = target,
+                UseShellExecute = true,
+            });
+            return (true, "Opened " + target + ".");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Opening " + target + " failed: " + ex.Message);
+            return (false, "Could not open " + target + ": " + ex.Message);
+        }
+    }
+
     // ================= R3: DNS benchmark =================
 
     public async Task<string> BenchmarkDnsAsync()

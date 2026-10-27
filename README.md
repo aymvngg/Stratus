@@ -1,14 +1,15 @@
 # Stratus - native Windows optimizer
 
-WinUI 3 (unpackaged, self-contained, admin). 48 detection-driven tweaks with a live score, debloat, cleanup, and tools. No snake oil - every change is backed up and revertible.
+WinUI 3 (unpackaged, self-contained, admin). 92 detection-driven tweaks with a live score, debloat, cleanup, and tools. No snake oil - every change is backed up and revertible.
 
 ## Cleanup
 
-15 targets, scanned live before anything is deleted:
+19 targets, scanned live before anything is deleted:
 
 - Temp: user temp, Windows temp
-- Caches: DirectX / NVIDIA / AMD shader caches, thumbnail + icon cache, Edge / Chrome / Brave / Firefox caches
+- Caches: DirectX / NVIDIA / AMD driver caches (only the cache folders, never settings), thumbnail + icon cache, Edge / Chrome / Brave / Firefox caches
 - System: Delivery Optimization cache, Windows Update leftovers, CBS/DISM logs, prefetch, previous Windows installation (Windows.old)
+- Diagnostics: application crash dumps, Windows Error Reporting queue, kernel minidumps, live kernel reports (all unchecked by default)
 - Recycle Bin
 
 Files that are in use are skipped and reported, never forced. Services that lock files (wuauserv, dosvc) are stopped for the clean and restarted after, only if they were running.
@@ -42,6 +43,8 @@ dotnet run --project Stratus.Cli -c Release -- history
 dotnet run --project Stratus.Cli -c Release -- backups
 dotnet run --project Stratus.Cli -c Release -- apply <tweak-id>
 dotnet run --project Stratus.Cli -c Release -- revert <tweak-id>
+dotnet run --project Stratus.Cli -c Release -- apply --preset <preset-id>
+dotnet run --project Stratus.Cli -c Release -- revert --preset <preset-id>
 ```
 
 (Run from an elevated terminal for changes to succeed.)
@@ -54,18 +57,18 @@ dotnet build Stratus.sln -c Release
 
 ## CI and releases
 
-GitHub Actions builds the solution and runs a CLI smoke test on every push to `main`. Pushing a tag like `v1.1.0` publishes the app, zips it and attaches it to a GitHub release automatically.
+GitHub Actions builds the solution, runs the unit tests and a CLI smoke test on every push to `main`. Pushing a tag like `v1.7.0` publishes the app, zips it and attaches it to a GitHub release automatically.
 
-## The 48 tweaks
+## The 92 tweaks
 
 | Category | Count | Examples |
 |---|---|---|
-| Gaming | 7 | Game DVR off, Game Mode on, HAGS, FSO off, foreground priority, mouse accel off |
-| Visuals | 6 | transparency off, performance visual effects, instant menus, Aero Shake off, Widgets hidden |
-| Network | 5 | Nagle off, throttling off, Games task priority, DO P2P off, SystemResponsiveness |
-| Services | 12 | DiagTrack, SysMain, Spooler, Remote Registry, WER, TrkWks, PhoneSvc... |
-| Privacy | 14 | telemetry, ad ID, activity, suggestions, Copilot, Recall, web search, consumer features... |
-| Power | 4 | Ultimate Performance, hibernation off, Fast Startup off, EcoQoS throttling off |
+| Gaming | 8 | Game DVR off, Game Mode on, HAGS, FSO off, foreground priority, mouse accel off |
+| Visuals | 22 | transparency off, performance visual effects, instant menus, Aero Shake off, Widgets hidden, taskbar and Explorer preferences, classic right-click menu |
+| Network | 9 | Nagle off, throttling off, Games task priority, DO P2P off, SystemResponsiveness |
+| Services | 19 | DiagTrack, SysMain, Spooler, Remote Registry, WER, TrkWks, PhoneSvc... |
+| Privacy | 27 | telemetry, ad ID, activity, suggestions, Copilot, Recall, web search, consumer features, Edge and Brave policies, WPBT, reserved storage, OneDrive removal |
+| Power | 7 | Ultimate Performance, hibernation off, Fast Startup off, EcoQoS throttling off |
 
 Each tweak has a risk level (Safe / Recommended / Advanced), a weight used by the score, and a live `IsApplied` check. Tweaks that don't apply to your hardware (e.g. HAGS without an exposed `HwSchMode`) are excluded from the score denominator entirely.
 
@@ -73,7 +76,7 @@ Full reference with every registry key, default and reasoning: [docs/tweaks.md](
 
 ## Presets
 
-The Dashboard ships three curated one-click sets: **Gaming PC**, **Balanced** and **Max Privacy**. Presets only ever apply Safe and Recommended tweaks; Advanced ones stay opt-in on the Tweaks page. Each preset card shows live progress read from the system, not from what the app changed.
+The Dashboard ships six curated one-click sets: **Minimal**, **Standard**, **Gaming PC**, **Balanced**, **Max Privacy** and **Advanced**. Each card shows live progress read from the system, not from what the app changed, and the same presets run headless through the CLI. Advanced presets include Advanced-risk entries, which still ask for confirmation in the app.
 
 ## Startup manager
 
@@ -82,6 +85,23 @@ The Startup page lists everything that launches with Windows: the HKCU and HKLM 
 ## Scheduled tasks
 
 The Tasks page covers 16 well-known telemetry, inventory and feedback jobs (`Microsoft Compatibility Appraiser`, `Consolidator`, `UsbCeip`, `DmClient`, `QueueReporting`, `Device`, `WinSAT` and friends). It drives the Task Scheduler COM API directly, so it never parses localized `schtasks` output, and only tasks that exist on your machine are listed. Turning a task off disables it, it is never deleted, and the original state is stored in `tasks.json` so "Reset changes" restores it exactly.
+
+## Windows features
+
+The Debloat page lists optional features and capabilities in both directions: installed ones can be removed, missing ones can be enabled. Enable covers Windows Subsystem for Linux (with Virtual Machine Platform), Hyper-V, Windows Sandbox, .NET Framework 3.5 and the NFS client. Hyper-V carries a warning because removing it breaks WSL2 and Windows Sandbox.
+
+## DNS and network tools
+
+Tools offers 11 DNS profiles with IPv4 and IPv6 addresses (Cloudflare, Google, Quad9, OpenDNS, AdGuard, plus their malware and family variants), a latency benchmark, and a reset back to your router's servers. IPv6 is applied best effort: an adapter with IPv6 unbound does not fail the change.
+
+## Tools
+
+Beyond tweaks and managers, Tools has one-click fixes (point Windows time at `pool.ntp.org` or restore the Windows default, repair the winget sources), a launcher for 18 classic Windows consoles, restore point management, Windows Update pause, TCP settings and DISM component cleanup.
+
+## Documentation
+
+- [SPEC.md](SPEC.md) describes the projects, layers, services and the tweak contract.
+- [AGENTS.md](AGENTS.md) holds the build, test and safety rules for contributors (human or AI).
 
 ## Score history
 

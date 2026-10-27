@@ -20,5 +20,8 @@ jobs:
       - name: Build
         run: dotnet build Stratus.sln -c Release
 
+      - name: Test
+        run: dotnet test Stratus.Tests\Stratus.Tests.csproj -c Release --no-build
+
       - name: CLI smoke test
         run: dotnet run --project Stratus.Cli -c Release -- score
