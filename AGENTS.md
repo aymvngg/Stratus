@@ -39,6 +39,7 @@ These are not optional:
 - A DNS provider is one `DnsProfile` in `DnsService.Profiles`.
 - A cleanup target is one `CleanupTarget` in `CleanupService.Targets`. Prefer scoped `CacheDirNames` or `FileGlobs` over deleting a tree.
 - A new Windows feature goes in `OptionalFeatureService` with a friendly name, and must work for both removal and enablement.
+- A new Install page app is one `AppEntry` in `AppCatalog.Apps` with the exact winget id. The page holds no install logic; `WingetService` owns every command.
 - A new store must use `JsonFile`. Do not hand roll file IO.
 - A new page needs a view model, an `IsBusy` guard on long actions, and severity that follows the real result.
 
@@ -68,6 +69,7 @@ Do not claim something works because it compiles. Say what was actually run.
 
 - The app runs elevated; the development shell often does not. DISM, feature and service operations only work at runtime.
 - Never parse localized command output. Use the COM API, registry or a language-neutral format.
+- Never parse winget console text for state: installed apps come from `winget export` JSON. Only the exit code and the documented English phrases ("already installed", "already up to date") may be interpreted.
 - Prefer `ProcessRunner` over `System.Diagnostics.Process` so timeouts and encoding stay consistent.
 - French Windows is a supported target: keep messages ASCII and decode child output as UTF-8.
 - `git push` prints a harmless `NativeCommandError` wrapper on success. Verify with `gh run list` instead of trusting the exit code.

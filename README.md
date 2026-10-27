@@ -45,6 +45,8 @@ dotnet run --project Stratus.Cli -c Release -- apply <tweak-id>
 dotnet run --project Stratus.Cli -c Release -- revert <tweak-id>
 dotnet run --project Stratus.Cli -c Release -- apply --preset <preset-id>
 dotnet run --project Stratus.Cli -c Release -- revert --preset <preset-id>
+dotnet run --project Stratus.Cli -c Release -- docgen
+dotnet run --project Stratus.Cli -c Release -- docgen --json
 ```
 
 (Run from an elevated terminal for changes to succeed.)
@@ -90,6 +92,10 @@ The Tasks page covers 16 well-known telemetry, inventory and feedback jobs (`Mic
 
 The Debloat page lists optional features and capabilities in both directions: installed ones can be removed, missing ones can be enabled. Enable covers Windows Subsystem for Linux (with Virtual Machine Platform), Hyper-V, Windows Sandbox, .NET Framework 3.5 and the NFS client. Hyper-V carries a warning because removing it breaks WSL2 and Windows Sandbox.
 
+## Install apps
+
+The Install page drives winget from a curated catalog of 68 apps across browsers, communication, development, media, productivity, utilities and gaming. Search by name or filter by category, install or upgrade a single app, remove one, or run "Upgrade installed" to walk every catalog app that is currently installed. Installed state comes from the `winget export` JSON, never from parsing localized command output, and "already installed" or "already up to date" are reported as success rather than as errors. New apps are one `AppEntry` in `AppCatalog`, with no install logic in the page.
+
 ## DNS and network tools
 
 Tools offers 11 DNS profiles with IPv4 and IPv6 addresses (Cloudflare, Google, Quad9, OpenDNS, AdGuard, plus their malware and family variants), a latency benchmark, and a reset back to your router's servers. IPv6 is applied best effort: an adapter with IPv6 unbound does not fail the change.
@@ -102,6 +108,7 @@ Beyond tweaks and managers, Tools has one-click fixes (point Windows time at `po
 
 - [SPEC.md](SPEC.md) describes the projects, layers, services and the tweak contract.
 - [AGENTS.md](AGENTS.md) holds the build, test and safety rules for contributors (human or AI).
+- [docs/reference.md](docs/reference.md) is generated from the compiled catalog by `stratus docgen`; `stratus docgen --json` writes the same metadata as `docs/catalog.json`.
 
 ## Score history
 

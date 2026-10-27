@@ -23,6 +23,7 @@ public static class AppServices
     public static readonly DnsService Dns = new();
     public static readonly StartupService Startup = new(Registry);
     public static readonly ScheduledTaskService ScheduledTasks = new(AppPaths.TasksFile);
+    public static readonly WingetService Winget = new();
 
     /// <summary>
     /// One engine snapshot for every listener: StateChanged, bulk operations and the Tools page

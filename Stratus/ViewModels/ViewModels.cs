@@ -8,6 +8,7 @@ public static class Vm
     public static readonly StartupViewModel Startup = new();
     public static readonly ScheduledTasksViewModel ScheduledTasks = new();
     public static readonly DebloatViewModel Debloat = new();
+    public static readonly InstallViewModel Install = new();
     public static readonly CleanupViewModel Cleanup = new();
     public static readonly HistoryViewModel History = new();
     public static readonly ToolsViewModel Tools = new();

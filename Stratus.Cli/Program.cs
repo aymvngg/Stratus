@@ -6,7 +6,7 @@ using Stratus.Core.Tweaks;
 namespace Stratus.Cli;
 
 /// <summary>
-/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | apply &lt;id&gt; | revert &lt;id&gt; | apply --preset &lt;id&gt; | revert --preset &lt;id&gt;
+/// Headless access to the engine: stratus list | score | info | presets | startup | tasks | cleanup | history | backups | docgen [--json] [path] | apply &lt;id&gt; | revert &lt;id&gt; | apply --preset &lt;id&gt; | revert --preset &lt;id&gt;
 /// Run from an elevated terminal for HKLM/service changes.
 /// </summary>
 internal static class Program
@@ -33,7 +33,7 @@ internal static class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|apply <id>|revert <id>|apply --preset <id>|revert --preset <id>]");
+            Console.WriteLine("Usage: stratus [list|score|info|presets|startup|tasks|cleanup|history|backups|docgen [--json] [path]|apply <id>|revert <id>|apply --preset <id>|revert --preset <id>]");
             return 0;
         }
 
@@ -80,6 +80,9 @@ internal static class Program
                     SystemInfoService.IsElevated()));
                 Console.WriteLine($"Report: {reportPath}");
                 return 0;
+
+            case "docgen":
+                return RunDocgen(engine, args);
 
             case "presets":
                 foreach (var preset in PresetCatalog.All)
@@ -222,6 +225,44 @@ internal static class Program
 
     private static bool SafeIsApplied(Tweak t) { try { return t.IsApplied; } catch { return false; } }
     private static bool SafeIsApplicable(Tweak t) { try { return t.IsApplicable; } catch { return false; } }
+
+    /// <summary>
+    /// Writes the reference docs from the compiled catalog. The catalog is the only source,
+    /// so regenerating is always safe: nothing here reads the existing files.
+    /// </summary>
+    private static int RunDocgen(TweakEngine engine, string[] args)
+    {
+        var json = args.Length > 1 && string.Equals(args[1], "--json", StringComparison.OrdinalIgnoreCase);
+        var requested = json
+            ? (args.Length > 2 ? args[2] : null)
+            : (args.Length > 1 ? args[1] : null);
+        var target = string.IsNullOrWhiteSpace(requested)
+            ? Path.Combine("docs", json ? "catalog.json" : "reference.md")
+            : requested;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(target);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            var text = json
+                ? DocGenerator.BuildJson(engine.Tweaks)
+                : DocGenerator.BuildMarkdown(engine.Tweaks);
+            File.WriteAllText(fullPath, text);
+
+            Log.Info($"Docs written to {fullPath}");
+            Console.WriteLine($"Wrote {engine.Tweaks.Count} tweaks to {fullPath}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not write docs to {target}: {ex.Message}");
+            Console.WriteLine($"Could not write {target}: {ex.Message}");
+            return 1;
+        }
+    }
 
     /// <summary>
     /// Applies or reverts a whole preset. Unknown, not-applicable and already-in-that-state

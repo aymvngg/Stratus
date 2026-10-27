@@ -75,6 +75,11 @@
                         <FontIcon Glyph="&#xE74D;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Install" Tag="install">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE896;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
 
                 <NavigationViewItemSeparator/>
                 <NavigationViewItemHeader Content="Maintain"/>

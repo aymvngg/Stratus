@@ -2,7 +2,7 @@
 
 ## v1.7.0
 
-Coverage release: the catalog grows from 73 to 92 tweaks, six global presets run from the app or the CLI, DNS gains 11 providers with IPv6, and the Debloat and Tools pages learn new tricks.
+Coverage release: the catalog grows from 73 to 92 tweaks, six global presets run from the app or the CLI, DNS gains 11 providers with IPv6, a new Install page drives winget, and the Debloat and Tools pages learn new tricks.
 
 ### Tweaks
 - **19 new tweaks** (73 to 92). Eleven taskbar and Explorer preferences: left-aligned taskbar, search icon only, hide Task view, hide the chat icon, show file extensions, show hidden files, dark mode, clock seconds, End task in the taskbar menu, NumLock at boot, and no Sticky Keys shortcut. Plus the classic right-click menu, Bing-free Start search, a 13-policy Edge debloat, a 12-policy Brave debloat, WPBT blocking, reserved storage off, device metadata downloads off, and OneDrive removal
@@ -29,10 +29,18 @@ Coverage release: the catalog grows from 73 to 92 tweaks, six global presets run
 - **Fixes card**: point Windows time at pool.ntp.org, restore the Windows default time server, and reset and update the winget sources when winget misbehaves
 - **Windows tools card**: 18 classic consoles (Computer management, Device manager, Services, Task scheduler, Disk management, Event viewer, Firewall, System properties and more) behind a fixed allowlist
 
+### Install apps
+- **68 curated apps** across browsers, communication, development, media, productivity, utilities and gaming, each with its winget id and a recommended flag
+- **Install, upgrade and remove** from one page, with search and a category filter
+- **Upgrade installed** walks every installed catalog app, reports what changed and what was already current, and surfaces the first failure instead of stopping silently
+- **Localized output is never parsed**: installed state comes from the JSON that `winget export` writes, so French and other Windows languages work the same as English
+- **Honest outcomes**: "already installed", "not installed" and "already up to date" are reported as success, because winget exits non-zero for all three
+
 ### Docs and tests
+- **Generated reference**: `stratus docgen` writes `docs/reference.md` from the compiled catalog and `stratus docgen --json` writes `docs/catalog.json` for tooling, so the reference can never drift from what the app applies
 - **SPEC.md and AGENTS.md** at the repo root: architecture, service map, storage layout, the tweak contract, safety invariants and contribution rules
-- **README and docs/tweaks.md** updated for the new counts, presets, DNS providers, features and tools
-- **33 tests**: the suite now also checks that every preset id resolves to a real tweak, that preset ids and names are unique, and that DNS profiles have valid addresses and IPv6 pairs
+- **README and docs/tweaks.md** updated for the new counts, presets, DNS providers, features, tools and the Install page
+- **46 tests**: the suite also checks that every preset id resolves to a real tweak, that preset ids and names are unique, that DNS profiles have valid addresses and IPv6 pairs, that the app catalog is complete and duplicate-free, and that the doc generator output is stable
 - **CI runs the tests** on every push, before the CLI smoke test
 
 ## v1.6.1

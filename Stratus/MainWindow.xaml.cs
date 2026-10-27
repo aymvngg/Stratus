@@ -190,6 +190,7 @@ public sealed partial class MainWindow : Window
             "startup" => typeof(StartupPage),
             "tasks" => typeof(ScheduledTasksPage),
             "debloat" => typeof(DebloatPage),
+            "install" => typeof(InstallPage),
             "cleanup" => typeof(CleanupPage),
             "history" => typeof(HistoryPage),
             "tools" => typeof(ToolsPage),

@@ -1,0 +1,830 @@
+[
+  {
+    "id": "fso-off",
+    "name": "Disable Fullscreen Optimizations",
+    "description": "Stops Windows from converting exclusive fullscreen games to borderless flip-model. Restores true exclusive fullscreen (lower latency, correct alt-tab behavior per game).",
+    "category": "Gaming",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "gamebar-popups-off",
+    "name": "Disable Game Bar pop-ups",
+    "description": "Prevents the Game Bar (Win\u002BG) overlay and its \u0027how do you want to open this\u0027 popups from appearing in games.",
+    "category": "Gaming",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "game-dvr-off",
+    "name": "Disable Game DVR",
+    "description": "Stops Windows from recording your gameplay in the background (GameDVR_Enabled=0 \u002B policy AllowGameDVR=0). Removes constant background capture overhead in every game.",
+    "category": "Gaming",
+    "risk": "Safe",
+    "weight": 5,
+    "requiresReboot": false
+  },
+  {
+    "id": "game-mouse-accel-off",
+    "name": "Disable mouse acceleration",
+    "description": "Turns off \u0027Enhance pointer precision\u0027 (MouseSpeed=0, thresholds=0). Raw, predictable aim - the first thing any FPS player changes.",
+    "category": "Gaming",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "game-mode-on",
+    "name": "Ensure Game Mode is on",
+    "description": "Windows prioritizes the foreground game (fewer background tasks while gaming). On by default in current builds - this makes it explicit.",
+    "category": "Gaming",
+    "risk": "Safe",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "game-priority-separation",
+    "name": "Foreground priority boost",
+    "description": "Win32PrioritySeparation=38 (0x26): short fixed time slices with a 3:1 boost for the foreground app. The standard low-latency scheduler setting for games and audio work.",
+    "category": "Gaming",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "hags-on",
+    "name": "Hardware-Accelerated GPU Scheduling",
+    "description": "Lets the GPU manage its own memory scheduling (HwSchMode=2). Reduces latency on supported GPUs (NVIDIA GTX 10xx\u002B, AMD RX 5000\u002B). Not shown if your GPU/driver doesn\u0027t expose it.",
+    "category": "Gaming",
+    "risk": "Recommended",
+    "weight": 3,
+    "requiresReboot": true
+  },
+  {
+    "id": "game-gamebar-notifications-off",
+    "name": "Silence Game Bar notifications",
+    "description": "Turns off the achievement and recording popups that can steal focus and drop frames in full-screen games.",
+    "category": "Gaming",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-end-task-taskbar",
+    "name": "Add \u0027End task\u0027 to the taskbar menu",
+    "description": "Adds an \u0027End task\u0027 entry to the taskbar right-click menu, so a frozen app can be killed without opening Task Manager.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-taskbar-align-left",
+    "name": "Align the taskbar to the left",
+    "description": "Moves the Start button and taskbar icons from the center to the left edge, like Windows 10.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-animations-off",
+    "name": "Cut menu and taskbar animations",
+    "description": "Removes the fade and slide animations from menus and taskbar buttons. Windows feels immediate, which matters most on older hardware.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-aero-shake-off",
+    "name": "Disable Aero Shake",
+    "description": "Stops grabbing and shaking a window from minimizing everything else. Usually an accident, never useful.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "transparency-off",
+    "name": "Disable transparency effects",
+    "description": "Turns off acrylic/blur effects across the shell. Frees a small amount of GPU and RAM on low-end systems.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-dark-mode",
+    "name": "Enable dark mode",
+    "description": "Switches Windows and app themes to dark (AppsUseLightTheme and SystemUsesLightTheme are both 0).",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "hover-time",
+    "name": "Fast tooltip hover time",
+    "description": "MouseHoverTime 400ms -\u003E 8ms: tooltips appear almost instantly. Purely a responsiveness nicety.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-notification-banners-off",
+    "name": "Hide notification banners",
+    "description": "Keeps notifications in the Action Center but stops them from sliding in over whatever you are doing. Focus assist style, without the schedule.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-hide-chat-icon",
+    "name": "Hide the chat icon",
+    "description": "Removes the Teams chat icon from the taskbar on Windows 11 builds that still show one.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-hide-taskview",
+    "name": "Hide the Task View button",
+    "description": "Removes the Task View button from the taskbar. Win\u002BTab still opens Task View.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-widgets-off",
+    "name": "Hide Widgets",
+    "description": "Removes the taskbar Widgets button and stops the widget feed host from running in the background (TaskbarDa=0).",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "menu-delay",
+    "name": "Instant menu delay",
+    "description": "MenuShowDelay 400ms -\u003E 0ms: context menus and drop-downs open instantly.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visualfx-performance",
+    "name": "Performance visual effects",
+    "description": "Sets \u0027Best performance\u0027 visual effects: disables window/taskbar animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).",
+    "category": "Visuals",
+    "risk": "Recommended",
+    "weight": 3,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-show-file-extensions",
+    "name": "Show file name extensions",
+    "description": "Clears HideFileExt, so known file types show their extension in File Explorer. Fewer double-extension surprises.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-show-hidden-files",
+    "name": "Show hidden files",
+    "description": "Shows files and folders marked hidden in File Explorer. Protected operating system files stay hidden unless you also enable them in Folder Options.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-search-icon-only",
+    "name": "Show search as an icon only",
+    "description": "Shrinks the taskbar search box down to the small icon. The search page itself is unchanged.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-clock-seconds",
+    "name": "Show seconds on the taskbar clock",
+    "description": "Adds seconds to the taskbar clock, at the cost of a small extra repaint each second.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-numlock-on-boot",
+    "name": "Turn NumLock on at sign-in",
+    "description": "NumLock is on at the lock screen and right after sign-in.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-spotlight-off",
+    "name": "Turn off lock screen Spotlight",
+    "description": "Stops Windows from downloading rotating lock screen pictures. Saves a little background network and disk work, and the lock screen stays predictable.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-snap-flyout-off",
+    "name": "Turn off the snap layouts flyout",
+    "description": "Stops the snap layouts panel from appearing when you hover a window\u0027s maximize button. Snapping with the keyboard and drag still works.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-sticky-keys-shortcut-off",
+    "name": "Turn off the Sticky Keys shortcut",
+    "description": "Stops five Shift presses from turning Sticky Keys on. The feature itself still works from the Accessibility settings.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "visual-classic-context-menu",
+    "name": "Use the classic File Explorer context menu",
+    "description": "Brings back the full classic right-click menu instead of the compact Windows 11 one. Sign out or restart Explorer to see it; revert removes the override.",
+    "category": "Visuals",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "net-games-task",
+    "name": "Boost \u0027Games\u0027 multimedia task",
+    "description": "Raises the priority Windows gives the \u0027Games\u0027 multimedia task (SystemProfile\\Tasks\\Games): Priority 6, GPU Priority 8, High scheduling. The classic CPU/network latency tweak for game processes.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "net-nagle-off",
+    "name": "Disable Nagle\u0027s algorithm",
+    "description": "Sets TcpAckFrequency=1 and TCPNoDelay=1 on all physical network interfaces. Reduces small-packet latency in online games. Negligible impact on throughput.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 3,
+    "requiresReboot": true
+  },
+  {
+    "id": "net-throttling-off",
+    "name": "Disable network throttling",
+    "description": "NetworkThrottlingIndex=0xFFFFFFFF removes the 10 packets/ms multimedia throttle that can cap network throughput during multimedia workloads (incl. games).",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "net-smb1-off",
+    "name": "Disable the SMB1 file sharing protocol",
+    "description": "SMB1 is the 1990s file sharing protocol behind WannaCry. Modern Windows and NAS boxes use SMB2 or SMB3, so turning it off closes an attack surface with no everyday cost.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": true
+  },
+  {
+    "id": "net-tcp-timestamps-off",
+    "name": "Drop TCP timestamps",
+    "description": "Keeps window scaling but stops adding a timestamp to every TCP segment. Slightly less per-packet overhead on fast links, no effect on normal browsing.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": true
+  },
+  {
+    "id": "net-qos-bandwidth",
+    "name": "Release the reserved QoS bandwidth",
+    "description": "Windows keeps 20 percent of the link for QoS by default. Setting the limit to zero hands that slice back to normal traffic; QoS still works when an app asks for it.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "net-system-responsiveness",
+    "name": "Reserve less CPU for multimedia",
+    "description": "SystemResponsiveness=10 (default 20): halves the CPU slice the multimedia scheduler keeps for background audio/video work, leaving more for the foreground app.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "net-delivery-optimization",
+    "name": "Stop Windows Update P2P uploads",
+    "description": "DODownloadMode=0: updates download straight from Microsoft instead of being shared peer-to-peer. Stops background upload traffic that competes with games and calls.",
+    "category": "Network",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "net-wifi-sense-off",
+    "name": "Turn off Wi-Fi Sense sharing",
+    "description": "Stops Windows from offering to share Wi-Fi credentials with contacts and from pulling suggested hotspots. Nothing you joined is forgotten.",
+    "category": "Network",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-diagtrack",
+    "name": "Disable DiagTrack (Connected User Experiences and Telemetry)",
+    "description": "The telemetry service. Collects and uploads usage data to Microsoft. Zero user-facing functionality is lost.",
+    "category": "Services",
+    "risk": "Recommended",
+    "weight": 3,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-trx",
+    "name": "Disable Distributed Link Tracking Client",
+    "description": "Tracks shortcuts and file moves across volumes for roaming profiles. Pointless on a single-PC setup.",
+    "category": "Services",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-mapsbroker",
+    "name": "Disable Downloaded Maps Manager",
+    "description": "Background service for the offline Maps app. If you don\u0027t use Maps, it\u0027s dead weight.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-fax",
+    "name": "Disable Fax",
+    "description": "Nobody faxes. Not even in 2026.",
+    "category": "Services",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-wmpnet",
+    "name": "Disable Media Player Network Sharing",
+    "description": "Shares your media library over the network via UPnP. Only needed if you stream from this PC to a TV or console.",
+    "category": "Services",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-phonesvc",
+    "name": "Disable Phone Service",
+    "description": "Brokers calls and SMS between Windows and a paired phone. Dead weight unless you actually link a phone to the PC.",
+    "category": "Services",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-spooler",
+    "name": "Disable Print Spooler",
+    "description": "Only choose this if you never print. Also closes a well-known escalation path (PrintNightmare).",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-remoteregistry",
+    "name": "Disable Remote Registry",
+    "description": "Allows remote machines to edit your registry. Disabled by default attack-surface-wise on most setups; nothing local uses it.",
+    "category": "Services",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-retaildemo",
+    "name": "Disable Retail Demo Service",
+    "description": "Shop-floor demo mode for retail stores. Removed on retail machines by the store; harmless to disable if present.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-sysmain",
+    "name": "Disable SysMain (Superfetch)",
+    "description": "Preloads frequently-used apps into RAM. Debated: can help HDD systems, often causes disk churn mid-game. Skip if you\u0027re on a slow HDD and like fast app launches.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-rras",
+    "name": "Disable the legacy routing service",
+    "description": "Turns off Routing and Remote Access, the service behind dial-up and old VPN setups. Home networks and modern VPN clients do not use it.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-dmwappush",
+    "name": "Disable WAP Push Message Routing (dmwappushservice)",
+    "description": "Legacy SMS/WAP enterprise management channel. Not used on consumer PCs.",
+    "category": "Services",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-wer",
+    "name": "Disable Windows Error Reporting",
+    "description": "Sends crash dumps to Microsoft and queues report uploads. Apps still crash the same way; you just stop paying the background upload and disk cost.",
+    "category": "Services",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-dps",
+    "name": "Park the diagnostic policy service",
+    "description": "Sets the Diagnostic Policy Service to manual. Windows troubleshooting wizards still work; the always-on background diagnostics stop.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-upnphost",
+    "name": "Park the UPnP device host",
+    "description": "Sets the UPnP device host to manual. Only needed when sharing media to a TV or console, which starts it on demand.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-xbox-accessory",
+    "name": "Park the Xbox accessory service",
+    "description": "Sets the Xbox controller accessory service to manual. Wired and Bluetooth controllers still work; the service starts when a game asks for it.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "svc-xbox-auth",
+    "name": "Park the Xbox Live auth service",
+    "description": "Sets the Xbox Live authentication service to manual. Signing into the Xbox app or a Game Pass title starts it again on demand.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "game-xbox-net-service",
+    "name": "Park the Xbox networking service",
+    "description": "Sets the Xbox Live networking service to manual. Only needed for Xbox multiplayer and the Xbox app, which restart it on demand.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "game-xbox-save-service",
+    "name": "Park the Xbox save sync service",
+    "description": "Sets the Xbox game save service to manual. Saves still work locally; cloud sync starts again the next time a game needs it.",
+    "category": "Services",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-wpbt-off",
+    "name": "Block WPBT firmware execution",
+    "description": "Blocks the Windows Platform Binary Table, which lets motherboard firmware drop an executable into Windows on every boot. Revert removes the block.",
+    "category": "Privacy",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-start-recommendations",
+    "name": "Clear the Start menu recommendations",
+    "description": "Turns off the suggested apps and account nudges in the Start menu. Your pinned apps and the app list are untouched.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "brave-policy-debloat",
+    "name": "Debloat Brave with policies",
+    "description": "Turns off Brave Rewards, wallet, VPN, AI chat, Tor, sync, metrics, background mode, News, Talk, Web Discovery and Speedreader through policy. Revert puts the policies back.",
+    "category": "Privacy",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "edge-policy-debloat",
+    "name": "Debloat Edge with policies",
+    "description": "Turns off Edge shopping, recommendations, personalization reporting, feedback, collections, followed creators, widgets, search suggestions, sponsored error pages, asset delivery, mini menu, wallet donations and Discover. Revert puts the policies back.",
+    "category": "Privacy",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-location-tracking",
+    "name": "Deny app access to your location",
+    "description": "Sets the system location consent to Deny. Apps that need it can still ask, and Maps still works while the setting is on.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-activity",
+    "name": "Disable activity history \u0026 timeline upload",
+    "description": "Turns off activity feed collection and Microsoft-account upload of your app usage timeline.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-adid",
+    "name": "Disable advertising ID",
+    "description": "Stops apps from using a unique ID to build an ad profile of you.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "pref-bing-search-off",
+    "name": "Disable Bing in Start search",
+    "description": "Start menu searches local files and apps only: no web results and nothing sent to Bing.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-cloud-content",
+    "name": "Disable consumer features \u0026 app pushes",
+    "description": "DisableWindowsConsumerFeatures=1 (HKCU and the HKLM policy hive): no automatic installs of promoted Store apps, no suggested content in the Start menu or the shell. The single most effective anti-bloat policy.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-copilot",
+    "name": "Disable Copilot",
+    "description": "Removes the Copilot taskbar entry and disables the built-in Copilot experience via policy. Doesn\u0027t uninstall the Copilot app - use Debloat for that.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-feedback",
+    "name": "Disable feedback requests",
+    "description": "Stops Windows from asking you for feedback about features (Siuf: zero requests per period).",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-input",
+    "name": "Disable inking \u0026 typing personalization",
+    "description": "Stops Windows from sending what you type and write to Microsoft to build a local personalization dictionary.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-sync-provider",
+    "name": "Disable OneDrive ads in File Explorer",
+    "description": "Hides the \u0027Get more storage\u0027 / sync-provider banners that appear in Explorer\u0027s navigation pane.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-recall",
+    "name": "Disable Recall (AI snapshotting)",
+    "description": "DisableAIDataAnalysis=1 policy: turns off the Recall feature that periodically screenshots your activity on Copilot\u002B PCs.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-suggestions",
+    "name": "Disable suggestions \u0026 silent app installs",
+    "description": "No \u0027suggested content\u0027 in Start/Settings/lock screen, no tips notifications, and no auto-installing \u0027recommended\u0027 apps from the Store.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-tailored",
+    "name": "Disable tailored experiences",
+    "description": "Stops Microsoft from using your diagnostic data to personalise tips, ads and recommendations shown in Windows.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-web-search",
+    "name": "Disable web results in Start search",
+    "description": "Start search becomes local-only: no Bing queries, no web suggestions, no cloud content. Noticeably faster and no keystrokes leave the PC.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-reserved-storage-off",
+    "name": "Free up reserved storage",
+    "description": "Frees the several GB Windows reserves for updates. Updates still need free space, so keep some. Revert restores the reserve.",
+    "category": "Privacy",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-explorer-recent",
+    "name": "Hide recent \u0026 frequent folders",
+    "description": "Clears the \u0027Recent files\u0027 and \u0027Frequent folders\u0027 lists from Explorer\u0027s Home and Quick Access (ShowRecent=0, ShowFrequent=0, Start_TrackDocs=0).",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-clipboard-sync",
+    "name": "Keep clipboard history on this PC",
+    "description": "Stops the clipboard from syncing to your Microsoft account and from uploading copied items. Local copy and paste keeps working.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-onedrive-remove",
+    "name": "Remove OneDrive",
+    "description": "Runs the bundled OneDriveSetup.exe /uninstall: removes the OneDrive app from this machine and stops it from starting with Windows. Files in your OneDrive folder are not deleted. Reverting reinstalls the app, and you sign in again.",
+    "category": "Privacy",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-telemetry",
+    "name": "Set telemetry to minimum",
+    "description": "AllowTelemetry=0 policy. On Pro\u002B this is \u0027Security level\u0027 (minimal); on Home it reduces to the required-data minimum. Stacks with disabling DiagTrack.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-edge-first-run",
+    "name": "Skip Edge first run and preload",
+    "description": "Hides the Edge welcome flow and stops the browser from staying in memory after you close it.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-app-tracking",
+    "name": "Stop app-launch tracking",
+    "description": "Start_TrackProgs=0: Windows stops recording which programs you launch to \u0027improve\u0027 Start and search results.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-device-metadata-off",
+    "name": "Stop device metadata downloads",
+    "description": "Stops Windows downloading vendor apps and metadata for connected devices. Revert allows it again.",
+    "category": "Privacy",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-settings-suggestions",
+    "name": "Stop suggested content in Settings",
+    "description": "Removes the promotional cards and app suggestions Windows shows on the Settings home page.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "priv-typing-insights",
+    "name": "Turn off typing insights",
+    "description": "Stops Windows from collecting a local sample of what you type to improve suggestions and autocorrect.",
+    "category": "Privacy",
+    "risk": "Safe",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "power-fast-startup-off",
+    "name": "Disable Fast Startup",
+    "description": "HiberbootEnabled=0: a real shutdown instead of a hybrid hibernate. Fixes \u0027my settings reset\u0027 and dual-boot/update weirdness, and makes driver changes actually take effect on boot.",
+    "category": "Power",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "power-hibernation-off",
+    "name": "Disable hibernation",
+    "description": "Runs \u0027powercfg /h off\u0027: deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected.",
+    "category": "Power",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": false
+  },
+  {
+    "id": "power-throttling-off",
+    "name": "Disable power throttling (EcoQoS)",
+    "description": "PowerThrottlingOff=1: stops Windows from silently capping background processes to low-power cores/efficiency mode. Useful for encode, compile and stream workloads; costs a little battery.",
+    "category": "Power",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": true
+  },
+  {
+    "id": "power-boost-mode",
+    "name": "Keep the CPU in boost mode",
+    "description": "Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat.",
+    "category": "Power",
+    "risk": "Advanced",
+    "weight": 2,
+    "requiresReboot": false
+  },
+  {
+    "id": "power-usb-selective-suspend-off",
+    "name": "Keep USB devices awake",
+    "description": "Stops Windows from suspending USB ports to save power. Fixes controllers, audio interfaces and external drives that drop out or need a replug.",
+    "category": "Power",
+    "risk": "Recommended",
+    "weight": 1,
+    "requiresReboot": true
+  },
+  {
+    "id": "power-ultimate",
+    "name": "Ultimate Performance power plan",
+    "description": "Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it.",
+    "category": "Power",
+    "risk": "Recommended",
+    "weight": 3,
+    "requiresReboot": false
+  },
+  {
+    "id": "power-modern-standby-off",
+    "name": "Use classic sleep instead of Modern Standby",
+    "description": "Forces the S3 sleep state on machines that support it. Classic sleep resumes faster and keeps network and audio devices working after wake.",
+    "category": "Power",
+    "risk": "Advanced",
+    "weight": 1,
+    "requiresReboot": true
+  }
+]
