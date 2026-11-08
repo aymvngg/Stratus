@@ -26,7 +26,11 @@ public sealed partial class InstallPage : Page
 
     private async void OnRefresh(object sender, RoutedEventArgs e) => await VM.RefreshAsync();
 
-    private async void OnUpgradeAll(object sender, RoutedEventArgs e) => await VM.UpgradeAllAsync();
+    private async void OnUpgradeAll(object sender, RoutedEventArgs e)
+    {
+        var outcome = await VM.UpgradeAllAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
+    }
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
     {

@@ -117,7 +117,7 @@ public static class TweakCatalog
         { Weight = 2, Risk = RiskLevel.Safe });
 
         tweaks.Add(new RegistryTweak("visualfx-performance", "Performance visual effects",
-            "Sets 'Best performance' visual effects: disables window/taskbar animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).",
+            "Sets 'Best performance' visual effects: disables window animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).",
             TweakCategory.Visuals, reg,
             new[]
             {
@@ -125,7 +125,6 @@ public static class TweakCatalog
                 RegistryAction.SetBinary(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects", "UserPreferencesMask",
                     [0x90, 0x12, 0x03, 0x80, 0x10, 0x00, 0x00, 0x00],
                     [0x9E, 0x3E, 0x07, 0x80, 0x12, 0x00, 0x00, 0x00]),
-                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", 0, 1),
                 RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ListviewAlphaSelect", 0, 1),
                 RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ListviewShadow", 0, 1)
             })
@@ -616,8 +615,6 @@ public static class TweakCatalog
             TweakCategory.Privacy, reg,
             new[]
             {
-                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Search", "BingSearchEnabled", 0, 1),
-                RegistryAction.SetDword(RegistryHive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Search", "CortanaConsent", 0, 1),
                 RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\Windows Search", "DisableWebSearch", 1, 0),
                 RegistryAction.SetDword(RegistryHive.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\Windows Search", "ConnectedSearchUseWeb", 0, 1)
             })
@@ -792,27 +789,27 @@ public static class TweakCatalog
 
         // ---------------- Power ----------------
 
+        var boost = new PowerBoostTweak(reg);
+
         tweaks.Add(new DelegateTweak(
             "power-ultimate", "Ultimate Performance power plan",
-            "Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it.",
+            "Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it. Revert restores the plan that was active before.",
             TweakCategory.Power,
             () => power.UltimateIsActive(settings),
-            () => power.ActivateUltimate(settings) is not null
-                ? TweakResult.Ok
-                : TweakResult.Fail("powercfg could not create/activate the plan."),
-            () => power.SetBalanced() ? TweakResult.Ok : TweakResult.Fail("Could not re-activate Balanced."))
+            () => ActivateUltimatePlan(power, settings, backup),
+            () => RestoreActivePowerPlan(power, backup))
         { Weight = 3, Risk = RiskLevel.Recommended });
 
         tweaks.Add(new DelegateTweak(
             "power-hibernation-off", "Disable hibernation",
-            "Runs 'powercfg /h off': deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected.",
+            "Runs 'powercfg /h off': deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected. Revert restores the saved hibernation state.",
             TweakCategory.Power,
             // Registry, not "powercfg /a" text: that output is localized, so the English marker
-            // never matched on a French or otherwise localized Windows.
-            () => reg.ValueEquals(RegistryHive.LocalMachine,
-                @"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", RegistryValueKind.DWord, 0),
-            () => ProcessRunner.Run("powercfg.exe", "/h off").Success ? TweakResult.Ok : TweakResult.Fail("powercfg /h off failed."),
-            () => ProcessRunner.Run("powercfg.exe", "/h on").Success ? TweakResult.Ok : TweakResult.Fail("powercfg /h on failed."))
+            // never matched on a French or otherwise localized Windows. A failed read throws so
+            // the score reports unknown state instead of counting hibernation as not applied.
+            () => HibernateIsOff(reg),
+            () => SetHibernation(false, reg),
+            () => SetHibernation(true, reg))
         { Weight = 1, Risk = RiskLevel.Advanced });
 
         tweaks.Add(new RegistryTweak("power-fast-startup-off", "Disable Fast Startup",
@@ -852,40 +849,170 @@ public static class TweakCatalog
         { Weight = 1, Risk = RiskLevel.Advanced, RequiresReboot = true });
 
         tweaks.Add(new DelegateTweak("power-boost-mode", "Keep the CPU in boost mode",
-            "Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat.",
+            "Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat. Revert restores the saved boost mode.",
             TweakCategory.Power,
-            () => ProcessRunner.Run("powercfg.exe", "/query SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE", 10_000)
-                .StdOut.Contains("0x00000002", StringComparison.OrdinalIgnoreCase),
-            () =>
-            {
-                var ac = ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
-                var dc = ProcessRunner.Run("powercfg.exe", "/setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
-                if (!ac.Success)
-                    return TweakResult.Fail($"powercfg setacvalueindex failed with exit code {ac.ExitCode}: {ac.StdErr.Trim()}");
-                if (!dc.Success)
-                    return TweakResult.Fail($"powercfg setdcvalueindex failed with exit code {dc.ExitCode}: {dc.StdErr.Trim()}");
-                var active = ProcessRunner.Run("powercfg.exe", "/setactive SCHEME_CURRENT", 10_000);
-                return active.Success
-                    ? TweakResult.Ok
-                    : TweakResult.Fail("powercfg could not update the active plan.");
-            },
-            () =>
-            {
-                // 2 is the Windows factory default (Aggressive).
-                var ac = ProcessRunner.Run("powercfg.exe", "/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
-                var dc = ProcessRunner.Run("powercfg.exe", "/setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2", 10_000);
-                if (!ac.Success)
-                    return TweakResult.Fail($"powercfg setacvalueindex failed with exit code {ac.ExitCode}: {ac.StdErr.Trim()}");
-                if (!dc.Success)
-                    return TweakResult.Fail($"powercfg setdcvalueindex failed with exit code {dc.ExitCode}: {dc.StdErr.Trim()}");
-                var active = ProcessRunner.Run("powercfg.exe", "/setactive SCHEME_CURRENT", 10_000);
-                return active.Success
-                    ? TweakResult.Ok
-                    : TweakResult.Fail("powercfg could not update the active plan.");
-            })
+            () => boost.IsApplied(),
+            () => boost.Apply(),
+            () => boost.Revert())
         { Weight = 2, Risk = RiskLevel.Advanced });
 
         return tweaks;
+    }
+
+    /// <summary>Saved before the first Ultimate activation so revert can restore the previous plan.</summary>
+    private const string PowerPlanTweakId = "power-ultimate";
+
+    private const string HibernationTweakId = "power-hibernation-off";
+
+    /// <summary>Scope type for values that are not a single registry value or service.</summary>
+    private const string PowerScope = "power";
+
+    /// <summary>Registry value Windows keeps in step with 'powercfg /h'.</summary>
+    private const string HibernateKey = @"SYSTEM\CurrentControlSet\Control\Power";
+
+    /// <summary>Key Windows exposes per plan and setting, used to read state without localized text.</summary>
+    internal const string PowerSchemesKey = @"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes";
+
+    private static TweakResult ActivateUltimatePlan(PowerPlanService power, SettingsStore settings, IBackupStore backup)
+    {
+        try
+        {
+            // Saved before the switch, so a revert can go back to the plan the user actually had.
+            var active = power.GetActivePlan();
+            var added = false;
+            if (active is not null)
+            {
+                added = backup.TryAddOriginal(new BackupEntry
+                {
+                    TweakId = PowerPlanTweakId,
+                    ScopeType = PowerScope,
+                    ScopeId = "active-plan",
+                    Key = "PlanGuid",
+                    ValueJson = active.Guid.ToString("D"),
+                    Existed = true
+                });
+            }
+
+            var result = power.ActivateUltimate(settings) is not null
+                ? TweakResult.Ok
+                : TweakResult.Fail("powercfg could not create/activate the plan.");
+
+            if (!result.Success && added)
+            {
+                // Nothing was switched, so a freshly saved original would restore a plan the
+                // machine never left. Drop it, the same way a failed registry write does.
+                backup.RemoveOne(PowerPlanTweakId, PowerScope, "active-plan", "PlanGuid");
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Activating the Ultimate Performance plan failed", ex);
+            return TweakResult.Fail(ex.Message);
+        }
+    }
+
+    private static TweakResult RestoreActivePowerPlan(PowerPlanService power, IBackupStore backup)
+    {
+        try
+        {
+            var saved = backup.GetLatest(PowerPlanTweakId, PowerScope, "active-plan", "PlanGuid");
+            if (saved?.ValueJson is { } text && Guid.TryParse(text, out var guid))
+            {
+                if (!power.SetActive(guid))
+                    return TweakResult.Fail("Could not re-activate the plan that was active before. The saved plan was kept.");
+
+                backup.RemoveOne(PowerPlanTweakId, PowerScope, "active-plan", "PlanGuid");
+                return TweakResult.Ok;
+            }
+
+            // A machine only ends up here when the save of the previous plan itself failed.
+            return power.SetBalanced()
+                ? TweakResult.Ok
+                : TweakResult.Fail("Could not re-activate Balanced.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restoring the previous power plan failed", ex);
+            return TweakResult.Fail(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// The probe is false only when the value is present and enabled; an absent value reads as
+    /// off-by-default, matching "powercfg /h off already run". A failed read throws so the
+    /// score reports unknown state instead of guessing.
+    /// </summary>
+    private static bool HibernateIsOff(RegistryService registry)
+    {
+        var read = registry.ReadRequired(RegistryHive.LocalMachine, HibernateKey, "HibernateEnabled");
+        return read.Exists && Convert.ToInt64(read.Value, System.Globalization.CultureInfo.InvariantCulture) == 0;
+    }
+
+    /// <summary>
+    /// Saves HibernateEnabled once, then runs powercfg. The saved value survives a repeat apply
+    /// so a machine that shipped with hibernation off is not switched back on by a default.
+    /// </summary>
+    private static TweakResult SetHibernation(bool enabled, RegistryService registry) =>
+        SetHibernation(enabled, registry, arguments => ProcessRunner.Run("powercfg.exe", arguments));
+
+    internal static TweakResult SetHibernation(bool enabled, RegistryService registry, Func<string, ProcessResult> run)
+    {
+        try
+        {
+            var saved = registry.SavedOriginal(HibernationTweakId, PowerScope, "hibernation", "HibernateEnabled");
+
+            if (!enabled)
+            {
+                var added = false;
+                if (saved is null)
+                {
+                    // ReadRequired: an unreadable value must stop the change, not be silently
+                    // recorded as "off", which would let a later revert keep hibernation off.
+                    var current = registry.ReadRequired(RegistryHive.LocalMachine, HibernateKey, "HibernateEnabled");
+                    added = registry.SaveOriginal(new BackupEntry
+                    {
+                        TweakId = HibernationTweakId,
+                        ScopeType = PowerScope,
+                        ScopeId = "hibernation",
+                        Key = "HibernateEnabled",
+                        ValueJson = current.Exists && Convert.ToInt64(current.Value, System.Globalization.CultureInfo.InvariantCulture) == 1 ? "1" : "0",
+                        Existed = true
+                    });
+                }
+
+                var off = run("/h off");
+                if (off.Success)
+                    return TweakResult.Ok;
+
+                // Hibernation did not change, so an original saved just now would only make a
+                // later revert turn on a feature the machine never had.
+                if (added)
+                    registry.RemoveSavedOriginal(HibernationTweakId, PowerScope, "hibernation", "HibernateEnabled");
+
+                return TweakResult.Fail($"powercfg /h off failed with exit code {off.ExitCode}.");
+            }
+
+            var target = saved?.ValueJson switch
+            {
+                "0" => false,
+                "1" => true,
+                _ => true
+            };
+            var on = run(target ? "/h on" : "/h off");
+            if (!on.Success)
+                return TweakResult.Fail($"powercfg {(target ? "/h on" : "/h off")} failed with exit code {on.ExitCode}. The saved state was kept.");
+
+            // The original is back, so a later apply saves the state fresh.
+            registry.RemoveSavedOriginal(HibernationTweakId, PowerScope, "hibernation", "HibernateEnabled");
+            return TweakResult.Ok;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Changing hibernation failed", ex);
+            return TweakResult.Fail(ex.Message);
+        }
     }
 
     /// <summary>OneDrive counts as removed when its exe is gone from both per-machine and per-user install roots.</summary>
@@ -909,5 +1036,138 @@ public static class TweakCatalog
 
         var system32 = Path.Combine(windows, "System32", "OneDriveSetup.exe");
         return File.Exists(system32) ? system32 : null;
+    }
+}
+
+/// <summary>
+/// Sets the processor performance boost mode for the active plan. State is read from the
+/// registry under the active scheme GUID, because the labels in powercfg's output are
+/// localized; powercfg refreshes the plan after its saved values change.
+/// </summary>
+internal sealed class PowerBoostTweak
+{
+    private const string TweakId = "power-boost-mode";
+    private const string ProcessorSubgroup = "54533251-82be-4824-96c1-47b60b740d00";
+    private const string BoostSetting = "be337238-0d82-4146-a960-4f3749d470c7";
+
+    private readonly RegistryService _registry;
+    private readonly Func<string, ProcessResult> _run;
+    private readonly RegistryHive _hive;
+    private readonly string _schemesRoot;
+
+    public PowerBoostTweak(RegistryService registry)
+        : this(registry, arguments => ProcessRunner.Run("powercfg.exe", arguments), RegistryHive.LocalMachine, TweakCatalog.PowerSchemesKey)
+    {
+    }
+
+    internal PowerBoostTweak(RegistryService registry, Func<string, ProcessResult> run,
+        RegistryHive hive, string schemesRoot)
+    {
+        _registry = registry;
+        _run = run;
+        _hive = hive;
+        _schemesRoot = schemesRoot;
+    }
+
+    private string? ActiveSettingPath()
+    {
+        var active = _registry.Read(_hive, _schemesRoot, "ActivePowerScheme");
+        if (active.ReadFailed)
+            throw new RegistryReadException("The active power plan could not be read.");
+
+        return active.Value is string guid && Guid.TryParse(guid, out _)
+            ? $@"{_schemesRoot}\{guid}\{ProcessorSubgroup}\{BoostSetting}"
+            : null;
+    }
+
+    /// <summary>
+    /// Reads the AC and DC boost indices. False means there is no active scheme GUID, so the
+    /// state is a normal "not applied". A failed read throws so the probe reports unknown
+    /// state instead of counting the tweak as not applied.
+    /// </summary>
+    internal bool TryReadCurrent(out int? ac, out int? dc)
+    {
+        ac = null;
+        dc = null;
+
+        var path = ActiveSettingPath();
+        if (path is null)
+            return false;
+
+        int? Read(string name)
+        {
+            var value = _registry.Read(_hive, path, name);
+            if (value.ReadFailed)
+                throw new RegistryReadException($"Could not read {name}.");
+
+            return value.Exists && value.Value is not null
+                ? Convert.ToInt32(value.Value, System.Globalization.CultureInfo.InvariantCulture)
+                : null;
+        }
+
+        ac = Read("ACSettingIndex");
+        dc = Read("DCSettingIndex");
+        return true;
+    }
+
+    public bool IsApplied()
+    {
+        if (!TryReadCurrent(out var ac, out var dc))
+            return false;
+
+        return ac == 2 && dc == 2;
+    }
+
+    public TweakResult Apply()
+    {
+        try
+        {
+            if (!TryReadCurrent(out _, out _))
+                return TweakResult.Fail("The processor boost mode could not be read, so it was not changed.");
+
+            var path = ActiveSettingPath()!;
+            var attempt = _registry.BeginAttempt(TweakId);
+            try
+            {
+                attempt.Write(_hive, path, "ACSettingIndex", RegistryValueKind.DWord, 2);
+                attempt.Write(_hive, path, "DCSettingIndex", RegistryValueKind.DWord, 2);
+                var scheme = path[(_schemesRoot.Length + 1)..].Split('\\')[0];
+                if (!_run("/setactive " + scheme).Success)
+                    throw new InvalidOperationException("powercfg could not update the active plan.");
+                attempt.Commit();
+            }
+            catch
+            {
+                attempt.Rollback();
+                throw;
+            }
+
+            return TweakResult.Ok;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Applying the processor boost mode failed", ex);
+            return TweakResult.Fail(ex.Message);
+        }
+    }
+
+    public TweakResult Revert()
+    {
+        try
+        {
+            if (!_registry.HasBackups(TweakId))
+            {
+                return TweakResult.Fail("No saved processor boost original was found, so the setting was not changed.");
+            }
+
+            return _registry.RestoreAll(TweakId, () => _run("/setactive SCHEME_CURRENT").Success)
+                ? TweakResult.Ok
+                : TweakResult.Fail("The boost values or active plan could not be restored. Saved originals remain available for retry.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Reverting the processor boost mode failed", ex);
+            return TweakResult.Fail(ex.Message);
+        }
     }
 }

@@ -182,7 +182,7 @@
   {
     "id": "visualfx-performance",
     "name": "Performance visual effects",
-    "description": "Sets \u0027Best performance\u0027 visual effects: disables window/taskbar animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).",
+    "description": "Sets \u0027Best performance\u0027 visual effects: disables window animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).",
     "category": "Visuals",
     "risk": "Recommended",
     "weight": 3,
@@ -776,7 +776,7 @@
   {
     "id": "power-hibernation-off",
     "name": "Disable hibernation",
-    "description": "Runs \u0027powercfg /h off\u0027: deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected.",
+    "description": "Runs \u0027powercfg /h off\u0027: deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected. Revert restores the saved hibernation state.",
     "category": "Power",
     "risk": "Advanced",
     "weight": 1,
@@ -794,7 +794,7 @@
   {
     "id": "power-boost-mode",
     "name": "Keep the CPU in boost mode",
-    "description": "Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat.",
+    "description": "Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat. Revert restores the saved boost mode.",
     "category": "Power",
     "risk": "Advanced",
     "weight": 2,
@@ -812,7 +812,7 @@
   {
     "id": "power-ultimate",
     "name": "Ultimate Performance power plan",
-    "description": "Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it.",
+    "description": "Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it. Revert restores the plan that was active before.",
     "category": "Power",
     "risk": "Recommended",
     "weight": 3,

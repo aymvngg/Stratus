@@ -16,31 +16,30 @@ public static class NagleTweak
     private static List<string> GetEligibleInterfaces(RegistryService registry)
     {
         var result = new List<string>();
-        try
+
+        // Enumeration and value failures propagate: a probe that cannot read a value is
+        // unknown state, not "not applied". Apply refuses on the same reads.
+        using var key = Registry.LocalMachine.OpenSubKey(InterfacesRoot);
+        if (key is null)
+            return result;
+
+        foreach (var sub in key.GetSubKeyNames())
         {
-            using var key = Registry.LocalMachine.OpenSubKey(InterfacesRoot);
-            if (key is null)
-                return result;
+            var path = $@"{InterfacesRoot}\{sub}";
+            var ip = registry.ReadRequired(RegistryHive.LocalMachine, path, "IPAddress");
+            var dhcp = registry.ReadRequired(RegistryHive.LocalMachine, path, "DhcpIPAddress");
 
-            foreach (var sub in key.GetSubKeyNames())
+            var hasStatic = ip.Exists && ip.Value is string[] arr && arr.Any(s => !string.IsNullOrEmpty(s) && s != "0.0.0.0");
+            var hasDhcp = dhcp.Exists && dhcp.Value is string s2 && !string.IsNullOrEmpty(s2) && s2 != "0.0.0.0";
+
+            if (hasStatic || hasDhcp)
             {
-                var path = $@"{InterfacesRoot}\{sub}";
-                var ip = registry.Read(RegistryHive.LocalMachine, path, "IPAddress");
-                var dhcp = registry.Read(RegistryHive.LocalMachine, path, "DhcpIPAddress");
-
-                var hasStatic = ip.Exists && ip.Value is string[] arr && arr.Any(s => !string.IsNullOrEmpty(s) && s != "0.0.0.0");
-                var hasDhcp = dhcp.Exists && dhcp.Value is string s2 && !string.IsNullOrEmpty(s2) && s2 != "0.0.0.0";
-
-                if (hasStatic || hasDhcp)
-                {
-                    // Skip loopback.
-                    if (ip.Value is string[] a2 && a2.Contains("127.0.0.1"))
-                        continue;
-                    result.Add(path);
-                }
+                // Skip loopback.
+                if (ip.Value is string[] a2 && a2.Contains("127.0.0.1"))
+                    continue;
+                result.Add(path);
             }
         }
-        catch { /* best effort */ }
 
         return result;
     }
@@ -49,43 +48,50 @@ public static class NagleTweak
     {
         var ifaces = GetEligibleInterfaces(registry);
         return ifaces.Count > 0 && ifaces.All(p =>
-            registry.ValueEquals(RegistryHive.LocalMachine, p, "TcpAckFrequency", RegistryValueKind.DWord, 1) &&
-            registry.ValueEquals(RegistryHive.LocalMachine, p, "TCPNoDelay", RegistryValueKind.DWord, 1));
+            ValueIs(registry, p, "TcpAckFrequency", 1) &&
+            ValueIs(registry, p, "TCPNoDelay", 1));
     }
 
+    /// <summary>False when the value is absent or differs; a failed read throws as unknown.</summary>
+    private static bool ValueIs(RegistryService registry, string path, string name, long expected)
+    {
+        var read = registry.ReadRequired(RegistryHive.LocalMachine, path, name);
+        return read.Exists && read.Kind == RegistryValueKind.DWord
+            && Convert.ToInt64(read.Value, System.Globalization.CultureInfo.InvariantCulture) == expected;
+    }
+
+    /// <summary>
+    /// Writes every interface inside one attempt. A failure on the fifth value puts the first four
+    /// back, so the machine is never left with Nagle disabled on only some interfaces.
+    /// </summary>
     public static TweakResult Apply(RegistryService registry)
     {
+        var ifaces = GetEligibleInterfaces(registry);
+        if (ifaces.Count == 0)
+            return TweakResult.Fail("No active network interfaces found.");
+
+        var attempt = registry.BeginAttempt(TweakId);
         try
         {
-            var ifaces = GetEligibleInterfaces(registry);
-            if (ifaces.Count == 0)
-                return TweakResult.Fail("No active network interfaces found.");
-
             foreach (var path in ifaces)
             {
-                WriteIfChanged(registry, path, "TcpAckFrequency");
-                WriteIfChanged(registry, path, "TCPNoDelay");
+                attempt.Write(RegistryHive.LocalMachine, path, "TcpAckFrequency", RegistryValueKind.DWord, 1);
+                attempt.Write(RegistryHive.LocalMachine, path, "TCPNoDelay", RegistryValueKind.DWord, 1);
             }
+
+            attempt.Commit();
             return TweakResult.Ok;
         }
         catch (Exception ex)
         {
-            return TweakResult.Fail(ex.Message);
+            // The attempt refuses to save an original it could not read, so an interface with an
+            // unreadable value stops the whole change and the earlier interfaces are rolled back.
+            var rolledBack = attempt.Rollback();
+            Log.Warn($"Applying Nagle failed: {ex.Message}");
+            return TweakResult.Fail(rolledBack
+                ? ex.Message
+                : ex.Message + " The half-finished interface changes could not be rolled back; see the Stratus log.");
         }
-    }
-
-    /// <summary>
-    /// First writer wins: when a value is already at the target (a previous run of this tweak,
-    /// or a default that equals the target) it is left untouched, so re-applying never replaces
-    /// the stored backup of the original state with already-tweaked values.
-    /// </summary>
-    private static void WriteIfChanged(RegistryService registry, string path, string name)
-    {
-        var current = registry.Read(RegistryHive.LocalMachine, path, name);
-        if (current.Exists && RegistryService.ValuesEqual(RegistryValueKind.DWord, current.Value, 1))
-            return;
-
-        registry.WriteValue(RegistryHive.LocalMachine, path, name, RegistryValueKind.DWord, 1, TweakId);
     }
 
     public static TweakResult Revert(RegistryService registry)
@@ -99,6 +105,7 @@ public static class NagleTweak
         }
         catch (Exception ex)
         {
+            Log.Error("Reverting Nagle failed", ex);
             return TweakResult.Fail(ex.Message);
         }
     }

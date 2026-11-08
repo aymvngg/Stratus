@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml.Controls;
+using Stratus.Core.Coordination;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
 
@@ -152,7 +153,26 @@ public sealed class StartupViewModel : ObservableObject
 
     public async Task RefreshAsync()
     {
+        if (IsBusy)
+        {
+            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
+            return;
+        }
+
         IsBusy = true;
+        try
+        {
+            await RefreshCoreAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Loads the startup entries without claiming the busy state, for callers that already own it.</summary>
+    private async Task RefreshCoreAsync()
+    {
         try
         {
             var items = await Task.Run(() => AppServices.Startup.Scan());
@@ -181,10 +201,6 @@ public sealed class StartupViewModel : ObservableObject
         {
             Log.Warn("Startup scan failed: " + ex.Message);
             ShowStatus($"Could not read the startup entries: {ex.Message}", InfoBarSeverity.Warning);
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -233,30 +249,52 @@ public sealed class StartupViewModel : ObservableObject
     }
 
     /// <summary>Applies one state to every entry in a scope. Used by the per-group buttons.</summary>
-    public async Task<string> SetScopeAsync(string scope, bool enabled)
+    public async Task<OperationOutcome> SetScopeAsync(string scope, bool enabled)
     {
         var rows = Rows
             .Where(r => string.Equals(r.ScopeText, scope, StringComparison.OrdinalIgnoreCase))
             .ToList();
         if (rows.Count == 0)
-            return $"No startup entries are registered for {scope.ToLowerInvariant()}.";
+            return OperationOutcome.Warning($"No startup entries are registered for {scope.ToLowerInvariant()}.");
 
-        var changed = 0;
-        foreach (var row in rows)
+        if (IsBusy)
+            return OperationOutcome.Warning("Another operation is still running.");
+
+        IsBusy = true;
+        try
         {
-            if (row.IsEnabled == enabled)
-                continue;
+            var attempted = 0;
+            var changed = 0;
+            var failed = 0;
+            foreach (var row in rows)
+            {
+                if (row.IsEnabled == enabled)
+                    continue;
 
-            if (await SetEnabledAsync(row, enabled))
-                changed++;
+                attempted++;
+                if (await SetEnabledAsync(row, enabled))
+                    changed++;
+                else
+                    failed++;
+            }
+
+            var label = scope.ToLowerInvariant();
+            var noun = attempted == 1 ? "entry" : "entries";
+            if (attempted == 0)
+                return OperationOutcome.Info($"Every {label} {noun} is already {(enabled ? "enabled" : "disabled")}.");
+            if (failed == attempted)
+                return OperationOutcome.Error(
+                    $"Could not change any of the {attempted} {label} {noun}. See the failures above.");
+            if (failed > 0)
+                return OperationOutcome.Warning(
+                    $"{(enabled ? "Enabled" : "Disabled")} {changed} of {attempted} {label} {noun}; {failed} failed.");
+
+            return OperationOutcome.Success($"{(enabled ? "Enabled" : "Disabled")} {changed} of {attempted} {label} {noun}.");
         }
-
-        var label = scope.ToLowerInvariant();
-        var noun = rows.Count == 1 ? "entry" : "entries";
-        if (changed == 0)
-            return $"Every {label} {noun} is already {(enabled ? "enabled" : "disabled")}.";
-
-        return $"{(enabled ? "Enabled" : "Disabled")} {changed} of {rows.Count} {label} {noun}.";
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     /// <summary>Opens Explorer with the entry's executable selected.</summary>
@@ -282,22 +320,36 @@ public sealed class StartupViewModel : ObservableObject
         }
     }
 
-    public async Task<string> ResetAllAsync()
+    public async Task<OperationOutcome> ResetAllAsync()
     {
+        if (IsBusy)
+            return OperationOutcome.Warning("Another operation is still running.");
+
         IsBusy = true;
         try
         {
-            var restored = await Task.Run(() => AppServices.Startup.ResetAll());
-            await RefreshAsync();
+            var (restored, failed) = await Task.Run(() => AppServices.Startup.ResetAllDetailed());
+            await RefreshCoreAsync();
+
+            if (failed > 0)
+            {
+                // A partial reset must not read as total success: failed entries keep their
+                // saved state, so another reset can retry them.
+                return restored == 0
+                    ? OperationOutcome.Error(
+                        $"None of the {failed} changed startup entr{(failed == 1 ? "y" : "ies")} could be restored. Their saved states remain available for retry.")
+                    : OperationOutcome.Warning(
+                        $"Reset {restored} startup {(restored == 1 ? "entry" : "entries")}; {failed} could not be restored. Their saved states remain available for retry.");
+            }
 
             return restored == 0
-                ? "No startup changes to reset."
-                : $"Reset {restored} startup {(restored == 1 ? "entry" : "entries")} to the previous state.";
+                ? OperationOutcome.Info("No startup changes to reset.")
+                : OperationOutcome.Success($"Reset {restored} startup {(restored == 1 ? "entry" : "entries")} to the previous state.");
         }
         catch (Exception ex)
         {
             Log.Error("Resetting the startup entries failed", ex);
-            return $"Could not reset the startup entries: {ex.Message}";
+            return OperationOutcome.Error($"Could not reset the startup entries: {ex.Message}");
         }
         finally
         {

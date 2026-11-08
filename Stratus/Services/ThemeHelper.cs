@@ -29,7 +29,16 @@ public static class ThemeHelper
     /// <summary>Called at startup and whenever the preference changes. Also reacts to system theme changes.</summary>
     public static void ApplyToWindow()
     {
-        if (App.Window is not { } window || window.Content is not FrameworkElement root)
+        if (App.Window is not { } window)
+            return;
+
+        ApplyToWindow(window);
+    }
+
+    /// <summary>Applies the persisted theme to a window that is not registered yet.</summary>
+    public static void ApplyToWindow(MainWindow window)
+    {
+        if (window.Content is not FrameworkElement root)
             return;
 
         root.RequestedTheme = GetMode() switch

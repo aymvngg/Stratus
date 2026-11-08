@@ -14,25 +14,32 @@ public static class ReportService
     {
         Directory.CreateDirectory(AppPaths.ReportsDir);
         var path = Path.Combine(AppPaths.ReportsDir, $"stratus-report-{DateTime.Now:yyyyMMdd-HHmmss}.md");
+        File.WriteAllText(path, Render(report, summary, SystemInfoService.RebootPending(), DateTime.Now), Encoding.UTF8);
+        Log.Info($"System report written to {path}");
+        return path;
+    }
 
+    internal static string Render(ScoreReport report, SystemSummary summary, bool rebootPending, DateTime generatedAt)
+    {
         var applied = report.States.Where(s => s.IsApplicable && s.IsApplied).ToList();
         var pending = report.States
-            .Where(s => s.IsApplicable && !s.IsApplied && s.Tweak.Risk <= RiskLevel.Recommended)
+            .Where(s => s.IsApplicable && !s.IsApplied && s.ReadError is null && s.Tweak.Risk <= RiskLevel.Recommended)
             .ToList();
-        var notApplicable = report.States.Count(s => !s.IsApplicable);
+        var notApplicable = report.States.Count(s => !s.IsApplicable && s.ReadError is null);
+        var unknown = report.States.Where(s => s.ReadError is not null).ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine("# Stratus system report");
         sb.AppendLine();
-        sb.AppendLine($"Generated {DateTime.Now:yyyy-MM-dd HH:mm} on this machine.");
+        sb.AppendLine($"Generated {generatedAt:yyyy-MM-dd HH:mm} on this machine.");
         sb.AppendLine();
         sb.AppendLine("## Score");
         sb.AppendLine();
-        sb.AppendLine($"- Score: **{report.Score}/100** ({report.StatusText})");
+        sb.AppendLine($"- Score: **{report.ScoreText}/100** ({report.StatusText})");
         sb.AppendLine($"- Weight earned: {report.AppliedWeight} of {report.TotalWeight}");
         sb.AppendLine($"- Tweaks applied: {report.AppliedCount} of {report.TotalCount} applicable");
         sb.AppendLine($"- Not applicable on this machine: {notApplicable}");
-        sb.AppendLine($"- Restart pending: {(SystemInfoService.RebootPending() ? "yes" : "no")}");
+        sb.AppendLine($"- Restart pending: {(rebootPending ? "yes" : "no")}");
         sb.AppendLine();
         sb.AppendLine("## System");
         sb.AppendLine();
@@ -61,17 +68,26 @@ public static class ReportService
         sb.AppendLine("## Pending safe and recommended tweaks");
         sb.AppendLine();
         if (pending.Count == 0)
-            sb.AppendLine("None. Every safe and recommended tweak is applied.");
+            sb.AppendLine(unknown.Count > 0
+                ? "None of the tweaks that could be read. Some states could not be read, so this may not be complete."
+                : "None. Every safe and recommended tweak is applied.");
         foreach (var state in pending)
             sb.AppendLine($"- {state.Tweak.Name} ({state.Tweak.Category}, {state.Tweak.Risk})");
+
+        if (unknown.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Could not read");
+            sb.AppendLine();
+            foreach (var state in unknown)
+                sb.AppendLine($"- {state.Tweak.Name} ({state.Tweak.Category}): {state.ReadError}");
+        }
 
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
-        sb.AppendLine("Every change Stratus makes is backed up. Undo it from the History page.");
+        sb.AppendLine("Reversible tweaks use saved originals when available. Cleanup deletions cannot be undone.");
 
-        File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-        Log.Info($"System report written to {path}");
-        return path;
+        return sb.ToString();
     }
 }

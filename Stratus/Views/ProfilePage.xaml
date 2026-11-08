@@ -123,7 +123,8 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Apply profile" Style="{StaticResource AccentButtonStyle}" Click="OnApply"
                                     IsEnabled="{x:Bind VM.CanApply, Mode=OneWay}"/>
-                            <Button Content="Cancel" Click="OnCancel"/>
+                            <Button Content="Cancel" Click="OnCancel"
+                                    IsEnabled="{x:Bind VM.CanCancel, Mode=OneWay}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

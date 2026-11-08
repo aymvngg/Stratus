@@ -32,13 +32,8 @@ public sealed partial class StartupPage : Page
         if ((sender as FrameworkElement)?.Tag is not string scope)
             return;
 
-        var message = await VM.SetScopeAsync(scope, enabled: false);
-        var severity = message.StartsWith("No startup entries", StringComparison.OrdinalIgnoreCase)
-            ? InfoBarSeverity.Warning
-            : message.Contains("already", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Informational
-                : InfoBarSeverity.Success;
-        VM.ShowStatus(message, severity);
+        var outcome = await VM.SetScopeAsync(scope, enabled: false);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnOpenLocation(object sender, RoutedEventArgs e)
@@ -67,13 +62,8 @@ public sealed partial class StartupPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ResetAllAsync();
-        var severity = message.StartsWith("Could not", StringComparison.OrdinalIgnoreCase)
-            ? InfoBarSeverity.Error
-            : message.StartsWith("No startup changes", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Informational
-                : InfoBarSeverity.Success;
-        VM.ShowStatus(message, severity);
+        var outcome = await VM.ResetAllAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnToggle(object sender, RoutedEventArgs e)
@@ -84,6 +74,13 @@ public sealed partial class StartupPage : Page
         var desired = toggle.IsOn;
         if (row.IsBusy || desired == row.IsEnabled)
             return;
+
+        // A scope change is running: snap the toggle back instead of starting a second write.
+        if (VM.IsBusy)
+        {
+            toggle.IsOn = row.IsEnabled;
+            return;
+        }
 
         var ok = await VM.SetEnabledAsync(row, desired);
         if (!ok)

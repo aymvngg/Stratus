@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Stratus.Core.Coordination;
 using Stratus.Services;
 using Stratus.ViewModels;
 using Stratus.Core.Services;
@@ -29,6 +30,8 @@ public sealed partial class ToolsPage : Page
         ThemeBox.SelectedIndex = ThemeHelper.GetMode() switch { "dark" => 1, "light" => 2, _ => 0 };
         TrayToggle.IsOn = ThemeHelper.GetCloseToTray();
 
+        // The three cards below read their own state, so they load even when the main
+        // plan/DNS load was skipped or failed.
         await VM.LoadAsync();
         await VM.LoadExtrasAsync();
     }
@@ -45,6 +48,7 @@ public sealed partial class ToolsPage : Page
 
     private async void OnReload(object sender, RoutedEventArgs e)
     {
+        // Independent of LoadAsync's result: the extra cards read their own state.
         await VM.LoadAsync();
         await VM.LoadExtrasAsync();
     }
@@ -76,14 +80,14 @@ public sealed partial class ToolsPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.DeleteRestorePointAsync(row);
-        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.DeleteRestorePointAsync(row);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnToggleUpdatePause(object sender, RoutedEventArgs e)
     {
-        var message = await VM.ToggleUpdatePauseAsync();
-        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.ToggleUpdatePauseAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnApplyTcp(object sender, RoutedEventArgs e)
@@ -91,37 +95,32 @@ public sealed partial class ToolsPage : Page
         if ((sender as FrameworkElement)?.DataContext is not TcpRow row)
             return;
 
-        var message = await VM.ApplyTcpAsync(row);
-        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.ApplyTcpAsync(row);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnResetTcp(object sender, RoutedEventArgs e)
     {
-        var message = await VM.ResetTcpAsync();
-        VM.ShowStatus(message, message.StartsWith("Could not") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.ResetTcpAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnApplyPlan(object sender, RoutedEventArgs e)
     {
-        var message = await VM.ApplyPlanAsync();
-        VM.ShowStatus(message,
-            message.StartsWith("Active plan", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Success
-                : message.StartsWith("Pick a plan", StringComparison.OrdinalIgnoreCase)
-                    ? InfoBarSeverity.Informational
-                    : InfoBarSeverity.Error);
+        var outcome = await VM.ApplyPlanAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnApplyDns(object sender, RoutedEventArgs e)
     {
-        var message = await VM.ApplyDnsAsync();
-        VM.ShowStatus(message, message.StartsWith("DNS set") ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        var outcome = await VM.ApplyDnsAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnRestorePoint(object sender, RoutedEventArgs e)
     {
-        var message = await VM.CreateRestorePointAsync();
-        VM.ShowStatus(message, message.StartsWith("Restore point failed") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.CreateRestorePointAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnComponentCleanup(object sender, RoutedEventArgs e)
@@ -158,8 +157,8 @@ public sealed partial class ToolsPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.RunComponentCleanupAsync();
-        VM.ShowStatus(message, message.Contains("failed") ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.RunComponentCleanupAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private void OnOpenFolder(object sender, RoutedEventArgs e)
@@ -174,6 +173,7 @@ public sealed partial class ToolsPage : Page
         }
         catch (Exception ex)
         {
+            Log.Warn("Could not open the data folder: " + ex.Message);
             VM.ShowStatus($"Could not open the folder: {ex.Message}", InfoBarSeverity.Error);
         }
     }
@@ -182,7 +182,6 @@ public sealed partial class ToolsPage : Page
     {
         try
         {
-            Log.Init();
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = Log.LogDir,
@@ -191,12 +190,14 @@ public sealed partial class ToolsPage : Page
         }
         catch (Exception ex)
         {
+            Log.Warn("Could not open the logs folder: " + ex.Message);
             VM.ShowStatus($"Could not open the logs folder: {ex.Message}", InfoBarSeverity.Error);
         }
     }
 
     private async void OnRevertAll(object sender, RoutedEventArgs e)
-    {        var dialog = new ContentDialog
+    {
+        var dialog = new ContentDialog
         {
             Title = "Revert ALL tweaks?",
             Content = new StackPanel
@@ -228,13 +229,8 @@ public sealed partial class ToolsPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.RevertAllAsync();
-        VM.ShowStatus(message,
-            message.StartsWith("Could not", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Error
-                : message.Contains("failed", StringComparison.OrdinalIgnoreCase)
-                    ? InfoBarSeverity.Warning
-                    : InfoBarSeverity.Success);
+        var outcome = await VM.RevertAllAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     // ================= R3: health scans =================
@@ -280,14 +276,10 @@ public sealed partial class ToolsPage : Page
         await RunScan(VM.RunDismRestoreAsync());
     }
 
-    private async Task RunScan(Task<string> scan)
+    private async Task RunScan(Task<OperationOutcome> scan)
     {
-        var message = await scan;
-        // The scan ran to completion: findings live in the scan card, only a thrown
-        // exception ("Scan failed: ...") means the scan did not run at all.
-        VM.ShowStatus(message, message.StartsWith("Scan failed", StringComparison.OrdinalIgnoreCase)
-            ? InfoBarSeverity.Error
-            : InfoBarSeverity.Success);
+        var outcome = await scan;
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     // ================= R3: resets =================
@@ -326,13 +318,8 @@ public sealed partial class ToolsPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ResetWindowsUpdateAsync();
-        VM.ShowStatus(message,
-            message.StartsWith("Update cache reset", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Success
-                : message.StartsWith("Nothing to reset", StringComparison.OrdinalIgnoreCase)
-                    ? InfoBarSeverity.Warning
-                    : InfoBarSeverity.Error);
+        var outcome = await VM.ResetWindowsUpdateAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnResetNetwork(object sender, RoutedEventArgs e)
@@ -369,32 +356,22 @@ public sealed partial class ToolsPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ResetNetworkAsync();
-        VM.ShowStatus(message,
-            message.StartsWith("Partial reset", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Warning
-                : message.StartsWith("Network stack reset complete", StringComparison.OrdinalIgnoreCase)
-                    ? InfoBarSeverity.Success
-                    : InfoBarSeverity.Error);
+        var outcome = await VM.ResetNetworkAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     // ================= R3: DNS benchmark and report =================
 
     private async void OnBenchmarkDns(object sender, RoutedEventArgs e)
     {
-        var message = await VM.BenchmarkDnsAsync();
-        VM.ShowStatus(message,
-            message.StartsWith("Benchmark failed", StringComparison.OrdinalIgnoreCase)
-                ? InfoBarSeverity.Error
-                : message.Contains("timed out", StringComparison.OrdinalIgnoreCase)
-                    ? InfoBarSeverity.Warning
-                    : InfoBarSeverity.Success);
+        var outcome = await VM.BenchmarkDnsAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnCreateReport(object sender, RoutedEventArgs e)
     {
-        var message = await VM.CreateReportAsync();
-        VM.ShowStatus(message, message.StartsWith("System report saved") ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        var outcome = await VM.CreateReportAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     // ================= v1.5: fixes and Windows tools =================
@@ -432,11 +409,8 @@ public sealed partial class ToolsPage : Page
     {
         if (!VM.IsUpdateReady)
         {
-            var message = await VM.CheckForUpdatesAsync();
-            VM.ShowStatus(message,
-                message.Contains("failed", StringComparison.OrdinalIgnoreCase)
-                    ? InfoBarSeverity.Warning
-                    : InfoBarSeverity.Success);
+            var outcome = await VM.CheckForUpdatesAsync();
+            VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
             return;
         }
 

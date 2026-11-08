@@ -9,10 +9,10 @@ Stratus is a native Windows optimizer: WinUI 3 (unpackaged, self-contained, admi
 | `Stratus.Core` | All logic: tweaks, services, stores, scoring. No UI dependency. |
 | `Stratus` | WinUI 3 app: pages, view models, tray integration, Velopack updates. |
 | `Stratus.Cli` | Headless front end over the same engine, used for automation and smoke tests. |
-| `Stratus.Tray` | Tray helper process. |
+| `Stratus.Tray` | Tray integration library. |
 | `Stratus.Tests` | xUnit tests for the pure logic. |
 
-Dependency direction is one way: `Stratus` and `Stratus.Cli` reference `Stratus.Core`. `Stratus.Core` references no UI project.
+Dependency direction is one way: `Stratus` and `Stratus.Cli` reference `Stratus.Core`; `Stratus` also references `Stratus.Tray`. `Stratus.Core` references no UI project.
 
 ## Layers
 
@@ -22,12 +22,12 @@ Views (XAML) -> ViewModels -> AppServices (composition root) -> Services / Tweak
 
 - `Stratus\ViewModels\AppServices.cs` is the composition root. It creates the stores and services once and exposes them as static properties. The CLI builds the same graph by hand.
 - View models never call Windows APIs directly. They call a service and translate the result into a status message.
-- Services return `(bool Success, string Message)` tuples or small records. They log through `Log` and never throw into the UI.
+- Services return `(bool Success, string Message)` tuples or small records. Reads that cannot produce a trustworthy result may throw a specific exception, such as `WingetReadException` or `ProfileValidationException`. UI actions catch these failures, log them and show a message instead of displaying empty state.
 - `ProcessRunner` is the only place that starts child processes. `RegistryService` is the only place that reads or writes the registry for tweaks.
 
 ## Tweak model
 
-`Stratus.Core\Tweaks\Tweak.cs` defines the contract:
+`Stratus.Core\Models\Tweak.cs` defines the contract:
 
 ```csharp
 public abstract class Tweak
@@ -87,7 +87,7 @@ Three implementations:
 | `TcpSettingsService` | Auto-tuning, RSS, timestamps. |
 | `HealthScanService` | SFC and DISM health checks. |
 | `ReportService` | Plain text environment report. |
-| `ScoreService` | Weighted score from live tweak state. |
+| `ScoreService` | Weighted score from known live tweak state; failed reads remain unknown and mark the result incomplete. |
 | `ProcessRunner` | Bounded child process execution with UTF-8 output. |
 | `CommandLine` | Shared command line splitter. |
 | `WingetService` / `AppCatalog` | Installs, upgrades and removes catalog apps through winget; installed state comes from `winget export` JSON, never from localized text. |
@@ -106,9 +106,10 @@ All state lives under `%ProgramData%\Stratus` (see `AppPaths`):
 | `score-history.json` | Score snapshots, capped at 500. |
 | `settings.json` | Theme, tray, power plan and other preferences. |
 | `tasks.json` | Original state of every scheduled task Stratus touched. |
-| `startup.json` | Original state of every startup entry Stratus touched. |
 
 Every store goes through `JsonFile`, which writes to a unique temp file and moves it over the real one, and quarantines an unreadable file as `.corrupt` instead of silently starting empty.
+
+Startup approval values use `RegistryService` and share `backups.json`; they do not have a separate startup store.
 
 ## UI
 
@@ -117,6 +118,7 @@ Every store goes through `JsonFile`, which writes to a unique temp file and move
 - Pages bind to a view model with `{x:Bind}`. Every page caches its navigation state where it makes sense.
 - Long operations set `IsBusy`, show `BusyText`, disable their buttons and report through one `InfoBar`.
 - Status severity follows the real outcome: Success for a completed action, Warning for a partial or no-op result, Error for a failure.
+- Failed state reads must not look like an off switch or a complete score. An entirely unknown score is displayed as `--`.
 - Every async flow has a `catch` that logs and shows a message.
 
 ## CLI
@@ -142,6 +144,9 @@ Run it elevated for changes to succeed. It builds the same service graph as the 
 - catalog integrity: unique ids, described entries, no duplicate registry action sets, every preset id resolves
 - app catalog integrity and doc generator output (markdown and JSON)
 - profile round trip, item count, version guard and invalid file handling
+- failed state reads, incomplete scores and localized power plan selection
+- failed-write recovery, attempt rollback, cleanup boundaries and service recovery using isolated test doubles
+- UI operation ownership, stale refresh protection and saved selections
 
 Run:
 

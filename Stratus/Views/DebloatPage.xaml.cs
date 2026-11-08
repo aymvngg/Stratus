@@ -65,8 +65,8 @@ public sealed partial class DebloatPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.RemoveSelectedAsync();
-        VM.ShowStatus(message, message.Contains("failed") ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+        var outcome = await VM.RemoveSelectedAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnUninstallWin32(object sender, RoutedEventArgs e)
@@ -74,8 +74,8 @@ public sealed partial class DebloatPage : Page
         if (sender is not Button { DataContext: Win32Row row })
             return;
 
-        var message = await VM.UninstallWin32Async(row, silent: false);
-        VM.ShowStatus(message, Failed(message) ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.UninstallWin32Async(row, silent: false);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnSilentUninstall(object sender, RoutedEventArgs e)
@@ -101,8 +101,8 @@ public sealed partial class DebloatPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.UninstallWin32Async(row, silent: true);
-        VM.ShowStatus(message, Failed(message) ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.UninstallWin32Async(row, silent: true);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnScanFeatures(object sender, RoutedEventArgs e) => await VM.ScanFeaturesAsync();
@@ -130,8 +130,8 @@ public sealed partial class DebloatPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.RemoveFeatureAsync(row);
-        VM.ShowStatus(message, Failed(message) ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.RemoveFeatureAsync(row);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnEnableFeature(object sender, RoutedEventArgs e)
@@ -157,16 +157,9 @@ public sealed partial class DebloatPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.EnableFeatureAsync(row);
-        VM.ShowStatus(message, EnableSeverity(message));
+        var outcome = await VM.EnableFeatureAsync(row);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
-
-    private static InfoBarSeverity EnableSeverity(string message) =>
-        message.StartsWith("Another operation", StringComparison.OrdinalIgnoreCase)
-            ? InfoBarSeverity.Warning
-            : Failed(message)
-                ? InfoBarSeverity.Error
-                : InfoBarSeverity.Success;
 
     private async void OnRemoveProvisioned(object sender, RoutedEventArgs e)
     {
@@ -191,8 +184,8 @@ public sealed partial class DebloatPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.RemoveProvisionedAsync(row);
-        VM.ShowStatus(message, Failed(message) ? InfoBarSeverity.Error : InfoBarSeverity.Success);
+        var outcome = await VM.RemoveProvisionedAsync(row);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnPreviewRecommended(object sender, RoutedEventArgs e)
@@ -230,9 +223,6 @@ public sealed partial class DebloatPage : Page
         VM.SetAllSelected(VM.Recommended, true);
         VM.ShowStatus($"{names.Count} recommended apps selected. Review the list, then remove them.", InfoBarSeverity.Informational);
     }
-
-    private static bool Failed(string message) =>
-        message.StartsWith("Could not", StringComparison.OrdinalIgnoreCase);
 
     private void OnSelectAllRecommended(object sender, RoutedEventArgs e) => VM.SetAllSelected(VM.Recommended, true);
     private void OnClearRecommended(object sender, RoutedEventArgs e) => VM.SetAllSelected(VM.Recommended, false);

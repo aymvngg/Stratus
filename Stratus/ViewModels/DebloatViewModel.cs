@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml.Controls;
+using Stratus.Core.Coordination;
 using Stratus.Core.Services;
 
 namespace Stratus.ViewModels;
@@ -311,8 +312,6 @@ public sealed class DebloatViewModel : ObservableObject
     public int TotalSelected => Recommended.Concat(OtherMicrosoft).Concat(ThirdParty).Count(r => r.IsSelected);
     public string RemoveButtonText => TotalSelected == 0 ? "Remove selected" : $"Remove selected ({TotalSelected})";
 
-    public event Action? SelectionChanged;
-
     public DebloatViewModel()
     {
         foreach (var group in new[] { Recommended, OtherMicrosoft, ThirdParty })
@@ -323,7 +322,6 @@ public sealed class DebloatViewModel : ObservableObject
     {
         if (e.PropertyName == nameof(UwpRow.IsSelected))
             Raise(nameof(TotalSelected), nameof(RemoveButtonText), nameof(SelectedSummary));
-        SelectionChanged?.Invoke();
     }
 
     private void RaiseCounts() =>
@@ -460,14 +458,14 @@ public sealed class DebloatViewModel : ObservableObject
             row.IsSelected = selected;
     }
 
-    public async Task<string> RemoveSelectedAsync()
+    public async Task<OperationOutcome> RemoveSelectedAsync()
     {
         if (IsBusy)
-            return "Another operation is still running.";
+            return OperationOutcome.Warning("Another operation is still running.");
 
         var rows = Recommended.Concat(OtherMicrosoft).Concat(ThirdParty).Where(r => r.IsSelected).ToList();
         if (rows.Count == 0)
-            return "Nothing selected.";
+            return OperationOutcome.Info("Nothing selected.");
 
         IsBusy = true;
         var ok = 0;
@@ -497,15 +495,22 @@ public sealed class DebloatViewModel : ObservableObject
                 }
             }
 
-            return failed.Count == 0
-                ? $"Removed {Format.Count(ok, "app")}."
-                : $"Removed {Format.Count(ok, "app")}, {failed.Count} failed - " +
-                  string.Join("; ", failed.Take(3).Select(f => $"{f.Name}: {f.Message}"));
+            if (failed.Count == 0)
+                return OperationOutcome.Success($"Removed {Format.Count(ok, "app")}.");
+
+            // Nothing succeeded is a failure, not a partial result: match the batch severity rule.
+            return ok == 0
+                ? OperationOutcome.Error(
+                    $"Removed 0 of {Format.Count(rows.Count, "app")} - " +
+                    string.Join("; ", failed.Take(3).Select(f => $"{f.Name}: {f.Message}")))
+                : OperationOutcome.Warning(
+                    $"Removed {Format.Count(ok, "app")}, {failed.Count} failed - " +
+                    string.Join("; ", failed.Take(3).Select(f => $"{f.Name}: {f.Message}")));
         }
         catch (Exception ex)
         {
             Log.Error("Removing the selected apps failed", ex);
-            return $"Removal failed: {ex.Message}";
+            return OperationOutcome.Error($"Removal failed: {ex.Message}");
         }
         finally
         {
@@ -552,26 +557,26 @@ public sealed class DebloatViewModel : ObservableObject
         }
     }
 
-    public async Task<string> RemoveFeatureAsync(FeatureRow row)
+    public async Task<OperationOutcome> RemoveFeatureAsync(FeatureRow row)
     {
         if (IsBusy)
-            return "Another operation is still running.";
+            return OperationOutcome.Warning("Another operation is still running.");
 
         IsBusy = true;
         try
         {
             var (ok, message) = await row.RemoveAsync();
             if (!ok)
-                return $"Could not remove {row.Name}: {message}";
+                return OperationOutcome.Error($"Could not remove {row.Name}: {message}");
 
             Features.Remove(row);
             RaiseCounts();
-            return $"{row.Name} removed. A restart may be needed to finish.";
+            return OperationOutcome.Success($"{row.Name} removed. A restart may be needed to finish.");
         }
         catch (Exception ex)
         {
             Log.Error($"Removing the optional feature '{row.Name}' failed", ex);
-            return $"Could not remove {row.Name}: {ex.Message}";
+            return OperationOutcome.Error($"Could not remove {row.Name}: {ex.Message}");
         }
         finally
         {
@@ -579,25 +584,25 @@ public sealed class DebloatViewModel : ObservableObject
         }
     }
 
-    public async Task<string> EnableFeatureAsync(FeatureRow row)
+    public async Task<OperationOutcome> EnableFeatureAsync(FeatureRow row)
     {
         if (IsBusy)
-            return "Another operation is still running.";
+            return OperationOutcome.Warning("Another operation is still running.");
 
         IsBusy = true;
         try
         {
             var (ok, message) = await row.EnableAsync();
             if (!ok)
-                return $"Could not enable {row.Name}: {message}";
+                return OperationOutcome.Error($"Could not enable {row.Name}: {message}");
 
             RaiseCounts();
-            return $"{row.Name} enabled. A restart may be needed to finish.";
+            return OperationOutcome.Success($"{row.Name} enabled. A restart may be needed to finish.");
         }
         catch (Exception ex)
         {
             Log.Error($"Enabling the optional feature '{row.Name}' failed", ex);
-            return $"Could not enable {row.Name}: {ex.Message}";
+            return OperationOutcome.Error($"Could not enable {row.Name}: {ex.Message}");
         }
         finally
         {
@@ -605,10 +610,10 @@ public sealed class DebloatViewModel : ObservableObject
         }
     }
 
-    public async Task<string> UninstallWin32Async(Win32Row row, bool silent)
+    public async Task<OperationOutcome> UninstallWin32Async(Win32Row row, bool silent)
     {
         if (IsBusy)
-            return "Another operation is still running.";
+            return OperationOutcome.Warning("Another operation is still running.");
 
         if (silent)
         {
@@ -620,10 +625,10 @@ public sealed class DebloatViewModel : ObservableObject
         {
             var (ok, message) = await row.UninstallAsync(silent);
             if (!ok)
-                return $"Could not uninstall {row.DisplayName}: {message}";
+                return OperationOutcome.Error($"Could not uninstall {row.DisplayName}: {message}");
 
             if (!silent)
-                return $"The uninstaller for {row.DisplayName} is open. Finish it there, then refresh the list.";
+                return OperationOutcome.Success($"The uninstaller for {row.DisplayName} is open. Finish it there, then refresh the list.");
 
             await ScanCoreAsync();
 
@@ -632,12 +637,12 @@ public sealed class DebloatViewModel : ObservableObject
                 string.Equals(r.DisplayName, row.DisplayName, StringComparison.OrdinalIgnoreCase));
             rebuilt?.MarkResult(message);
 
-            return $"{row.DisplayName} uninstalled.";
+            return OperationOutcome.Success($"{row.DisplayName} uninstalled.");
         }
         catch (Exception ex)
         {
             Log.Error($"Uninstalling '{row.DisplayName}' failed", ex);
-            return $"Could not uninstall {row.DisplayName}: {ex.Message}";
+            return OperationOutcome.Error($"Could not uninstall {row.DisplayName}: {ex.Message}");
         }
         finally
         {
@@ -649,26 +654,27 @@ public sealed class DebloatViewModel : ObservableObject
         }
     }
 
-    public async Task<string> RemoveProvisionedAsync(ProvisionedRow row)
+    public async Task<OperationOutcome> RemoveProvisionedAsync(ProvisionedRow row)
     {
         if (IsBusy)
-            return "Another operation is still running.";
+            return OperationOutcome.Warning("Another operation is still running.");
 
         IsBusy = true;
         try
         {
             var (ok, message) = await row.RemoveAsync();
             if (!ok)
-                return $"Could not remove {row.DisplayName}: {message}";
+                return OperationOutcome.Error($"Could not remove {row.DisplayName}: {message}");
 
-            Provisioned.Remove(row);
-            RaiseCounts();
-            return $"{row.DisplayName} is no longer provisioned for new users.";
+            // Remove from the authoritative list too, otherwise the next Refilter brings it back.
+            _allProvisioned.Remove(row);
+            Refilter();
+            return OperationOutcome.Success($"{row.DisplayName} is no longer provisioned for new users.");
         }
         catch (Exception ex)
         {
             Log.Error($"Removing the provisioned package '{row.DisplayName}' failed", ex);
-            return $"Could not remove {row.DisplayName}: {ex.Message}";
+            return OperationOutcome.Error($"Could not remove {row.DisplayName}: {ex.Message}");
         }
         finally
         {

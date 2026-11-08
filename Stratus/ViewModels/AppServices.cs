@@ -1,5 +1,7 @@
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Controls;
 using Stratus.Core;
+using Stratus.Core.Coordination;
 using Stratus.Core.Services;
 using Stratus.Core.Tweaks;
 
@@ -29,18 +31,48 @@ public static class AppServices
     public static readonly ProfileService Profiles = new(Engine, Startup, ScheduledTasks, OptionalFeatures, Winget, Dns, Power, Settings);
 
     /// <summary>
+    /// One UI writer owns tweak changes at a time. Bulk runs on one page and a row toggle on
+    /// another would otherwise interleave writes and each overwrite the other's snapshot.
+    /// </summary>
+    public static readonly OperationGate TweakWrites = new();
+
+    /// <summary>
+    /// Orders engine snapshots. A change advances the revision; long reads capture the
+    /// current value and discard their result when a change landed meanwhile, so a stale
+    /// scan cannot overwrite a state a user just changed.
+    /// </summary>
+    public static readonly ChangeRevision StateRevision = new();
+
+    /// <summary>
     /// One engine snapshot for every listener: StateChanged, bulk operations and the Tools page
     /// plan switch all funnel here, so each tweak's registry state is read once per change.
+    /// A snapshot that lost the race with a newer change is dropped instead of rendered.
     /// </summary>
     public static async Task RefreshFromEngineAsync()
     {
-        var (report, plan) = await Task.Run(() => (Engine.Rescore(), Power.GetActivePlan()));
-        OnUi(() =>
+        var revision = StateRevision.Advance();
+        try
         {
-            Vm.Dashboard.ApplySnapshot(report, plan?.Name);
-            Vm.Tweaks.ApplyStates(report.States);
-            Vm.History.RequestRefresh();
-        });
+            var (report, plan) = await Task.Run(() => (Engine.Rescore(), Power.GetActivePlan()));
+            if (!StateRevision.IsCurrent(revision))
+                return;
+
+            OnUi(() =>
+            {
+                if (!StateRevision.IsCurrent(revision))
+                    return;
+
+                Vm.Dashboard.ApplySnapshot(report, plan?.Name);
+                Vm.Tweaks.ApplyStates(report.States);
+                Vm.History.RequestRefresh();
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Refreshing the engine state failed: " + ex.Message);
+            OnUi(() => Vm.Dashboard.ShowStatus(
+                $"Could not refresh the system state: {ex.Message}", InfoBarSeverity.Warning));
+        }
     }
 
     /// <summary>Set on the UI thread at launch; lets background events marshal back.</summary>

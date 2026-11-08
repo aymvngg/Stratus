@@ -54,6 +54,8 @@
                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
             <TextBlock Text="{x:Bind VM.CountText, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Button Content="Refresh" Click="OnRefreshStates" Margin="8,0,0,0"
+                    VerticalAlignment="Center"/>
         </StackPanel>
 
         <InfoBar Grid.Row="3"
@@ -138,6 +140,13 @@
                                                                 <Border Style="{StaticResource CountChip}"
                                                                         Visibility="{x:Bind vm:Conv.Vis(NotApplicable), Mode=OneWay}">
                                                                     <TextBlock Text="N/A"
+                                                                               Style="{StaticResource ChipText}"
+                                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                                </Border>
+                                                                <Border Style="{StaticResource CountChip}"
+                                                                        Visibility="{x:Bind vm:Conv.Vis(IsUnknown), Mode=OneWay}"
+                                                                        ToolTipService.ToolTip="{x:Bind ReadErrorText, Mode=OneWay}">
+                                                                    <TextBlock Text="UNREADABLE"
                                                                                Style="{StaticResource ChipText}"
                                                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                                                 </Border>

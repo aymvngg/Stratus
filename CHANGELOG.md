@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.8.1
+
+Release validation: the Release build has zero warnings and errors, and all 295
+automated tests pass. Elevated Windows and interactive UI checks listed in
+`docs/refactor-decisions.md` have not been performed.
+
+### Reliability
+- Power plan imports resolve installed plan names without throwing on an unknown name. Ultimate plan detection uses GUIDs rather than English names.
+- Failed power plan queries report an error instead of appearing as an empty list or no active plan.
+- Failed tweak-state reads remain unknown and mark scores incomplete instead of being silently treated as off.
+- Profile imports reject null collections, blank entries and unsupported versions before planning changes.
+- Cleanup selections imported from a profile are additive. Empty selections do not clear existing choices, and unknown import flags are rejected before changes.
+- Failed or malformed winget exports report an error instead of making installed apps appear absent.
+- Failed DNS and Windows Update pause reapplications restore the state at the start of that attempt, while explicit revert keeps the first saved original.
+- Registry changes keep the first original value and use separate snapshots to roll back a failed attempt. Revert does not replace a restored original with a default.
+- Cleanup skips linked directories and reports service restart failures instead of showing unconditional success.
+- Cleanup continues after an individual target fails and reports target and recycle bin failures as warnings.
+- Windows Update pause changes are serialized across Stratus processes, and unreadable pause settings report an error rather than appearing unpaused.
+- Temporary service stops and restore-point settings have explicit recovery paths when an operation fails.
+- Scheduled task reset reports individual failures and retains their original states for retry. CPU boost activation failures roll back the attempt; failed revert refreshes retain the original backup.
+- Tweaks separate displayed state from user actions and discard stale refresh results. Long actions share operation guards instead of clearing another action's busy state.
+- Profile cancellation cannot clear a running import, cleanup remembers an intentionally empty selection, and removed provisioned apps stay removed when filtering.
+- Bulk actions report actual attempts, distinguish no-op and all-failed results, and startup reset reports individual restore failures.
+- The tray clears stale numeric scores when state is unavailable, and CLI listings identify unreadable tweak state.
+- Service restore preserves delayed automatic startup and leaves unrelated state unchanged when no original was saved. Unreadable service and hibernation state fails closed.
+- Settings and history updates read the latest saved state before writing; transient file read failures no longer quarantine intact files.
+
+### Maintenance
+- Documentation tests check each tweak's reboot marker and stable output across input order changes.
+- Catalog tests no longer require an arbitrary number of recommended apps.
+- Registry catalog checks compare public action metadata instead of private fields.
+- Record the safety refactor decisions and elevated Windows checks in `docs/refactor-decisions.md`.
+
 ## v1.8.0
 
 Your selections now travel: one file saves every choice across the app and restores it on another machine.

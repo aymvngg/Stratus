@@ -20,24 +20,41 @@ public sealed class RegistryTweak : Tweak
         _actions = actions;
     }
 
+    /// <summary>The values this entry changes. Read-only so tests can compare catalog entries without reflection.</summary>
+    public IReadOnlyList<RegistryAction> Actions => _actions;
+
     public override bool IsApplied
     {
         get
         {
-            try
+            foreach (var a in _actions)
             {
-                return _actions.All(Matches);
+                try
+                {
+                    if (!Matches(a))
+                        return false;
+                }
+                catch (RegistryReadException)
+                {
+                    // An unreadable value is unknown, not "not applied": ScoreService retains
+                    // the tweak as incomplete instead of scoring it against a guessed state.
+                    throw;
+                }
+                catch
+                {
+                    return false;
+                }
             }
-            catch
-            {
-                return false;
-            }
+
+            return true;
         }
     }
 
     private bool Matches(RegistryAction a)
     {
         var read = _registry.Read(a.Hive, a.Path, a.Name);
+        if (read.ReadFailed)
+            throw new RegistryReadException($"Could not read {a.Hive}\\{a.Path}\\{a.Name}.");
 
         if (a.Op == RegistryOp.DeleteValue)
             return !read.Exists;
@@ -50,28 +67,38 @@ public sealed class RegistryTweak : Tweak
 
     public override TweakResult Apply()
     {
-        var written = new List<RegistryAction>();
+        var attempt = _registry.BeginAttempt(Id);
         try
         {
             foreach (var a in _actions)
             {
                 if (a.Op == RegistryOp.DeleteValue)
-                    _registry.DeleteValue(a.Hive, a.Path, a.Name, Id);
+                    attempt.Delete(a.Hive, a.Path, a.Name);
                 else
-                    _registry.WriteValue(a.Hive, a.Path, a.Name, a.Kind, a.TweakedValue, Id);
-                written.Add(a);
+                    attempt.Write(a.Hive, a.Path, a.Name, a.Kind, a.TweakedValue);
             }
+
+            attempt.Commit();
             return TweakResult.Ok;
         }
         catch (Exception ex)
         {
-            // Multi-value tweaks must not stay half applied: put the values written in
-            // this attempt back and report the failure.
-            var restored = written.Count == 0 || _registry.RestoreAll(Id);
-            var message = restored
-                ? ex.Message
-                : $"{ex.Message} The half-finished changes could not be rolled back; see the Stratus log.";
-            return TweakResult.Fail(message);
+            // Multi-value tweaks must not stay half applied. Only this attempt is undone; the
+            // originals it saved stay in the backup file for a later revert.
+            try
+            {
+                var rolledBack = attempt.Rollback();
+                var message = rolledBack
+                    ? ex.Message
+                    : $"{ex.Message} The half-finished changes could not be rolled back; see the Stratus log.";
+                Log.Warn($"Apply of '{Id}' failed: {message}");
+                return TweakResult.Fail(message);
+            }
+            catch (Exception rollbackEx)
+            {
+                Log.Error($"Rollback of '{Id}' threw after a failed apply", rollbackEx);
+                return TweakResult.Fail($"{ex.Message} The half-finished changes could not be rolled back; see the Stratus log.");
+            }
         }
     }
 
@@ -79,22 +106,35 @@ public sealed class RegistryTweak : Tweak
     {
         try
         {
+            // Snapshot which actions had no saved original before RestoreAll removes them.
+            // Afterwards every backup is gone, so asking again would treat a restored original
+            // as "never backed up" and overwrite it with the declared default.
+            var withoutOriginal = _actions
+                .Where(a => !_registry.HasBackup(Id, a.Hive, a.Path, a.Name))
+                .ToList();
+            var ownedElsewhere = _registry.OwnedScopeIds();
+
             var hadBackups = _registry.HasBackups(Id);
             var restored = !hadBackups || _registry.RestoreAll(Id);
 
-            // For values that never got a backup entry (tweak applied by hand or by another tool
-            // before Stratus saw it), fall back to the declared default.
-            foreach (var a in _actions)
+            // A value with no original of its own (tweak applied by hand or by another tool
+            // before Stratus saw it) falls back to the declared default. A value whose original
+            // belongs to another catalog entry is left to that entry.
+            if (restored)
             {
-                if (a.DefaultValue is null)
-                    continue;
+                foreach (var a in withoutOriginal)
+                {
+                    if (a.DefaultValue is null || ownedElsewhere.Contains(RegistryService.ScopeIdOf(a.Hive, a.Path, a.Name)))
+                        continue;
 
-                var read = _registry.Read(a.Hive, a.Path, a.Name);
-                var stillTweaked = read.Exists && read.Kind == a.Kind &&
-                                   RegistryService.ValuesEqual(a.Kind, read.Value, a.TweakedValue);
+                    // Never overwrite a value whose state is unknown.
+                    var read = _registry.ReadRequired(a.Hive, a.Path, a.Name);
+                    var stillTweaked = read.Exists && read.Kind == a.Kind &&
+                                       RegistryService.ValuesEqual(a.Kind, read.Value, a.TweakedValue);
 
-                if (stillTweaked)
-                    _registry.WriteValueRaw(a.Hive, a.Path, a.Name, a.Kind, a.DefaultValue);
+                    if (stillTweaked)
+                        _registry.WriteValueRaw(a.Hive, a.Path, a.Name, a.Kind, a.DefaultValue);
+                }
             }
 
             if (!restored)
@@ -104,6 +144,7 @@ public sealed class RegistryTweak : Tweak
         }
         catch (Exception ex)
         {
+            Log.Error($"Revert of '{Id}' failed", ex);
             return TweakResult.Fail(ex.Message);
         }
     }

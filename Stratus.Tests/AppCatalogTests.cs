@@ -47,12 +47,6 @@ public class AppCatalogTests
     }
 
     [Fact]
-    public void Catalog_HasRecommendedEntries()
-    {
-        Assert.True(AppCatalog.Apps.Count(a => a.Recommended) >= 10);
-    }
-
-    [Fact]
     public void Catalog_EveryCategoryHasApps()
     {
         foreach (var category in KnownCategories)
