@@ -1,6 +1,10 @@
 # Changelog
 
-## Next
+## v1.8.1
+
+Release validation: the Release build has zero warnings and errors, and all 295
+automated tests pass. Elevated Windows and interactive UI checks listed in
+`docs/refactor-decisions.md` have not been performed.
 
 ### Reliability
 - Power plan imports resolve installed plan names without throwing on an unknown name. Ultimate plan detection uses GUIDs rather than English names.
