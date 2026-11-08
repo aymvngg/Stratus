@@ -8,16 +8,23 @@ public sealed record PowerPlan(Guid Guid, string Name, bool IsActive);
 public sealed class PowerPlanService
 {
     public const string BalancedGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
-    public const string HighPerformanceGuid = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
     public const string UltimateTemplateGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
 
     private static readonly Regex PlanLine = new(
         @"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\s*\(([^)]*)\)\s*(\*)?\s*$",
         RegexOptions.Compiled);
 
+    private readonly Func<string, ProcessResult> _run;
+
+    public PowerPlanService() : this(arguments => ProcessRunner.Run("powercfg.exe", arguments)) { }
+
+    internal PowerPlanService(Func<string, ProcessResult> run) => _run = run;
+
     public List<PowerPlan> ListPlans()
     {
-        var result = ProcessRunner.Run("powercfg.exe", "/list");
+        var result = _run("/list");
+        if (!result.Success)
+            throw new InvalidOperationException("Could not read power plans: " + result.StdErr.Trim());
         var plans = new List<PowerPlan>();
 
         foreach (var line in (result.StdOut + "\n" + result.StdErr).Split('\n'))
@@ -34,7 +41,9 @@ public sealed class PowerPlanService
 
     public PowerPlan? GetActivePlan()
     {
-        var result = ProcessRunner.Run("powercfg.exe", "/getactivescheme");
+        var result = _run("/getactivescheme");
+        if (!result.Success)
+            throw new InvalidOperationException("Could not read the active power plan: " + result.StdErr.Trim());
         var match = PlanLine.Match(result.StdOut.Trim());
         return match.Success && Guid.TryParse(match.Groups[1].Value, out var guid)
             ? new PowerPlan(guid, match.Groups[2].Value.Trim(), true)
@@ -43,7 +52,7 @@ public sealed class PowerPlanService
 
     public bool SetActive(Guid guid)
     {
-        var ok = ProcessRunner.Run("powercfg.exe", $"/setactive {guid:D}").Success;
+        var ok = _run($"/setactive {guid:D}").Success;
         if (ok)
             Log.Info("Power plan activated: " + guid);
         else
@@ -51,8 +60,16 @@ public sealed class PowerPlanService
         return ok;
     }
 
-    public bool SetActive(string guidString) =>
-        SetActive(Guid.Parse(guidString));
+    public bool SetActive(string guidOrName)
+    {
+        var name = guidOrName.Trim();
+        if (Guid.TryParse(name, out var guid))
+            return SetActive(guid);
+
+        var plan = ListPlans().FirstOrDefault(p =>
+            string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        return plan is not null && SetActive(plan.Guid);
+    }
 
     /// <summary>Activates Ultimate Performance, reusing the copy we created before (avoids duplicates).</summary>
     public PowerPlan? ActivateUltimate(SettingsStore settings)
@@ -74,7 +91,7 @@ public sealed class PowerPlanService
             return template;
         }
 
-        var dup = ProcessRunner.Run("powercfg.exe", $"-duplicatescheme {UltimateTemplateGuid}");
+        var dup = _run($"-duplicatescheme {UltimateTemplateGuid}");
         var m = Regex.Match(dup.StdOut + dup.StdErr,
             @"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})");
         if (!m.Success || !Guid.TryParse(m.Value, out var newGuid))
@@ -90,7 +107,7 @@ public sealed class PowerPlanService
         if (active is null)
             return false;
 
-        if (active.Name.Contains("Ultimate", StringComparison.OrdinalIgnoreCase))
+        if (active.Guid == Guid.Parse(UltimateTemplateGuid))
             return true;
 
         var stored = settings.Get("UltimatePlanGuid");
@@ -98,5 +115,4 @@ public sealed class PowerPlanService
     }
 
     public bool SetBalanced() => SetActive(BalancedGuid);
-    public bool SetHighPerformance() => SetActive(HighPerformanceGuid);
 }

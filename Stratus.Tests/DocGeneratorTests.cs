@@ -52,12 +52,79 @@ public class DocGeneratorTests : IDisposable
     public void Markdown_MarksRebootTweaks()
     {
         var catalog = BuildCatalog();
-        var markdown = DocGenerator.BuildMarkdown(catalog);
+        var sections = Sections(DocGenerator.BuildMarkdown(catalog));
 
         var rebootTweaks = catalog.Where(t => t.RequiresReboot).ToList();
         Assert.NotEmpty(rebootTweaks);
         foreach (var tweak in rebootTweaks)
-            Assert.Contains($"(Risk: {tweak.Risk}, weight {tweak.Weight}) (needs a restart)", markdown);
+        {
+            // Check this entry's own section: another entry with the same risk and weight
+            // used to be able to satisfy the assertion for it.
+            var section = Assert.Single(sections, s => s.Id == tweak.Id);
+            Assert.Contains("(needs a restart)", section.Text);
+            Assert.Contains($"(Risk: {tweak.Risk}, weight {tweak.Weight})", section.Text);
+        }
+    }
+
+    [Fact]
+    public void Markdown_DoesNotMarkEntriesThatNeedNoReboot()
+    {
+        var catalog = BuildCatalog();
+        var sections = Sections(DocGenerator.BuildMarkdown(catalog));
+
+        foreach (var tweak in catalog.Where(t => !t.RequiresReboot))
+        {
+            var section = Assert.Single(sections, s => s.Id == tweak.Id);
+            Assert.DoesNotContain("(needs a restart)", section.Text);
+        }
+    }
+
+    [Fact]
+    public void Json_RequiresRebootMatchesEachTweak()
+    {
+        var catalog = BuildCatalog();
+        var json = DocGenerator.BuildJson(catalog);
+
+        using var document = JsonDocument.Parse(json);
+        var byId = document.RootElement.EnumerateArray()
+            .ToDictionary(e => e.GetProperty("id").GetString()!, StringComparer.Ordinal);
+
+        Assert.Equal(catalog.Count, byId.Count);
+        foreach (var tweak in catalog)
+        {
+            var entry = byId[tweak.Id];
+            Assert.Equal(tweak.RequiresReboot,
+                entry.GetProperty("requiresReboot").GetBoolean());
+            Assert.Equal(tweak.Weight, entry.GetProperty("weight").GetInt32());
+            Assert.Equal(tweak.Risk.ToString(), entry.GetProperty("risk").GetString());
+        }
+    }
+
+    private static List<(string Id, string Text)> Sections(string markdown)
+    {
+        var sections = new List<(string Id, string Text)>();
+        var current = new System.Text.StringBuilder();
+        string? id = null;
+
+        foreach (var line in markdown.Split('\n'))
+        {
+            if (line.StartsWith("### ", StringComparison.Ordinal))
+            {
+                if (id is not null)
+                    sections.Add((id, current.ToString()));
+
+                id = line[4..].Trim();
+                current.Clear();
+            }
+
+            if (id is not null)
+                current.Append(line).Append('\n');
+        }
+
+        if (id is not null)
+            sections.Add((id, current.ToString()));
+
+        return sections;
     }
 
     [Fact]
@@ -99,12 +166,12 @@ public class DocGeneratorTests : IDisposable
         var json = DocGenerator.BuildJson(catalog);
 
         using var document = JsonDocument.Parse(json);
-        var entries = document.RootElement.EnumerateArray().ToList();
+        var entries = document.RootElement.EnumerateArray()
+            .ToDictionary(entry => entry.GetProperty("id").GetString()!, StringComparer.Ordinal);
 
-        foreach (var (entry, tweak) in entries.Zip(catalog.OrderBy(t => (int)t.Category)
-                     .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(t => t.Id, StringComparer.OrdinalIgnoreCase)))
+        foreach (var tweak in catalog)
         {
+            var entry = entries[tweak.Id];
             Assert.Equal(tweak.Category.ToString(), entry.GetProperty("category").GetString());
             Assert.Equal(tweak.Risk.ToString(), entry.GetProperty("risk").GetString());
             Assert.Equal(tweak.Id, entry.GetProperty("id").GetString());
@@ -116,8 +183,9 @@ public class DocGeneratorTests : IDisposable
     {
         var catalog = BuildCatalog();
 
-        Assert.Equal(DocGenerator.BuildMarkdown(catalog), DocGenerator.BuildMarkdown(catalog));
-        Assert.Equal(DocGenerator.BuildJson(catalog), DocGenerator.BuildJson(catalog));
+        var reversed = catalog.AsEnumerable().Reverse();
+        Assert.Equal(DocGenerator.BuildMarkdown(catalog), DocGenerator.BuildMarkdown(reversed));
+        Assert.Equal(DocGenerator.BuildJson(catalog), DocGenerator.BuildJson(reversed));
     }
 
     public void Dispose()

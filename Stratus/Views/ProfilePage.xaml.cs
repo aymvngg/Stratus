@@ -28,7 +28,8 @@ public sealed partial class ProfilePage : Page
     {
         try
         {
-            await VM.ExportAsync();
+            var outcome = await VM.ExportAsync();
+            VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
         }
         catch (Exception ex)
         {
@@ -55,7 +56,8 @@ public sealed partial class ProfilePage : Page
                 return;
 
             VM.ProfilePath = file.Path;
-            await VM.ImportAsync(file.Path);
+            var outcome = await VM.ImportAsync(file.Path);
+            VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
         }
         catch (Exception ex)
         {
@@ -68,7 +70,8 @@ public sealed partial class ProfilePage : Page
     {
         try
         {
-            await VM.ImportAsync(VM.ProfilePath);
+            var outcome = await VM.ImportAsync(VM.ProfilePath);
+            VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
         }
         catch (Exception ex)
         {
@@ -81,7 +84,8 @@ public sealed partial class ProfilePage : Page
     {
         try
         {
-            await VM.ApplyAsync();
+            var outcome = await VM.ApplyAsync();
+            VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
         }
         catch (Exception ex)
         {

@@ -132,7 +132,7 @@ MenuShowDelay 400ms -> 0ms: context menus and drop-downs open instantly.
 
 **Performance visual effects** (Risk: Recommended, weight 3)
 
-Sets 'Best performance' visual effects: disables window/taskbar animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).
+Sets 'Best performance' visual effects: disables window animations and selection rectangle fade, keeps font smoothing and thumbnails (known-good UserPreferencesMask 90 12 03 80 10 00 00 00).
 
 ### pref-show-file-extensions
 
@@ -536,7 +536,7 @@ HiberbootEnabled=0: a real shutdown instead of a hybrid hibernate. Fixes 'my set
 
 **Disable hibernation** (Risk: Advanced, weight 1)
 
-Runs 'powercfg /h off': deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected.
+Runs 'powercfg /h off': deletes hiberfil.sys (~40% of your RAM size) and disables Fast Startup. Frees disk; cold boots are unaffected. Revert restores the saved hibernation state.
 
 ### power-throttling-off
 
@@ -548,7 +548,7 @@ PowerThrottlingOff=1: stops Windows from silently capping background processes t
 
 **Keep the CPU in boost mode** (Risk: Advanced, weight 2)
 
-Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat.
+Sets the processor performance boost mode to Aggressive for the active plan. Short bursts finish sooner, at the cost of a little heat. Revert restores the saved boost mode.
 
 ### power-usb-selective-suspend-off
 
@@ -560,7 +560,7 @@ Stops Windows from suspending USB ports to save power. Fixes controllers, audio 
 
 **Ultimate Performance power plan** (Risk: Recommended, weight 3)
 
-Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it.
+Activates the hidden Ultimate Performance plan (no aggressive CPU parking, no display sleep timers). Modern CPUs still downclock fine with it. Revert restores the plan that was active before.
 
 ### power-modern-standby-off
 

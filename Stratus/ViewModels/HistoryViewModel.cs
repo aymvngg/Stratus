@@ -298,8 +298,15 @@ public sealed class HistoryViewModel : ObservableObject
         if (row.Tweak is null || row.IsBusy)
             return;
 
+        if (!AppServices.TweakWrites.TryEnter())
+        {
+            SetStatus("Another change is still running. Try the undo again when it finishes.", InfoBarSeverity.Warning);
+            return;
+        }
+
         row.IsBusy = true;
         BusyText = "Undoing " + row.TweakName + "...";
+        AppServices.StateRevision.Advance();
 
         try
         {
@@ -319,6 +326,7 @@ public sealed class HistoryViewModel : ObservableObject
         {
             row.IsBusy = false;
             BusyText = "";
+            AppServices.TweakWrites.Exit();
         }
 
         await RefreshAsync();
@@ -329,8 +337,15 @@ public sealed class HistoryViewModel : ObservableObject
         if (group.IsBusy)
             return;
 
+        if (!AppServices.TweakWrites.TryEnter())
+        {
+            SetStatus("Another change is still running. Try the restore again when it finishes.", InfoBarSeverity.Warning);
+            return;
+        }
+
         group.IsBusy = true;
         BusyText = "Restoring " + group.TweakName + "...";
+        AppServices.StateRevision.Advance();
 
         try
         {
@@ -369,6 +384,7 @@ public sealed class HistoryViewModel : ObservableObject
         {
             group.IsBusy = false;
             BusyText = "";
+            AppServices.TweakWrites.Exit();
         }
 
         await RefreshAsync();

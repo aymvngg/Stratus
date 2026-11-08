@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Stratus.Core.Models;
+using Stratus.Core.Services;
 using Stratus.ViewModels;
 using Windows.Foundation;
 
@@ -44,7 +45,7 @@ public sealed partial class DashboardPage : Page
         await VM.RescanAsync();
     }
 
-    private void UpdateRing() => ScoreArc.Data = BuildArc(VM.Score);
+    private void UpdateRing() => ScoreArc.Data = BuildArc(VM.HasScore ? VM.Score : 0);
 
     /// <summary>Builds the progress arc: starts at 12 o'clock, sweeps clockwise.</summary>
     private static Geometry BuildArc(double percent)
@@ -157,10 +158,8 @@ public sealed partial class DashboardPage : Page
 
     private async void OnRestorePoint(object sender, RoutedEventArgs e)
     {
-        var message = await VM.CreateRestorePointAsync();
-        VM.ShowStatus(message, message.StartsWith("Restore point failed")
-            ? InfoBarSeverity.Error
-            : InfoBarSeverity.Success);
+        var outcome = await VM.CreateRestorePointAsync();
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnApplyRecommended(object sender, RoutedEventArgs e)
@@ -168,7 +167,9 @@ public sealed partial class DashboardPage : Page
         var pending = VM.PendingRecommendedCount();
         if (pending == 0)
         {
-            VM.ShowStatus("Nothing to do - every recommended tweak is already applied.", InfoBarSeverity.Success);
+            VM.ShowStatus(
+                "Nothing to do - every readable recommended tweak is already applied.",
+                InfoBarSeverity.Informational);
             return;
         }
 
@@ -203,10 +204,8 @@ public sealed partial class DashboardPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ApplyRecommendedAsync(restorePointCheck.IsChecked == true);
-        VM.ShowStatus(message, message.Contains("failed")
-            ? InfoBarSeverity.Warning
-            : InfoBarSeverity.Success);
+        var outcome = await VM.ApplyRecommendedAsync(restorePointCheck.IsChecked == true);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnRestartNow(object sender, RoutedEventArgs e)
@@ -236,6 +235,7 @@ public sealed partial class DashboardPage : Page
         }
         catch (Exception ex)
         {
+            Log.Error("Scheduling the restart failed", ex);
             VM.ShowStatus($"Restart failed: {ex.Message}", InfoBarSeverity.Error);
         }
     }
@@ -257,7 +257,9 @@ public sealed partial class DashboardPage : Page
         var pending = VM.PresetPendingCount(preset);
         if (pending == 0)
         {
-            VM.ShowStatus($"The {preset.Name} preset is already fully applied.", InfoBarSeverity.Success);
+            VM.ShowStatus(
+                $"The {preset.Name} preset has nothing left to apply, or its remaining states could not be read.",
+                InfoBarSeverity.Informational);
             return;
         }
 
@@ -301,9 +303,7 @@ public sealed partial class DashboardPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ApplyPresetAsync(preset, restorePointCheck.IsChecked == true);
-        VM.ShowStatus(message, message.Contains("failed")
-            ? InfoBarSeverity.Warning
-            : InfoBarSeverity.Success);
+        var outcome = await VM.ApplyPresetAsync(preset, restorePointCheck.IsChecked == true);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 }

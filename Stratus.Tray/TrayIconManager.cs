@@ -76,9 +76,13 @@ public sealed class TrayIconManager : IDisposable
     }
 
     /// <summary>Tray tooltip doubles as a score glance: "Stratus: 84/100".</summary>
-    public void UpdateTooltip(int score)
+    public void UpdateTooltip(int score) => SetTooltip($"Stratus: {score}/100");
+
+    /// <summary>Shown when no honest score exists: the tray never keeps a stale number.</summary>
+    public void UpdateTooltipUnknown() => SetTooltip("Stratus: score unavailable");
+
+    private void SetTooltip(string text)
     {
-        var text = $"Stratus: {score}/100";
         if (_icon.Text != text)
             _icon.Text = text;
     }

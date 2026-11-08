@@ -3,28 +3,43 @@ using Stratus.Core.Models;
 namespace Stratus.Core.Services;
 
 /// <summary>
-/// Score = sum of weights of applied tweaks / sum of weights of all applicable tweaks, x100.
-/// Computed from live system state, so already-tweaked machines score high immediately.
-/// Every tweak's registry state is read exactly once per Compute; all aggregates and the
-/// per-tweak States snapshot are derived from that single pass.
+/// Unreadable tweaks are excluded from the score and retained as unknown in the snapshot,
+/// so a failed probe cannot be presented as a complete score or a pending change.
 /// </summary>
 public sealed class ScoreService
 {
-    public ScoreReport Compute(IReadOnlyList<Tweak> tweaks)
+    public ScoreReport Compute(IReadOnlyList<Tweak> tweaks) => Compute(tweaks, Log.Warn);
+
+    /// <summary>
+    /// Optional warning sink lets tests capture read failures locally instead of writing
+    /// to the product log. Pass null to silence, or use the single-argument overload.
+    /// </summary>
+    public ScoreReport Compute(IReadOnlyList<Tweak> tweaks, Action<string>? warn)
     {
         var states = new List<TweakState>(tweaks.Count);
         foreach (var tweak in tweaks)
         {
             bool applicable = false, applied = false;
-            try { applicable = tweak.IsApplicable; } catch { }
+            string? readError = null;
+            try { applicable = tweak.IsApplicable; }
+            catch (Exception ex)
+            {
+                readError = "Could not check whether this tweak applies here: " + ex.Message;
+                warn?.Invoke($"Could not check whether {tweak.Id} applies here: {ex.Message}");
+            }
             if (applicable)
             {
-                try { applied = tweak.IsApplied; } catch { }
+                try { applied = tweak.IsApplied; }
+                catch (Exception ex)
+                {
+                    readError = "Could not read this tweak's state: " + ex.Message;
+                    warn?.Invoke($"Could not read the state of {tweak.Id}: {ex.Message}");
+                }
             }
-            states.Add(new TweakState(tweak, applicable, applied));
+            states.Add(new TweakState(tweak, applicable, applied, readError));
         }
 
-        var applicableStates = states.Where(s => s.IsApplicable).ToList();
+        var applicableStates = states.Where(s => s.IsApplicable && s.ReadError is null).ToList();
 
         var categories = applicableStates
             .GroupBy(s => s.Tweak.Category)

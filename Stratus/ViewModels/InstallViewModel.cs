@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml.Controls;
+using Stratus.Core.Coordination;
 using Stratus.Core.Services;
 
 namespace Stratus.ViewModels;
@@ -79,6 +80,9 @@ public sealed class InstallRow : ObservableObject
         IsInstalled = installed;
         Version = version;
     }
+
+    /// <summary>The installed set could not be read: say so instead of claiming "Not installed".</summary>
+    internal void MarkUnknown() => SetStatus("Install state unknown: winget could not be read.");
 
     internal void SetStatus(string status) => Status = status;
 }
@@ -230,6 +234,8 @@ public sealed class InstallViewModel : ObservableObject
                 return;
             }
 
+            // Read before touching the rows. If the export throws, the loaded state stays
+            // exactly as it was instead of turning into "everything is not installed".
             var installed = await AppServices.Winget.GetInstalledIdsAsync();
 
             _all.Clear();
@@ -246,14 +252,20 @@ public sealed class InstallViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Error("Could not read the app list", ex);
-            ShowStatus("Could not read the app list: " + ex.Message, InfoBarSeverity.Warning);
+            ShowStatus("Could not read the installed apps: " + ex.Message +
+                       (_all.Count > 0 ? " The list from the last successful read is still shown." : ""),
+                InfoBarSeverity.Warning);
 
-            // Keep the page usable: show the catalog with unknown install state rather than
-            // an empty list that looks like a broken filter.
+            // First load only: show the catalog with unknown install state rather than an empty
+            // list that looks like a broken filter. A later failure keeps the known state.
             if (_all.Count == 0)
             {
                 foreach (var entry in AppCatalog.Apps)
-                    _all.Add(new InstallRow(entry));
+                {
+                    var row = new InstallRow(entry);
+                    row.MarkUnknown();
+                    _all.Add(row);
+                }
                 ApplyFilter();
             }
         }
@@ -264,12 +276,13 @@ public sealed class InstallViewModel : ObservableObject
         }
     }
 
-    public async Task<string> InstallAsync(InstallRow row)
+    public async Task<AppOperationResult> InstallAsync(InstallRow row)
     {
         if (IsBusy)
         {
-            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
-            return "Another operation is still running.";
+            var busy = new AppOperationResult(false, "Another operation is still running.");
+            ShowStatus(busy.Message, InfoBarSeverity.Warning);
+            return busy;
         }
 
         // Read before the call: success flips the row to installed.
@@ -296,7 +309,7 @@ public sealed class InstallViewModel : ObservableObject
                 ShowStatus(result.Message, InfoBarSeverity.Error);
             }
 
-            return result.Message;
+            return result;
         }
         catch (Exception ex)
         {
@@ -304,7 +317,7 @@ public sealed class InstallViewModel : ObservableObject
             var message = "Could not " + (wasInstalled ? "upgrade " : "install ") + row.Name + ": " + ex.Message;
             row.SetStatus(message);
             ShowStatus(message, InfoBarSeverity.Error);
-            return message;
+            return new AppOperationResult(false, message);
         }
         finally
         {
@@ -314,12 +327,13 @@ public sealed class InstallViewModel : ObservableObject
         }
     }
 
-    public async Task<string> UninstallAsync(InstallRow row)
+    public async Task<AppOperationResult> UninstallAsync(InstallRow row)
     {
         if (IsBusy)
         {
-            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
-            return "Another operation is still running.";
+            var busy = new AppOperationResult(false, "Another operation is still running.");
+            ShowStatus(busy.Message, InfoBarSeverity.Warning);
+            return busy;
         }
 
         IsBusy = true;
@@ -340,7 +354,7 @@ public sealed class InstallViewModel : ObservableObject
                 ShowStatus(result.Message, InfoBarSeverity.Error);
             }
 
-            return result.Message;
+            return result;
         }
         catch (Exception ex)
         {
@@ -348,7 +362,7 @@ public sealed class InstallViewModel : ObservableObject
             var message = "Could not remove " + row.Name + ": " + ex.Message;
             row.SetStatus(message);
             ShowStatus(message, InfoBarSeverity.Error);
-            return message;
+            return new AppOperationResult(false, message);
         }
         finally
         {
@@ -358,21 +372,14 @@ public sealed class InstallViewModel : ObservableObject
         }
     }
 
-    public async Task<string> UpgradeAllAsync()
+    public async Task<OperationOutcome> UpgradeAllAsync()
     {
         if (IsBusy)
-        {
-            ShowStatus("Another operation is still running.", InfoBarSeverity.Warning);
-            return "Another operation is still running.";
-        }
+            return OperationOutcome.Warning("Another operation is still running.");
 
         var targets = _all.Where(r => r.IsInstalled).ToList();
         if (targets.Count == 0)
-        {
-            var none = "No installed apps in this list can be upgraded.";
-            ShowStatus(none, InfoBarSeverity.Informational);
-            return none;
-        }
+            return OperationOutcome.Info("No installed apps in this list can be upgraded.");
 
         IsBusy = true;
         BusyText = "Upgrading installed apps...";
@@ -412,15 +419,16 @@ public sealed class InstallViewModel : ObservableObject
 
             var message = $"{ok} of {targets.Count} apps upgraded." +
                           (failures.Count > 0 ? " " + failures[0] : "");
-            ShowStatus(message, failures.Count > 0 ? InfoBarSeverity.Error : InfoBarSeverity.Success);
-            return message;
+            if (failures.Count == 0)
+                return OperationOutcome.Success(message);
+
+            // A batch where nothing came up to date is a failure, not a partial result.
+            return ok == 0 ? OperationOutcome.Error(message) : OperationOutcome.Warning(message);
         }
         catch (Exception ex)
         {
             Log.Error("Upgrading the installed apps failed", ex);
-            var message = "Could not upgrade the installed apps: " + ex.Message;
-            ShowStatus(message, InfoBarSeverity.Error);
-            return message;
+            return OperationOutcome.Error("Could not upgrade the installed apps: " + ex.Message);
         }
         finally
         {

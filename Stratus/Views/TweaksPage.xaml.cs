@@ -29,6 +29,8 @@ public sealed partial class TweaksPage : Page
         await VM.RefreshStatesAsync();
     }
 
+    private async void OnRefreshStates(object sender, RoutedEventArgs e) => await VM.RefreshStatesAsync();
+
     private void OnSearchChanged(object sender, TextChangedEventArgs e) =>
         VM.SearchText = ((TextBox)sender).Text;
 
@@ -68,7 +70,9 @@ public sealed partial class TweaksPage : Page
         if (sender is not Button { Tag: TweakGroup group } || !group.CanApplySafe)
             return;
 
-        var pending = group.Items.Count(i => !i.NotApplicable && !i.IsApplied && i.T.Risk <= RiskLevel.Recommended);
+        // Same rule the run uses: unknown rows are never applied, so the count the dialog
+        // shows is the count ApplyCategoryAsync will attempt.
+        var pending = group.PendingSafeIds().Count;
         if (pending == 0)
             return;
 
@@ -103,63 +107,52 @@ public sealed partial class TweaksPage : Page
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
-        var message = await VM.ApplyCategoryAsync(group, restorePointCheck.IsChecked == true);
-        VM.ShowStatus(message, message.Contains("failed")
-            ? InfoBarSeverity.Warning
-            : InfoBarSeverity.Success);
+        var outcome = await VM.ApplyCategoryAsync(group, restorePointCheck.IsChecked == true);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
     private async void OnToggleToggled(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch toggle || toggle.DataContext is not TweakItemViewModel item)
             return;
-        if (item.IsBusy)
+
+        // The switch mirrors IsApplied. A refresh writes IsApplied and the binding moves the
+        // switch, which raises Toggled: that value already matches the render and is not intent.
+        // A row whose state could not be read is never a user intent either.
+        if (item.IsBusy || item.IsUnknown || VM.IsBulkApplying)
+        {
+            RenderToggle(toggle, item);
             return;
+        }
 
         var desired = toggle.IsOn;
-        var actual = SafeReadApplied(item);
-
-        // Programmatic refresh snap - desired already matches reality.
-        if (desired == actual)
+        if (desired == item.IsApplied)
             return;
 
         if (desired && item.T.Risk == RiskLevel.Advanced && !await ConfirmAdvancedAsync(item))
         {
-            toggle.IsOn = actual; // fires Toggled again; now desired == actual → no-op
+            RenderToggle(toggle, item);
             return;
         }
 
-        item.IsBusy = true;
-        try
+        // The state may have moved while the dialog was open. Apply only real intent.
+        if (item.IsBusy || item.IsUnknown || desired == item.IsApplied)
         {
-            var result = desired
-                ? await AppServices.Engine.ApplyAsync(item.T)
-                : await AppServices.Engine.RevertAsync(item.T);
-
-            if (!result.Success)
-            {
-                VM.ShowStatus($"{item.Name}: {result.Error}", InfoBarSeverity.Error);
-            }
-            else if (desired && item.RequiresReboot)
-            {
-                VM.ShowStatus($"{item.Name} applied - restart Windows to take full effect.", InfoBarSeverity.Success);
-            }
-
-            var nowApplied = SafeReadApplied(item);
-            item.SetState(item.NotApplicable, nowApplied);
-            toggle.IsOn = nowApplied;
-            VM.NotifyItemChanged();
+            RenderToggle(toggle, item);
+            return;
         }
-        finally
-        {
-            item.IsBusy = false;
-        }
+
+        var outcome = await VM.SetAppliedAsync(item, desired);
+        RenderToggle(toggle, item);
+        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
-    private static bool SafeReadApplied(TweakItemViewModel item)
+    /// <summary>Writes the rendered state back. The toggle event this raises matches the
+    /// render, so the handler treats it as a no-op rather than new intent.</summary>
+    private static void RenderToggle(ToggleSwitch toggle, TweakItemViewModel item)
     {
-        try { return item.T.IsApplied; }
-        catch { return false; }
+        if (toggle.IsOn != item.IsApplied)
+            toggle.IsOn = item.IsApplied;
     }
 
     private async Task<bool> ConfirmAdvancedAsync(TweakItemViewModel item)

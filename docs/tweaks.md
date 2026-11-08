@@ -487,7 +487,7 @@ Removes the OneDrive app for this machine. Your local files are not deleted. Rev
 ### power-ultimate
 **Ultimate Performance power plan** - Recommended.
 
-Runs `powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61` (creates the plan if missing) and activates it. No aggressive CPU parking or display sleep timers; modern CPUs still downclock fine. Revert re-activates Balanced.
+Runs `powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61` (creates the plan if missing) and activates it. No aggressive CPU parking or display sleep timers; modern CPUs still downclock fine. Revert restores the previously active plan, with Balanced only as a fallback when no backup exists. If settings are lost, Stratus cannot identify a previously duplicated plan by its name and may create another copy.
 
 ### power-hibernation-off
 **Disable hibernation** - Advanced.

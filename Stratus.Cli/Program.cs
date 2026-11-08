@@ -42,15 +42,19 @@ internal static class Program
             case "list":
                 foreach (var t in engine.Tweaks)
                 {
-                    var applied = SafeIsApplied(t);
-                    var applicable = SafeIsApplicable(t);
-                    Console.WriteLine($"{(applied ? "[x]" : "[ ]")} {(applicable ? "" : "(n/a) ")}{t.Id,-24} {t.Category,-9} {t.Risk,-12} w{t.Weight}  {t.Name}");
+                    var (appliedReadable, applied) = TryRead(t, () => t.IsApplied, "state");
+                    var (applicableReadable, applicable) = TryRead(t, () => t.IsApplicable, "applicability");
+                    var marker = !appliedReadable ? "[?]" : applied ? "[x]" : "[ ]";
+                    var scope = !applicableReadable ? "(unreadable) " : applicable ? "" : "(n/a) ";
+                    Console.WriteLine($"{marker} {scope}{t.Id,-24} {t.Category,-9} {t.Risk,-12} w{t.Weight}  {t.Name}");
                 }
                 return 0;
 
             case "score":
                 var report = engine.Rescore();
-                Console.WriteLine($"Score: {report.Score}/100 ({report.StatusText}) - {report.AppliedCount}/{report.TotalCount} tweaks, weight {report.AppliedWeight}/{report.TotalWeight}");
+                Console.WriteLine($"Score: {report.ScoreText}/100 ({report.StatusText}) - {report.AppliedCount}/{report.TotalCount} tweaks, weight {report.AppliedWeight}/{report.TotalWeight}");
+                if (report.UnknownCount > 0)
+                    Console.WriteLine($"  State unavailable for {report.UnknownCount} tweaks.");
                 foreach (var c in report.Categories)
                     Console.WriteLine($"  {c.Category,-9} {c.Score,3}  ({c.AppliedCount}/{c.TotalCount})");
                 return 0;
@@ -95,16 +99,40 @@ internal static class Program
                 {
                     var total = 0;
                     var applied = 0;
+                    var unreadable = 0;
                     foreach (var id in preset.TweakIds)
                     {
                         var t = engine.Find(id);
-                        if (t is null || !SafeIsApplicable(t))
+                        if (t is null)
                             continue;
+
+                        var (applicableReadable, applicable) = TryRead(t, () => t.IsApplicable, "applicability");
+                        if (!applicableReadable)
+                        {
+                            unreadable++;
+                            continue;
+                        }
+
+                        if (!applicable)
+                            continue;
+
                         total++;
-                        if (SafeIsApplied(t))
+                        var (appliedReadable, appliedState) = TryRead(t, () => t.IsApplied, "state");
+                        if (!appliedReadable)
+                        {
+                            unreadable++;
+                            continue;
+                        }
+
+                        if (appliedState)
                             applied++;
                     }
-                    Console.WriteLine($"{preset.Name,-12} {applied}/{total} applied{(applied == total && total > 0 ? "  (complete)" : "")}");
+
+                    // A complete claim needs every member readable; unreadable members are
+                    // never counted as pending work.
+                    var complete = unreadable == 0 && total > 0 && applied == total ? "  (complete)" : "";
+                    var unreadableText = unreadable == 0 ? "" : $"  ({unreadable} unreadable, left out)";
+                    Console.WriteLine($"{preset.Name,-12} {applied}/{total} applied{complete}{unreadableText}");
                     Console.WriteLine($"  {preset.Description}");
                 }
                 return 0;
@@ -229,8 +257,27 @@ internal static class Program
         }
     }
 
-    private static bool SafeIsApplied(Tweak t) { try { return t.IsApplied; } catch { return false; } }
-    private static bool SafeIsApplicable(Tweak t) { try { return t.IsApplicable; } catch { return false; } }
+    /// <summary>
+    /// Reads one live flag and logs a failed read instead of silently treating it as false.
+    /// Unreadable stays distinguishable at the call site through <c>Readable</c>.
+    /// </summary>
+    private static (bool Readable, bool Value) TryRead(Tweak tweak, Func<bool> read, string what)
+    {
+        try
+        {
+            return (true, read());
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the {what} of {tweak.Id}: {ex.Message}");
+            return (false, false);
+        }
+    }
+
+    // Preset apply/revert semantics are unchanged: an unreadable flag still reads as false,
+    // which skips a revert and re-attempts an apply. Only the log line is new.
+    private static bool SafeIsApplied(Tweak t) => TryRead(t, () => t.IsApplied, "state").Value;
+    private static bool SafeIsApplicable(Tweak t) => TryRead(t, () => t.IsApplicable, "applicability").Value;
 
     /// <summary>
     /// Writes the reference docs from the compiled catalog. The catalog is the only source,
@@ -329,6 +376,11 @@ internal static class Program
         }
 
         var path = args[1];
+        if (args.Skip(2).Any(argument => !string.Equals(argument, "--dry-run", StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine("Unknown import option. Usage: stratus import <path> [--dry-run]");
+            return 1;
+        }
         var dryRun = args.Skip(2).Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
 
         if (!File.Exists(path))
@@ -348,6 +400,7 @@ internal static class Program
             }
 
             profile = loaded;
+            Console.WriteLine($"Profile from {profile.MachineName}, exported {profile.ExportedAtUtc.ToLocalTime():g}: {profile.ItemCount} items.");
         }
         catch (Exception ex)
         {
@@ -355,8 +408,6 @@ internal static class Program
             Console.WriteLine($"Could not read the profile: {ex.Message}");
             return 1;
         }
-
-        Console.WriteLine($"Profile from {profile.MachineName}, exported {profile.ExportedAtUtc.ToLocalTime():g}: {profile.ItemCount} items.");
 
         List<ProfileAction> preview;
         try

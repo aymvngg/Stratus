@@ -229,6 +229,25 @@ public sealed class ScheduledTasksViewModel : ObservableObject
     /// <summary>Loads the task list and rebuilds the filters. Failures are reported in the status bar. Never throws.</summary>
     private async Task RefreshCoreAsync()
     {
+        if (!AppServices.ScheduledTasks.IsAvailable)
+        {
+            // The saved state is unreadable, so every change is refused: say so instead of
+            // rendering an empty list that reads as "nothing to do".
+            Rows.Clear();
+            Folders.Clear();
+            Folders.Add(AllFolders);
+            FolderFilter = AllFolders;
+            HasItems = false;
+            CheckedCount = 0;
+            ApplyFilter();
+            UpdateCount();
+            CountText = "Scheduled task changes are unavailable";
+            ShowStatus(
+                AppServices.ScheduledTasks.UnavailableReason
+                    ?? "Scheduled task changes are unavailable.", InfoBarSeverity.Warning);
+            return;
+        }
+
         try
         {
             var items = await Task.Run(() => AppServices.ScheduledTasks.Scan());
@@ -396,8 +415,24 @@ public sealed class ScheduledTasksViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var restored = await Task.Run(() => AppServices.ScheduledTasks.ResetAll());
+            var (restored, failed) = await Task.Run(() => AppServices.ScheduledTasks.ResetAllDetailed());
+            if (restored < 0)
+            {
+                ShowStatus(
+                    AppServices.ScheduledTasks.UnavailableReason
+                        ?? "Scheduled task reset is unavailable.", InfoBarSeverity.Error);
+                await RefreshCoreAsync();
+                return;
+            }
+
             await RefreshCoreAsync();
+
+            if (failed > 0)
+            {
+                ShowStatus($"Reset {restored} scheduled tasks; {failed} could not be reset. Their saved states remain available for retry.",
+                    restored == 0 ? InfoBarSeverity.Error : InfoBarSeverity.Warning);
+                return;
+            }
 
             ShowStatus(
                 restored == 0

@@ -43,7 +43,8 @@ public sealed class StratusProfile
     /// <summary>TcpSettingsService id to the value that was set.</summary>
     public Dictionary<string, string> TcpSettings { get; set; } = new();
 
-    public int ItemCount => Tweaks.Count + StartupDisabled.Count + TasksDisabled.Count
-        + FeaturesEnabled.Count + Apps.Count + CleanupTargets.Count + TcpSettings.Count
-        + (DnsProfile is null ? 0 : 1) + (PowerPlan is null ? 0 : 1);
+    public int ItemCount => (Tweaks?.Count ?? 0) + (StartupDisabled?.Count ?? 0)
+        + (TasksDisabled?.Count ?? 0) + (FeaturesEnabled?.Count ?? 0) + (Apps?.Count ?? 0)
+        + (CleanupTargets?.Count ?? 0) + (TcpSettings?.Count ?? 0)
+        + (string.IsNullOrWhiteSpace(DnsProfile) ? 0 : 1) + (string.IsNullOrWhiteSpace(PowerPlan) ? 0 : 1);
 }

@@ -29,7 +29,9 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
 
         // Apply the persisted theme preference (system / dark / light) before first render.
-        ThemeHelper.ApplyToWindow();
+        // The window exists but App.Window is assigned only after this constructor returns,
+        // so pass it explicitly instead of relying on the static.
+        ThemeHelper.ApplyToWindow(this);
 
         // Reopen where the user left us, clamped to the current virtual desktop.
         if (WindowPlacement.Load() is { } placement)
@@ -87,8 +89,19 @@ public sealed partial class MainWindow : Window
 
     private void OnDashboardPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DashboardViewModel.Score))
+        // Score, HasScore and ScoreValueText all rise on every snapshot swap, so an all-unreadable
+        // refresh replaces the number with the unknown text instead of keeping a stale score.
+        if (e.PropertyName is not (nameof(DashboardViewModel.Score)
+            or nameof(DashboardViewModel.HasScore)
+            or nameof(DashboardViewModel.ScoreValueText)))
+        {
+            return;
+        }
+
+        if (Vm.Dashboard.HasScore)
             _tray?.UpdateTooltip(Vm.Dashboard.Score);
+        else
+            _tray?.UpdateTooltipUnknown();
     }
 
     private void OnAppWindowChanged(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowChangedEventArgs args)

@@ -25,7 +25,13 @@ public sealed class DelegateTweak : Tweak
     }
 
     public override bool IsApplicable => _isApplicable?.Invoke() ?? true;
-    public override bool IsApplied { get { try { return _isApplied(); } catch { return false; } } }
+
+    /// <summary>
+    /// Propagates every exception: a failed read is unknown state, and ScoreService turns a
+    /// throwing probe into a read error instead of counting the tweak as not applied. The
+    /// delegates themselves return false for a normal absent or differing state.
+    /// </summary>
+    public override bool IsApplied => _isApplied();
     public override TweakResult Apply() { try { return _apply(); } catch (Exception ex) { return TweakResult.Fail(ex.Message); } }
     public override TweakResult Revert() { try { return _revert(); } catch (Exception ex) { return TweakResult.Fail(ex.Message); } }
 }

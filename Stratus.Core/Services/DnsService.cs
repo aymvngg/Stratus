@@ -1,5 +1,3 @@
-using Stratus.Core.Services;
-
 namespace Stratus.Core.Services;
 
 /// <summary>
@@ -14,6 +12,44 @@ public sealed record DnsProfile(
     string? Primary6 = null,
     string? Secondary6 = null,
     bool BenchmarkEligible = true);
+
+/// <summary>An adapter and the static DNS servers it has before Stratus changes anything.</summary>
+internal sealed class DnsAdapterOriginal
+{
+    public string AdapterName { get; set; } = "";
+    public List<string> Ipv4 { get; set; } = [];
+    public List<string> Ipv6 { get; set; } = [];
+
+    public DnsAdapterOriginal() { }
+
+    public DnsAdapterOriginal(string adapterName, List<string> ipv4, List<string> ipv6)
+    {
+        AdapterName = adapterName;
+        Ipv4 = ipv4;
+        Ipv6 = ipv6;
+    }
+}
+
+/// <summary>Seam over the netsh calls and adapter reads, so the apply and rollback rules are testable.</summary>
+internal interface IDnsCommandRunner
+{
+    /// <summary>Runs a child. Null means the process could not be started at all.</summary>
+    ProcessResult? Run(string fileName, string arguments);
+}
+
+internal sealed class DnsAdapterReadException : Exception
+{
+    public DnsAdapterReadException(string message, Exception? inner = null) : base(message, inner) { }
+}
+
+internal interface IDnsAdapterSource
+{
+    /// <summary>
+    /// Connected adapters with their current servers. Throws <see cref="DnsAdapterReadException"/>
+    /// when the machine state cannot be read: an unknown adapter must never look like "no DNS".
+    /// </summary>
+    List<DnsAdapterOriginal> GetConnectedAdapters();
+}
 
 public sealed class DnsService
 {
@@ -42,26 +78,42 @@ public sealed class DnsService
             "2a10:50c0::bad1:ff", "2a10:50c0::bad2:ff")
     };
 
-    public List<string> GetConnectedAdapters()
+    private readonly IDnsCommandRunner _commands;
+    private readonly IDnsAdapterSource _adapters;
+    private readonly IDnsOriginalsStore _originals;
+
+    public DnsService() : this(new WindowsDnsCommandRunner(), new WindowsDnsAdapterSource(),
+        new DnsOriginalsStore(DnsOriginalsStore.DefaultPath))
+    { }
+
+    internal DnsService(
+        IDnsCommandRunner commands,
+        IDnsAdapterSource adapters,
+        IDnsOriginalsStore originals)
     {
-        // Win32_NetworkAdapter with NetEnabled+PhysicalAdapter mirrors Get-NetAdapter's
-        // "Up and HardwareInterface" filter without spawning a PowerShell process.
-        var names = new List<string>();
+        _commands = commands;
+        _adapters = adapters;
+        _originals = originals;
+    }
+
+    public List<string> GetConnectedAdapters() => ReadAdapters().Select(a => a.AdapterName).ToList();
+
+    /// <summary>
+    /// Reads the connected adapters. A failure is reported, not turned into an empty list:
+    /// showing no adapters is indistinguishable from a machine with none, and applying to
+    /// "all adapters" after a failed read would silently skip the ones it could not see.
+    /// </summary>
+    private List<DnsAdapterOriginal> ReadAdapters()
+    {
         try
         {
-            using var searcher = new System.Management.ManagementObjectSearcher(
-                "SELECT NetConnectionID FROM Win32_NetworkAdapter WHERE NetEnabled = TRUE AND PhysicalAdapter = TRUE");
-            foreach (var adapter in searcher.Get())
-            {
-                if (adapter["NetConnectionID"] is string name && name.Length > 0)
-                    names.Add(name);
-            }
+            return _adapters.GetConnectedAdapters();
         }
         catch (Exception ex)
         {
-            Log.Warn("Adapter enumeration failed: " + ex.Message);
+            Log.Error("Adapter enumeration failed", ex);
+            throw new DnsAdapterReadException("The network adapters could not be read: " + ex.Message, ex);
         }
-        return names;
     }
 
     /// <summary>
@@ -74,148 +126,401 @@ public sealed class DnsService
     /// cannot tell "Automatic" from "Custom". The per-interface NameServer value is only written
     /// for static servers; DhcpNameServer holds the DHCP-provided ones.
     /// </summary>
+    /// <exception cref="DnsAdapterReadException">The adapter state could not be read.</exception>
     public DnsProfile? GetActiveProfile()
     {
-        try
+        foreach (var adapter in ReadAdapters())
         {
-            using var adapters = new System.Management.ManagementObjectSearcher(
-                "SELECT GUID FROM Win32_NetworkAdapter WHERE NetEnabled = TRUE AND PhysicalAdapter = TRUE");
+            var servers = new List<string>();
+            servers.AddRange(adapter.Ipv4);
+            servers.AddRange(adapter.Ipv6);
+            if (servers.Count == 0)
+                continue; // DNS comes from DHCP on this adapter: that is "Automatic".
 
-            foreach (var adapter in adapters.Get())
-            {
-                if (adapter["GUID"] is not string guid || guid.Length == 0)
-                    continue;
+            var known = Profiles.FirstOrDefault(p =>
+                (p.Primary is not null && string.Equals(p.Primary, servers[0], StringComparison.OrdinalIgnoreCase)) ||
+                (p.Primary6 is not null && string.Equals(p.Primary6, servers[0], StringComparison.OrdinalIgnoreCase)));
 
-                var servers = ReadStaticServers(guid);
-                servers.AddRange(ReadStaticServers6(guid));
-                if (servers.Count == 0)
-                    continue; // DNS comes from DHCP on this adapter: that is "Automatic".
-
-                var known = Profiles.FirstOrDefault(p =>
-                    (p.Primary is not null && string.Equals(p.Primary, servers[0], StringComparison.OrdinalIgnoreCase)) ||
-                    (p.Primary6 is not null && string.Equals(p.Primary6, servers[0], StringComparison.OrdinalIgnoreCase)));
-
-                return known ?? new DnsProfile(
-                    "custom",
-                    $"Custom ({servers[0]})",
-                    servers[0],
-                    servers.Count > 1 ? servers[1] : null);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Could not read the active DNS servers: " + ex.Message);
+            return known ?? new DnsProfile(
+                "custom",
+                $"Custom ({servers[0]})",
+                servers[0],
+                servers.Count > 1 ? servers[1] : null);
         }
 
         return null;
     }
 
-    private static List<string> ReadStaticServers(string adapterGuid)
-    {
-        var servers = new List<string>();
-        try
-        {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\" + adapterGuid);
-            if (key?.GetValue("NameServer") is string text)
-            {
-                foreach (var part in text.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries))
-                    servers.Add(part.Trim());
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"Could not read the DNS servers for adapter {adapterGuid}: " + ex.Message);
-        }
-
-        return servers;
-    }
-
-    /// <summary>Static IPv6 servers live in the Tcpip6 branch; DHCP-provided ones never land there.</summary>
-    private static List<string> ReadStaticServers6(string adapterGuid)
-    {
-        var servers = new List<string>();
-        try
-        {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces\" + adapterGuid);
-            if (key?.GetValue("NameServer") is string text)
-            {
-                foreach (var part in text.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries))
-                    servers.Add(part.Trim());
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"Could not read the IPv6 DNS servers for adapter {adapterGuid}: " + ex.Message);
-        }
-
-        return servers;
-    }
-
     public (bool Success, string Message) Apply(DnsProfile profile)
     {
-        var adapters = GetConnectedAdapters();
+        List<DnsAdapterOriginal> adapters;
+        try
+        {
+            adapters = ReadAdapters();
+        }
+        catch (DnsAdapterReadException ex)
+        {
+            return (false, ex.Message);
+        }
+
         if (adapters.Count == 0)
             return (false, "No connected physical adapters found.");
 
+        using var transaction = _originals.TryBeginTransaction();
+        if (transaction is null)
+            return (false, "Another Stratus process is changing DNS right now. Try again in a moment.");
+
+        Dictionary<string, DnsAdapterOriginal> saved;
+        try
+        {
+            saved = _originals.Load();
+        }
+        catch (Exception ex)
+        {
+            // An unreadable originals file may hold the only way back. Refuse before touching
+            // any adapter instead of overwriting it with a fresh set.
+            Log.Error("Could not read the saved DNS servers", ex);
+            return (false, ex.Message + " No adapter was changed.");
+        }
+
+        var applied = new List<DnsAdapterOriginal>();
+        var newlySaved = new List<string>();
+
         foreach (var adapter in adapters)
         {
-            var name = adapter.Replace("\"", "\\\"");
-            ProcessResult result;
-            if (profile.Primary is null)
+            var name = Escape(adapter.AdapterName);
+
+            // A repeat apply must not replace the durable original with the servers Stratus
+            // set last time. The first save is what an explicit revert returns to.
+            if (!saved.TryGetValue(adapter.AdapterName, out var original))
             {
-                result = ProcessRunner.Run("netsh.exe", $"interface ip set dnsservers name=\"{name}\" source=dhcp");
-            }
-            else
-            {
-                result = ProcessRunner.Run("netsh.exe", $"interface ip set dns name=\"{name}\" static {profile.Primary}");
-                if (profile.Secondary is not null)
+                original = adapter;
+                saved[adapter.AdapterName] = original;
+                newlySaved.Add(adapter.AdapterName);
+                try
                 {
-                    var secondary = ProcessRunner.Run(
-                        "netsh.exe", $"interface ip add dns name=\"{name}\" {profile.Secondary} index=2");
-                    // A failed secondary used to be ignored, so the UI reported success while the
-                    // adapter only had one resolver.
-                    if (result.Success && !secondary.Success)
-                        result = secondary;
+                    // Saved before the first change: a crash during netsh must still leave a
+                    // recoverable original on disk.
+                    _originals.Save(saved);
+                }
+                catch (Exception ex)
+                {
+                    // Without a durable original a later rollback is impossible, so this
+                    // adapter is not changed. Earlier adapters in this attempt are rolled back.
+                    Log.Error($"Could not save the original DNS servers for '{adapter.AdapterName}'", ex);
+                    var undone = Rollback(applied, saved, newlySaved);
+                    return (false, undone
+                        ? "The original DNS servers could not be saved, so no adapter was changed."
+                        : "The original DNS servers could not be saved and a changed adapter could not be restored.");
                 }
             }
 
-            if (!result.Success)
+            // Registered before the command runs: a child that hangs or returns nothing still
+            // has this attempt's starting state ready for the rollback.
+            applied.Add(adapter);
+            var result = ApplyIpv4(name, profile);
+            if (result is null || !result.Success)
             {
-                Log.Warn("DNS apply failed on '" + adapter + "': " + result.StdErr.Trim());
-                return (false, $"netsh failed for '{adapter}': {result.StdErr.Trim()}");
+                var reason = result is null
+                    ? "the netsh process could not be started"
+                    : result.StdErr.Trim();
+                Log.Warn("DNS apply failed on '" + adapter.AdapterName + "': " + reason);
+                var undone = Rollback(applied, saved, newlySaved);
+                return (false, undone
+                    ? $"netsh failed for '{adapter.AdapterName}': {reason} The previous DNS servers were restored."
+                    : $"netsh failed for '{adapter.AdapterName}': {reason} Some adapters could not be restored.");
             }
 
             // IPv6 is best effort: many adapters have it unbound or disabled, and that must never
             // undo a working IPv4 configuration.
-            if (profile.Primary is null)
+            ApplyIpv6(name, profile);
+        }
+
+        SafeRun("ipconfig.exe", "/flushdns");
+        Log.Info("DNS applied: " + profile.Id + " on " + adapters.Count + " adapter(s).");
+        return (true, $"DNS set to {profile.Label} on {adapters.Count} adapter(s).");
+    }
+
+    /// <summary>
+    /// Runs a child and never lets a start failure escape: a throw here used to skip the
+    /// rollback and leave half the adapters changed.
+    /// </summary>
+    private ProcessResult? SafeRun(string fileName, string arguments)
+    {
+        try
+        {
+            return _commands.Run(fileName, arguments);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not run {fileName} {arguments}", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Restores every adapter Stratus saved and clears the saved entries only for the adapters
+    /// that were restored. A failed restore keeps its original so a later revert can retry.
+    /// </summary>
+    public (bool Success, string Message) Revert()
+    {
+        using var transaction = _originals.TryBeginTransaction();
+        if (transaction is null)
+            return (false, "Another Stratus process is changing DNS right now. Try again in a moment.");
+
+        Dictionary<string, DnsAdapterOriginal> saved;
+        try
+        {
+            saved = _originals.Load();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not read the saved DNS servers", ex);
+            return (false, ex.Message);
+        }
+
+        if (saved.Count == 0)
+            return (false, "No saved DNS servers to restore.");
+
+        var failed = new List<string>();
+        foreach (var (adapter, original) in saved)
+        {
+            if (!RestoreOriginal(original))
+                failed.Add(adapter);
+        }
+
+        try
+        {
+            // Keep only the adapters that were not restored, so a retry still has their original.
+            var remaining = new Dictionary<string, DnsAdapterOriginal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var adapter in failed)
+                remaining[adapter] = saved[adapter];
+            _originals.Save(remaining);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not update the saved DNS servers after a restore: " + ex.Message);
+        }
+
+        if (failed.Count > 0)
+        {
+            Log.Warn($"DNS revert left {failed.Count} adapter(s) unchanged: {string.Join(", ", failed)}");
+            return (false, $"Could not restore DNS on {string.Join(", ", failed)}. The saved servers were kept.");
+        }
+
+        SafeRun("ipconfig.exe", "/flushdns");
+        return (true, "DNS servers restored to their previous values.");
+    }
+
+    private ProcessResult? ApplyIpv4(string name, DnsProfile profile)
+    {
+        if (profile.Primary is null)
+            return SafeRun("netsh.exe", $"interface ip set dnsservers name=\"{name}\" source=dhcp");
+
+        var result = SafeRun("netsh.exe", $"interface ip set dns name=\"{name}\" static {profile.Primary}");
+        if (result is { Success: true } && profile.Secondary is not null)
+        {
+            var secondary = SafeRun(
+                "netsh.exe", $"interface ip add dns name=\"{name}\" {profile.Secondary} index=2");
+            if (secondary is null || !secondary.Success)
+                return secondary;
+        }
+
+        return result;
+    }
+
+    private void ApplyIpv6(string name, DnsProfile profile)
+    {
+        if (profile.Primary is null)
+        {
+            var reset6 = SafeRun("netsh.exe", $"interface ipv6 set dnsservers name=\"{name}\" source=dhcp");
+            if (reset6 is null || !reset6.Success)
+                Log.Warn("IPv6 DNS reset failed on '" + name + "': " + Detail(reset6));
+            return;
+        }
+
+        if (profile.Primary6 is null)
+            return;
+
+        var primary6 = SafeRun(
+            "netsh.exe", $"interface ipv6 set dnsservers name=\"{name}\" static {profile.Primary6}");
+        if (primary6 is null || !primary6.Success)
+        {
+            Log.Warn("IPv6 DNS apply failed on '" + name + "': " + Detail(primary6));
+            return;
+        }
+
+        if (profile.Secondary6 is null)
+            return;
+
+        // The add form takes the plural "dnsservers"; "set dns" would overwrite the primary.
+        var secondary6 = SafeRun(
+            "netsh.exe", $"interface ipv6 add dnsservers name=\"{name}\" {profile.Secondary6} index=2");
+        if (secondary6 is null || !secondary6.Success)
+            Log.Warn("IPv6 secondary DNS failed on '" + name + "': " + Detail(secondary6));
+    }
+
+    private static string Detail(ProcessResult? result) =>
+        result is null ? "the netsh process could not be started" : result.StdErr.Trim();
+
+    /// <summary>
+    /// Restores the adapters changed in this attempt to the servers they had at its start.
+    /// An adapter whose first original was only saved by this attempt drops that entry once
+    /// the restore worked, so a later revert does not return to an attempt that never landed.
+    /// </summary>
+    private bool Rollback(
+        List<DnsAdapterOriginal> applied,
+        Dictionary<string, DnsAdapterOriginal> saved,
+        List<string> newlySaved)
+    {
+        var restored = true;
+        foreach (var original in applied)
+        {
+            if (!RestoreOriginal(original))
+                restored = false;
+        }
+
+        if (!restored)
+        {
+            Log.Error("DNS rollback did not restore every adapter; the saved originals were kept.");
+            return false;
+        }
+
+        if (newlySaved.Count > 0)
+        {
+            try
             {
-                var reset6 = ProcessRunner.Run("netsh.exe", $"interface ipv6 set dnsservers name=\"{name}\" source=dhcp");
-                if (!reset6.Success)
-                    Log.Warn("IPv6 DNS reset failed on '" + adapter + "': " + reset6.StdErr.Trim());
+                foreach (var adapter in newlySaved)
+                    saved.Remove(adapter);
+                _originals.Save(saved);
             }
-            else if (profile.Primary6 is not null)
+            catch (Exception ex)
             {
-                var primary6 = ProcessRunner.Run(
-                    "netsh.exe", $"interface ipv6 set dnsservers name=\"{name}\" static {profile.Primary6}");
-                if (!primary6.Success)
-                {
-                    Log.Warn("IPv6 DNS apply failed on '" + adapter + "': " + primary6.StdErr.Trim());
-                }
-                else if (profile.Secondary6 is not null)
-                {
-                    // The add form takes the plural "dnsservers"; "set dns" would overwrite the primary.
-                    var secondary6 = ProcessRunner.Run(
-                        "netsh.exe", $"interface ipv6 add dnsservers name=\"{name}\" {profile.Secondary6} index=2");
-                    if (!secondary6.Success)
-                        Log.Warn("IPv6 secondary DNS failed on '" + adapter + "': " + secondary6.StdErr.Trim());
-                }
+                // Keeping a stale original is safe: a revert would just reapply a value the
+                // machine already has.
+                Log.Warn("Could not drop the DNS originals saved by a failed attempt: " + ex.Message);
             }
         }
 
-        ProcessRunner.Run("ipconfig.exe", "/flushdns");
-        Log.Info("DNS applied: " + profile.Id + " on " + adapters.Count + " adapter(s).");
-        return (true, $"DNS set to {profile.Label} on {adapters.Count} adapter(s).");
+        if (applied.Count > 0)
+            SafeRun("ipconfig.exe", "/flushdns");
+
+        return true;
+    }
+
+    private bool RestoreOriginal(DnsAdapterOriginal original)
+    {
+        var name = Escape(original.AdapterName);
+        var ipv4 = RestoreFamily(name, "ip", "dns", original.Ipv4);
+        var ipv6 = RestoreFamily(name, "ipv6", "dnsservers", original.Ipv6);
+        return ipv4 && ipv6;
+    }
+
+    private bool RestoreFamily(string name, string family, string noun, List<string> servers)
+    {
+        if (servers.Count == 0)
+        {
+            var dhcp = SafeRun("netsh.exe", $"interface {family} set {noun} name=\"{name}\" source=dhcp");
+            return dhcp is { Success: true };
+        }
+
+        var first = SafeRun(
+            "netsh.exe", $"interface {family} set {noun} name=\"{name}\" static {servers[0]}");
+        if (first is null || !first.Success)
+        {
+            Log.Warn($"Could not restore the DNS servers on '{name}': " + Detail(first));
+            return false;
+        }
+
+        for (var i = 1; i < servers.Count; i++)
+        {
+            var add = SafeRun(
+                "netsh.exe", $"interface {family} add {noun} name=\"{name}\" {servers[i]} index={i + 1}");
+            if (add is null || !add.Success)
+            {
+                Log.Warn($"Could not restore DNS server {servers[i]} on '{name}': " + Detail(add));
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string Escape(string adapter) => adapter.Replace("\"", "\\\"");
+
+    private sealed class WindowsDnsCommandRunner : IDnsCommandRunner
+    {
+        public ProcessResult Run(string fileName, string arguments) => ProcessRunner.Run(fileName, arguments);
+    }
+
+    private sealed class WindowsDnsAdapterSource : IDnsAdapterSource
+    {
+        public List<DnsAdapterOriginal> GetConnectedAdapters()
+        {
+            // Win32_NetworkAdapter with NetEnabled+PhysicalAdapter mirrors Get-NetAdapter's
+            // "Up and HardwareInterface" filter without spawning a PowerShell process.
+            var adapters = new List<DnsAdapterOriginal>();
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT GUID, NetConnectionID FROM Win32_NetworkAdapter " +
+                    "WHERE NetEnabled = TRUE AND PhysicalAdapter = TRUE");
+                foreach (var adapter in searcher.Get())
+                {
+                    if (adapter["NetConnectionID"] is not string name || name.Length == 0)
+                        continue;
+
+                    // A physical adapter without a GUID cannot have its servers read. Reporting
+                    // it as "no DNS" would hide a real adapter from the apply, so this fails.
+                    if (adapter["GUID"] is not string guid || guid.Length == 0)
+                        throw new DnsAdapterReadException(
+                            $"The adapter '{name}' has no interface identifier, so its DNS servers cannot be read.");
+
+                    adapters.Add(new DnsAdapterOriginal(
+                        name,
+                        ReadStaticServers(@"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\" + guid),
+                        ReadStaticServers(@"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces\" + guid)));
+                }
+            }
+            catch (DnsAdapterReadException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // An unreadable adapter list must never look like "this machine has none":
+                // the caller would then claim success while every adapter kept its old DNS.
+                Log.Error("Adapter enumeration failed", ex);
+                throw new DnsAdapterReadException("The network adapters could not be read: " + ex.Message, ex);
+            }
+
+            return adapters;
+        }
+
+        /// <summary>
+        /// Static servers from one interface branch. A missing key or value is genuinely
+        /// "DHCP on this adapter"; an access or read failure is not, and it throws.
+        /// </summary>
+        private static List<string> ReadStaticServers(string subKey)
+        {
+            var servers = new List<string>();
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(subKey);
+                if (key?.GetValue("NameServer") is string text)
+                {
+                    foreach (var part in text.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries))
+                        servers.Add(part.Trim());
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Could not read the DNS servers from {subKey}", ex);
+                throw new DnsAdapterReadException(
+                    "The current DNS servers could not be read, so nothing was changed. " + ex.Message, ex);
+            }
+
+            return servers;
+        }
     }
 }

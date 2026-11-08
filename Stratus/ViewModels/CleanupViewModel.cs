@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Stratus.Core.Coordination;
 using Stratus.Core.Services;
 
 namespace Stratus.ViewModels;
@@ -109,7 +110,7 @@ public sealed class CleanupViewModel : ObservableObject
             return;
 
         IsBusy = true;
-        BusyText = "Measuring folders…";
+        BusyText = "Measuring folders...";
         try
         {
             await ScanCoreAsync();
@@ -170,7 +171,8 @@ public sealed class CleanupViewModel : ObservableObject
     {
         try
         {
-            var ids = string.Join(",", Rows.Where(r => r.IsChecked).Select(r => r.Target.Id));
+            // Even an empty selection is written: it means "clean nothing by default".
+            var ids = CleanupSelection.Format(Rows.Where(r => r.IsChecked).Select(r => r.Target.Id));
             AppServices.Settings.Set(ProfileService.CleanupSelectionKey, ids);
         }
         catch (Exception ex)
@@ -183,12 +185,9 @@ public sealed class CleanupViewModel : ObservableObject
     {
         try
         {
-            var saved = AppServices.Settings.Get(ProfileService.CleanupSelectionKey);
-            if (string.IsNullOrWhiteSpace(saved))
-                return null;
-            return new HashSet<string>(
-                saved.Split(',').Select(id => id.Trim()).Where(id => id.Length > 0),
-                StringComparer.OrdinalIgnoreCase);
+            // Missing means "never chosen, use defaults". Empty means "the user cleared every
+            // box" and must survive a scan instead of turning back into the defaults.
+            return CleanupSelection.Parse(AppServices.Settings.Get(ProfileService.CleanupSelectionKey));
         }
         catch (Exception ex)
         {
@@ -197,29 +196,38 @@ public sealed class CleanupViewModel : ObservableObject
         }
     }
 
-    public async Task<string> CleanAsync(bool includeRecycleBin)
+    public async Task<OperationOutcome> CleanAsync(bool includeRecycleBin)
     {
         if (IsBusy)
-            return "Another operation is still running.";
+            return OperationOutcome.Warning("Another operation is still running.");
 
         var selected = Rows.Where(r => r.IsChecked && r.Target.Exists).Select(r => r.Target).ToList();
         if (selected.Count == 0 && !includeRecycleBin)
-            return "Nothing selected.";
+            return OperationOutcome.Info("Nothing selected.");
 
         IsBusy = true;
-        BusyText = includeRecycleBin ? "Cleaning (incl. Recycle Bin)…" : "Cleaning…";
+        BusyText = includeRecycleBin ? "Cleaning (incl. Recycle Bin)..." : "Cleaning...";
         try
         {
             var result = await Task.Run(() => AppServices.Cleanup.Clean(selected, includeRecycleBin));
             _sessionFreed += result.FreedBytes;
             Raise(nameof(SessionText), nameof(HasSession));
             await ScanCoreAsync();
-            return $"Freed {Format.Bytes(result.FreedBytes)} - {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped.";
+
+            // Every partial flag is a real outcome: services that did not restart, a recycle bin
+            // that did not empty, and targets whose clean threw all make this a warning.
+            var message =
+                $"Freed {Format.Bytes(result.FreedBytes)} - {result.DeletedFiles:N0} files deleted, {result.FailedFiles:N0} in use and skipped." +
+                CleanupSummary.RestartFailureText(result.RestartFailures) +
+                CleanupSummary.RecycleBinFailedText(result.RecycleBinFailed) +
+                CleanupSummary.FailedTargetsText(result.FailedTargets);
+            return new OperationOutcome(message,
+                CleanupSummary.SeverityFor(result.RestartFailures, result.RecycleBinFailed, result.FailedTargets));
         }
         catch (Exception ex)
         {
             Log.Error("Cleanup failed", ex);
-            return $"Cleaning failed: {ex.Message}";
+            return OperationOutcome.Error($"Cleaning failed: {ex.Message}");
         }
         finally
         {

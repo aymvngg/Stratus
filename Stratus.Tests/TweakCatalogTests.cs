@@ -44,14 +44,27 @@ public class TweakCatalogTests : IDisposable
         var signatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var tweak in BuildCatalog().OfType<RegistryTweak>())
         {
-            var signature = string.Join(";", typeof(RegistryTweak)
-                .GetField("_actions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .GetValue(tweak) is RegistryAction[] actions
-                ? actions.Select(a => $"{a.Hive}|{a.Path}|{a.Name}|{a.TweakedValue}")
-                : Array.Empty<string>());
+            var signature = System.Text.Json.JsonSerializer.Serialize(tweak.Actions
+                .OrderBy(a => a.Hive)
+                .ThenBy(a => a.Path, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(a => new { a.Hive, a.Path, a.Name, a.Op, a.Kind, a.TweakedValue }));
 
             Assert.True(signatures.Add(signature),
                 $"{tweak.Id} repeats the registry actions of an earlier tweak");
+        }
+    }
+
+    [Fact]
+    public void Catalog_WeightsAndRiskAreInRange()
+    {
+        foreach (var tweak in BuildCatalog())
+        {
+            Assert.True(tweak.Weight > 0, $"{tweak.Id} has a non-positive score weight");
+            Assert.True(Enum.IsDefined(tweak.Risk), $"{tweak.Id} has an undefined risk");
+            Assert.False(string.IsNullOrWhiteSpace(tweak.Id), "an entry has no id");
+            Assert.Equal(tweak.Id.Trim(), tweak.Id);
+            Assert.DoesNotContain(' ', tweak.Id);
         }
     }
 

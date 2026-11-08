@@ -18,10 +18,40 @@ public sealed record ScheduledTaskItem(
 /// <summary>State read from the Task Scheduler for one task.</summary>
 public sealed record TaskInfo(bool Enabled, DateTime? LastRunUtc, DateTime? NextRunUtc, string? Author);
 
+internal enum TaskReadState
+{
+    /// <summary>The task exists and its state was read.</summary>
+    Ok,
+    /// <summary>The task does not exist in its folder. Genuinely absent, safe to skip.</summary>
+    NotFound,
+    /// <summary>The task exists but its state could not be read. Skipping hides a real task.</summary>
+    Failed,
+}
+
+/// <summary>Result of reading one task from the Task Scheduler.</summary>
+internal sealed record TaskReadResult(TaskReadState State, TaskInfo? Info)
+{
+    public static TaskReadResult NotFound { get; } = new(TaskReadState.NotFound, null);
+    public static TaskReadResult Failed { get; } = new(TaskReadState.Failed, null);
+}
+
+/// <summary>Seam over the Task Scheduler connection, so reset and persistence rules are testable.</summary>
+internal interface ITaskSession : IDisposable
+{
+    bool Available { get; }
+    TaskReadResult Read(string taskPath);
+    bool Set(string taskPath, bool enabled);
+}
+
+internal interface ITaskSessionFactory
+{
+    ITaskSession Open();
+}
+
 /// <summary>
 /// Enables or disables well-known telemetry and inventory scheduled tasks.
 /// Talks to the Task Scheduler COM API directly so it never parses localized
-/// schtasks output. Original states are kept in tasks.json for an exact reset.
+/// schtasks output. Original states are persisted before a toggle and kept until a reset succeeds.
 /// </summary>
 public sealed class ScheduledTaskService
 {
@@ -64,33 +94,154 @@ public sealed class ScheduledTaskService
     ];
 
     private readonly string _stateFile;
+    private readonly ITaskSessionFactory _sessions;
     private readonly object _gate = new();
-    private readonly Dictionary<string, bool> _original = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, bool> _original = new(StringComparer.OrdinalIgnoreCase);
+    private string? _unavailableReason;
+    private readonly TimeSpan _lockTimeout;
 
-    public ScheduledTaskService(string stateFile)
+    public ScheduledTaskService(string stateFile) : this(stateFile, new ComTaskSessionFactory()) { }
+
+    internal ScheduledTaskService(string stateFile, ITaskSessionFactory sessions, TimeSpan? lockTimeout = null)
     {
         _stateFile = stateFile;
-        Load();
+        _sessions = sessions;
+        _lockTimeout = lockTimeout ?? TimeSpan.FromSeconds(15);
+        try
+        {
+            Reload();
+        }
+        catch (InvalidOperationException)
+        {
+            // Reload already recorded the reason; the service now refuses every change.
+        }
     }
 
-    /// <summary>Only tasks that actually exist on this machine are returned.</summary>
-    public List<ScheduledTaskItem> Scan()
+    /// <summary>Stable across processes: string hashing is randomized per process, a file digest is not.</summary>
+    private string StateMutexName()
     {
+        var digest = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(_stateFile.ToLowerInvariant())))[..16];
+        return "Global\\Stratus-ScheduledTasks-" + digest;
+    }
+
+    /// <summary>
+    /// Takes the cross-process lock for one whole read-modify-write operation, so the app and
+    /// the CLI cannot overwrite each other's saved originals from stale in-memory copies.
+    /// Null means the lock could not be taken and nothing may be changed.
+    /// </summary>
+    private IDisposable? TryBeginStateOperation()
+    {
+        Mutex? mutex;
+        var name = StateMutexName();
+        try
+        {
+            mutex = new Mutex(initiallyOwned: false, name);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not create the scheduled task state lock '{name}'.", ex);
+            return null;
+        }
+
+        try
+        {
+            if (!mutex.WaitOne(_lockTimeout))
+            {
+                mutex.Dispose();
+                Log.Warn("Another Stratus process held the scheduled task state lock for too long.");
+                return null;
+            }
+        }
+        catch (AbandonedMutexException)
+        {
+            // The previous owner died holding the lock. We own it now and reload from disk next.
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not take the scheduled task state lock", ex);
+            mutex.Dispose();
+            return null;
+        }
+
+        return new StateLease(mutex);
+    }
+
+    private sealed class StateLease : IDisposable
+    {
+        private readonly Mutex _mutex;
+        private bool _released;
+
+        public StateLease(Mutex mutex) => _mutex = mutex;
+
+        public void Dispose()
+        {
+            if (_released)
+                return;
+
+            _released = true;
+            try { _mutex.ReleaseMutex(); } catch { /* not owned any more */ }
+            _mutex.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// True when the saved state could not be read. Every change is refused until the file is
+    /// fixed, because a toggle whose original was lost could never be reset again.
+    /// </summary>
+    public bool IsAvailable => Volatile.Read(ref _unavailableReason) is null;
+
+    /// <summary>Why changes are refused, or null when the service is usable.</summary>
+    public string? UnavailableReason => Volatile.Read(ref _unavailableReason);
+
+    /// <summary>
+    /// Only tasks that actually exist on this machine are returned. When
+    /// <paramref name="requireComplete"/> is set, the scan refuses to return a list it cannot
+    /// fully read: the Task Scheduler being unavailable, the saved state being unreadable, or a
+    /// known task existing but failing to report its state all throw instead of silently
+    /// shrinking the list. Without the flag, unreadable entries are skipped so the UI stays usable.
+    /// </summary>
+    public List<ScheduledTaskItem> Scan(bool requireComplete = false)
+    {
+        if (requireComplete && !IsAvailable)
+            throw new InvalidOperationException(UnavailableReason!);
+
         var list = new List<ScheduledTaskItem>();
-        using var session = Session.Open();
+        var failed = new List<string>();
+        using var session = _sessions.Open();
+
+        if (!session.Available)
+        {
+            if (!requireComplete)
+                return list;
+
+            throw new InvalidOperationException(
+                "The Task Scheduler service is not available, so the task list could not be read.");
+        }
 
         foreach (var definition in Known)
         {
             var path = Path(definition);
-            var info = session.Read(path);
-            if (info is null)
+            var read = session.Read(path);
+            if (read.State == TaskReadState.NotFound)
                 continue;
+
+            if (read.State != TaskReadState.Ok || read.Info is null)
+            {
+                failed.Add(path);
+                continue;
+            }
 
             list.Add(new ScheduledTaskItem(
                 "task:" + path, definition.Name, definition.Folder,
-                definition.Group, definition.Description, info.Enabled,
-                info.LastRunUtc, info.NextRunUtc, info.Author));
+                definition.Group, definition.Description, read.Info.Enabled,
+                read.Info.LastRunUtc, read.Info.NextRunUtc, read.Info.Author));
         }
+
+        if (requireComplete && failed.Count > 0)
+            throw new InvalidOperationException(
+                "These scheduled tasks exist but could not be read: " + string.Join(", ", failed) + ".");
 
         return list;
     }
@@ -99,27 +250,59 @@ public sealed class ScheduledTaskService
     {
         var path = item.Folder + "\\" + item.Name;
 
+        if (!IsAvailable)
+            return TweakResult.Fail(UnavailableReason!);
+
+        using var lease = TryBeginStateOperation();
+        if (lease is null)
+            return TweakResult.Fail("Another Stratus process is changing scheduled tasks. Try again in a moment.");
+
         try
         {
-            using var session = Session.Open();
+            Reload();
+
+            using var session = _sessions.Open();
             if (!session.Available)
                 return TweakResult.Fail("The Task Scheduler service is not available.");
 
-            var current = session.Enabled(path);
-            if (current is null)
+            // Read the full state: a failed read is reported as unknown, never as a missing task.
+            var read = session.Read(path);
+            if (read.State == TaskReadState.Failed)
+                return TweakResult.Fail("The task state could not be read, so it was left unchanged.");
+
+            if (read.State == TaskReadState.NotFound || read.Info is null)
                 return TweakResult.Fail("That task no longer exists on this machine.");
 
-            session.Set(path, enabled);
+            var current = read.Info.Enabled;
+            if (current == enabled)
+                return TweakResult.Ok;
 
-            // Record the pre-change state only after a successful toggle: a failed set
-            // must not mark the task as modified.
+            // Persist the original before the toggle. If that save fails nothing is changed:
+            // a toggle whose original state was never written could not be reset after a restart.
+            bool recorded;
             lock (_gate)
             {
-                if (!_original.ContainsKey(path))
+                recorded = _original.ContainsKey(path);
+                if (!recorded)
                 {
-                    _original[path] = current.Value;
-                    Save();
+                    _original[path] = current;
+                    if (!TrySave())
+                    {
+                        // The in-memory entry is rolled back with the file: publishing a state
+                        // the disk does not have is how a reset silently disappears.
+                        _original.Remove(path);
+                        return TweakResult.Fail(
+                            "The original task state could not be saved, so the task was left unchanged.");
+                    }
                 }
+            }
+
+            if (!session.Set(path, enabled))
+            {
+                // The outcome is unknown: the task may or may not have been toggled. Keeping the
+                // recorded original is the safe choice, since a reset simply re-sets the value
+                // the task already had. It stays as a retry marker until a reset clears it.
+                return TweakResult.Fail("The Task Scheduler service is not available.");
             }
 
             Log.Info((enabled ? "Enabled" : "Disabled") + " scheduled task: " + path);
@@ -143,157 +326,237 @@ public sealed class ScheduledTaskService
         var path = item.Folder + "\\" + item.Name;
         bool enabled;
 
-        lock (_gate)
-        {
-            if (!_original.TryGetValue(path, out enabled))
-                return TweakResult.Fail("No change to reset for this task.");
-        }
+        if (!IsAvailable)
+            return TweakResult.Fail(UnavailableReason!);
+
+        using var lease = TryBeginStateOperation();
+        if (lease is null)
+            return TweakResult.Fail("Another Stratus process is changing scheduled tasks. Try again in a moment.");
 
         try
         {
-            using var session = Session.Open();
+            Reload();
+
+            lock (_gate)
+            {
+                if (!_original.TryGetValue(path, out enabled))
+                    return TweakResult.Fail("No change to reset for this task.");
+            }
+
+            using var session = _sessions.Open();
             if (!session.Set(path, enabled))
                 return TweakResult.Fail("The Task Scheduler service is not available.");
 
             lock (_gate)
             {
                 _original.Remove(path);
-                Save();
+                if (!TrySave())
+                {
+                    // The task itself is back to its original state, but the saved original
+                    // could not be dropped. Keep it so a later reset can retry and report it.
+                    _original[path] = enabled;
+                    return TweakResult.Fail(
+                        "The task was restored, but the saved state could not be updated. Reset it again to clear it.");
+                }
             }
 
             return TweakResult.Ok;
         }
         catch (Exception ex)
         {
+            Log.Warn("Resetting scheduled task failed for " + path + ": " + ex.Message);
             return TweakResult.Fail(ex.Message);
         }
     }
 
-    public int ResetAll()
+    /// <summary>
+    /// Restores every recorded task. Returns the number of tasks restored. Refuses with a
+    /// negative result when the saved state is unreadable or another Stratus process holds the
+    /// state lock, so callers must treat any negative value as "nothing was changed".
+    /// </summary>
+    public int ResetAll() => ResetAllDetailed().Restored;
+
+    public (int Restored, int Failed) ResetAllDetailed()
     {
-        KeyValuePair<string, bool>[] snapshot;
-        lock (_gate)
-            snapshot = _original.ToArray();
-
-        var restored = 0;
-        using var session = Session.Open();
-
-        foreach (var (path, enabled) in snapshot)
+        if (!IsAvailable)
         {
-            try
-            {
-                if (!session.Set(path, enabled))
-                    continue;
-
-                restored++;
-                lock (_gate)
-                    _original.Remove(path);
-            }
-            catch
-            {
-                // Keep going: one locked task should not block the rest.
-            }
+            Log.Warn("Scheduled task reset refused: " + UnavailableReason);
+            return (-1, 0);
         }
 
-        lock (_gate)
-            Save();
+        using var lease = TryBeginStateOperation();
+        if (lease is null)
+        {
+            Log.Warn("Scheduled task reset refused: another Stratus process holds the state lock.");
+            return (-1, 0);
+        }
 
-        return restored;
+        try
+        {
+            Reload();
+
+            KeyValuePair<string, bool>[] snapshot;
+            lock (_gate)
+                snapshot = _original.ToArray();
+
+            var restored = 0;
+            var failed = 0;
+            using var session = _sessions.Open();
+
+            foreach (var (path, enabled) in snapshot)
+            {
+                try
+                {
+                    if (!session.Set(path, enabled))
+                    {
+                        Log.Warn("Reset skipped: the Task Scheduler service is not available for " + path);
+                        failed++;
+                        continue;
+                    }
+
+                    lock (_gate)
+                    {
+                        _original.Remove(path);
+                        if (!TrySave())
+                        {
+                            _original[path] = enabled;
+                            failed++;
+                            continue;
+                        }
+                    }
+
+                    restored++;
+                }
+                catch (Exception ex)
+                {
+                    // Keep going: one locked task should not block the rest, and its backup stays.
+                    Log.Warn("Resetting scheduled task failed for " + path + ": " + ex.Message);
+                    failed++;
+                }
+            }
+
+            return (restored, failed);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Scheduled task reset refused: the saved state could not be reloaded.", ex);
+            return (-1, 0);
+        }
     }
 
     private static string Path(Definition definition) => definition.Folder + "\\" + definition.Name;
 
-    private void Load()
+    /// <summary>
+    /// Re-reads the saved state from disk while holding the state lock. A corrupt file marks
+    /// the service unavailable; the file itself is left in place so nothing is lost.
+    /// </summary>
+    private void Reload()
     {
-        var stored = JsonFile.Load(_stateFile, "scheduled task state file", () => new Dictionary<string, bool>());
+        Dictionary<string, bool> stored;
+        try
+        {
+            // Required, so a corrupt tasks.json is left on disk and reported instead of being
+            // replaced by an empty dictionary on the next save, which would erase every original.
+            stored = JsonFile.Load(
+                _stateFile, "scheduled task state file",
+                () => new Dictionary<string, bool>(), required: true);
+        }
+        catch (Exception ex)
+        {
+            Volatile.Write(ref _unavailableReason,
+                "The saved task state could not be read, so changes are disabled until it is fixed. " + ex.Message);
+            Log.Error("Scheduled task state is unavailable", ex);
+            throw new InvalidOperationException(_unavailableReason, ex);
+        }
+
+        // A read that works clears an older refusal: the file may have been repaired by hand.
+        Volatile.Write(ref _unavailableReason, null);
+
         lock (_gate)
         {
-            foreach (var (key, value) in stored)
-                _original[key] = value;
+            _original = new Dictionary<string, bool>(stored, StringComparer.OrdinalIgnoreCase);
         }
     }
 
-    private void Save()
+    private bool TrySave()
     {
         try
         {
             JsonFile.Save(_stateFile, _original);
+            return true;
         }
         catch (Exception ex)
         {
             // A damaged state file only costs us the reset, never a crash.
             Log.Warn("Could not save the scheduled task state file: " + ex.Message);
+            return false;
         }
     }
 
     /// <summary>Thin wrapper over the Task Scheduler COM object (Schedule.Service).</summary>
-    private sealed class Session : IDisposable
+    private sealed class ComTaskSessionFactory : ITaskSessionFactory
+    {
+        public ITaskSession Open() => ComTaskSession.Open();
+    }
+
+    private sealed class ComTaskSession : ITaskSession
     {
         private readonly dynamic? _service;
 
-        private Session(dynamic? service) => _service = service;
+        private ComTaskSession(dynamic? service) => _service = service;
 
         public bool Available => _service is not null;
 
-        public static Session Open()
+        public static ComTaskSession Open()
         {
             try
             {
                 var type = Type.GetTypeFromProgID("Schedule.Service");
                 if (type is null)
-                    return new Session(null);
+                    return new ComTaskSession(null);
 
                 dynamic service = Activator.CreateInstance(type)!;
                 service.Connect();
-                return new Session(service);
+                return new ComTaskSession(service);
             }
             catch
             {
-                return new Session(null);
-            }
-        }
-
-        public bool? Enabled(string taskPath)
-        {
-            if (_service is null)
-                return null;
-
-            try
-            {
-                var (folder, name) = Split(taskPath);
-                dynamic task = _service.GetFolder(folder).GetTask(name);
-                return (bool)task.Enabled;
-            }
-            catch
-            {
-                return null;
+                return new ComTaskSession(null);
             }
         }
 
         /// <summary>
-        /// Reads the full task state. Each property is probed separately: a task that never ran
-        /// has no last run time, and that must not hide the whole row.
+        /// Reads the full task state. GetTask failing means the task is genuinely absent from
+        /// its folder; a task that exists but will not report its state is a read failure.
         /// </summary>
-        public TaskInfo? Read(string taskPath)
+        public TaskReadResult Read(string taskPath)
         {
             if (_service is null)
-                return null;
+                return TaskReadResult.Failed;
 
+            dynamic task;
             try
             {
                 var (folder, name) = Split(taskPath);
-                dynamic task = _service.GetFolder(folder).GetTask(name);
-
-                var enabled = (bool)task.Enabled;
-                return new TaskInfo(
-                    enabled,
-                    TryTime(() => (DateTime)task.LastRunTime),
-                    TryTime(() => (DateTime)task.NextRunTime),
-                    TryAuthor(task));
+                task = _service.GetFolder(folder).GetTask(name);
             }
             catch
             {
-                return null;
+                return TaskReadResult.NotFound;
+            }
+
+            try
+            {
+                var enabled = (bool)task.Enabled;
+                return new TaskReadResult(TaskReadState.Ok, new TaskInfo(
+                    enabled,
+                    TryTime(() => (DateTime)task.LastRunTime),
+                    TryTime(() => (DateTime)task.NextRunTime),
+                    TryAuthor(task)));
+            }
+            catch
+            {
+                return TaskReadResult.Failed;
             }
         }
 

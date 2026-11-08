@@ -67,7 +67,7 @@ public sealed class StartupService
         return "startup-" + slug;
     }
 
-    public List<StartupItem> Scan()
+    public List<StartupItem> Scan(bool requireComplete = false)
     {
         var items = new List<StartupItem>();
 
@@ -104,21 +104,23 @@ public sealed class StartupService
                         Publisher: described.Publisher));
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // A missing or unreadable key simply contributes no entries.
+                Log.Warn("Startup scan failed: " + ex.Message);
+                if (requireComplete)
+                    throw;
             }
         }
 
         AddFolderItems(items,
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 @"Microsoft\Windows\Start Menu\Programs\Startup"),
-            RegistryHive.CurrentUser, ApprovedFolderUser, "Current user");
+            RegistryHive.CurrentUser, ApprovedFolderUser, "Current user", requireComplete);
 
         AddFolderItems(items,
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 @"Microsoft\Windows\Start Menu\Programs\Startup"),
-            RegistryHive.LocalMachine, ApprovedFolderMachine, "All users");
+            RegistryHive.LocalMachine, ApprovedFolderMachine, "All users", requireComplete);
 
         return items
             .OrderByDescending(i => i.IsEnabled)
@@ -126,7 +128,7 @@ public sealed class StartupService
             .ToList();
     }
 
-    private void AddFolderItems(List<StartupItem> items, string folder, RegistryHive hive, string approvedPath, string scope)
+    private void AddFolderItems(List<StartupItem> items, string folder, RegistryHive hive, string approvedPath, string scope, bool requireComplete)
     {
         try
         {
@@ -159,9 +161,11 @@ public sealed class StartupService
                     Publisher: described.Publisher));
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Unreadable folder: skip it.
+            Log.Warn("Startup folder scan failed: " + ex.Message);
+            if (requireComplete)
+                throw;
         }
     }
 
@@ -241,7 +245,7 @@ public sealed class StartupService
 
     private bool IsEnabled(RegistryHive hive, string approvedPath, string valueName)
     {
-        var read = _reg.Read(hive, approvedPath, valueName);
+        var read = _reg.ReadRequired(hive, approvedPath, valueName);
         if (!read.Exists || read.Value is not byte[] { Length: > 0 } blob)
             return true;
 
@@ -295,25 +299,48 @@ public sealed class StartupService
     }
 
     /// <summary>Restores every entry Stratus changed to its exact previous state.</summary>
-    public int ResetAll()
+    public int ResetAll() => ResetAllDetailed().Restored;
+
+    /// <summary>
+    /// Restores every recorded entry. Returns the counts separately, so the caller can
+    /// report a partial reset instead of claiming total success. Failed entries keep their
+    /// backups, so another reset can retry them.
+    /// </summary>
+    public (int Restored, int Failed) ResetAllDetailed()
+    {
+        var modified = Scan().Where(IsModified).ToList();
+        return ResetAllDetailed(modified, id => _reg.RestoreAll(id));
+    }
+
+    /// <summary>Test seam: the counting and logging rule over an injected item list and restore call.</summary>
+    internal (int Restored, int Failed) ResetAllDetailed(IReadOnlyList<StartupItem> items, Func<string, bool> restore)
     {
         var restored = 0;
-        foreach (var item in Scan())
+        var failed = 0;
+        foreach (var item in items)
         {
-            if (!IsModified(item))
-                continue;
-
             try
             {
-                if (_reg.RestoreAll(TweakId(item)))
+                if (restore(TweakId(item)))
+                {
                     restored++;
+                    continue;
+                }
+
+                // RestoreAll keeps the backups when only some values could be written,
+                // so the entry stays resettable instead of losing its original.
+                failed++;
+                Log.Warn("Startup reset could not restore every value for " + item.Name
+                         + ". The entry keeps its saved state for another reset.");
             }
-            catch
+            catch (Exception ex)
             {
                 // Keep going: one bad key must not block the rest.
+                failed++;
+                Log.Warn("Resetting the startup entry " + item.Name + " failed: " + ex.Message);
             }
         }
 
-        return restored;
+        return (restored, failed);
     }
 }

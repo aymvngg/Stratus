@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.Win32;
 
 namespace Stratus.Core.Services;
 
@@ -13,60 +14,153 @@ public sealed record RestorePointList(
     bool Available,
     string? Error);
 
+/// <summary>Outcome of the Checkpoint-Computer child, before the frequency value is restored.</summary>
+internal sealed record RestorePointCheckpoint(bool Success, string Message, string RawOutput);
+
+internal interface IRestorePointCheckpoint
+{
+    RestorePointCheckpoint Create();
+}
+
 public static class RestorePointService
 {
+    private const string RestoreKey = @"SOFTWARE\Microsoft\Windows NT\SystemRestore";
+    private const string FrequencyValue = "SystemRestorePointCreationFrequency";
+
+    /// <summary>Stable id so the original frequency value survives a crash and stays backed up.</summary>
+    internal const string FrequencyTweakId = "restore-point-frequency";
+
     /// <summary>
-    /// Creates a system restore point (temporarily lifts the 24h frequency limit,
-    /// enables System Restore on the system drive, checkpoints, restores the limit).
+    /// Creates a system restore point. The 24 hour frequency limit is backed up and lifted
+    /// through <see cref="RegistryService"/> in this process, so the child being killed or
+    /// timing out cannot skip putting the original value back.
     /// </summary>
-    public static (bool Success, string Message) Create()
+    public static (bool Success, string Message) Create() =>
+        Create(ServiceRegistryAccess.Create(null), new PowerShellRestorePointCheckpoint());
+
+    public static (bool Success, string Message) Create(RegistryService registry) =>
+        Create(ServiceRegistryAccess.Create(registry), new PowerShellRestorePointCheckpoint());
+
+    internal static (bool Success, string Message) Create(
+        IRegistryGateway registry,
+        IRestorePointCheckpoint checkpoint)
     {
-        var script = """
-            $ErrorActionPreference = 'Stop'
-            $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\SystemRestore'
-            $prev = $null
-            try {
-              $prev = (Get-ItemProperty $key -Name SystemRestorePointCreationFrequency -ErrorAction SilentlyContinue).SystemRestorePointCreationFrequency
-              Set-ItemProperty $key -Name SystemRestorePointCreationFrequency -Value 0 -Type DWord -ErrorAction SilentlyContinue
-              Enable-ComputerRestore -Drive "$env:SystemDrive\"
-              Checkpoint-Computer -Description 'Stratus Optimizer' -RestorePointType MODIFY_SETTINGS
-              'STRATUS_OK'
-            } catch {
-              'STRATUS_FAIL: ' + $_.Exception.Message
-            } finally {
-              # Always put the frequency limit back, even when the checkpoint failed,
-              # otherwise the machine keeps the lifted limit forever.
-              if ($null -ne $prev) {
-                Set-ItemProperty $key -Name SystemRestorePointCreationFrequency -Value $prev -Type DWord -ErrorAction SilentlyContinue
-              } else {
-                # There was no limit value before, so remove the one we created (Windows then uses its default).
-                Remove-ItemProperty $key -Name SystemRestorePointCreationFrequency -ErrorAction SilentlyContinue
-              }
+        IRegistryAttempt? attempt = null;
+        try
+        {
+            // Strict read: when the live value cannot be read, this attempt must not start from
+            // an unknown state, and crash recovery must not consume its saved original blindly.
+            var current = registry.ReadRequired(RegistryHive.LocalMachine, RestoreKey, FrequencyValue);
+
+            // Crash recovery only. A saved original is applied when the live value is still the
+            // lifted 0 that a killed run left behind. If the live value is anything else, the
+            // machine has moved on since, so an older saved value must not overwrite it.
+            if (registry.HasBackups(FrequencyTweakId) &&
+                current.Exists && IsLifted(current))
+            {
+                if (!registry.RestoreAll(FrequencyTweakId))
+                {
+                    return (false,
+                        "A previous restore point attempt left the 24 hour limit lifted and it could not be restored. "
+                        + "Set SystemRestorePointCreationFrequency by hand, then try again.");
+                }
+
+                current = registry.Read(RegistryHive.LocalMachine, RestoreKey, FrequencyValue);
             }
-            """;
+            else if (registry.HasBackups(FrequencyTweakId))
+            {
+                Log.Warn("A saved restore point frequency original no longer matches the live value; it was left alone.");
+            }
 
-        var result = ProcessRunner.PowerShell(script, timeoutMs: 180_000);
-        var output = (result.StdOut + result.StdErr).Trim();
+            // The lift is attempt-scoped, so finishing returns to whatever the machine had when
+            // this attempt started, not to an older saved value.
+            attempt = registry.BeginAttempt(FrequencyTweakId);
+            try
+            {
+                attempt.Write(RegistryHive.LocalMachine, RestoreKey, FrequencyValue, RegistryValueKind.DWord, 0);
+            }
+            catch
+            {
+                // The attempt can be left half written by the failing set, so it must be undone
+                // before the error surfaces.
+                RollbackLift(attempt);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not lift the restore point frequency limit", ex);
+            return (false, "The restore point frequency limit could not be changed: " + ex.Message);
+        }
 
-        if (output.Contains("STRATUS_OK"))
+        RestorePointCheckpoint result;
+        var frequencyRestored = true;
+        try
+        {
+            result = checkpoint.Create();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Creating a restore point failed", ex);
+            result = new RestorePointCheckpoint(false, ex.Message, "");
+        }
+        finally
+        {
+            frequencyRestored = RollbackLift(attempt);
+            if (!frequencyRestored)
+                Log.Error("The restore point frequency limit could not be restored; its backup was kept.");
+        }
+
+        if (!frequencyRestored)
+        {
+            return (false, result.Success
+                ? "Restore point created, but the 24 hour restore point limit could not be put back. The original value stays backed up."
+                : $"{result.Message} The 24 hour restore point limit also could not be put back; the original value stays backed up.");
+        }
+
+        if (result.Success)
         {
             Log.Info("Restore point created.");
             return (true, "Restore point created.");
         }
 
-        var reason = output.Contains("STRATUS_FAIL")
-            ? output[(output.IndexOf("STRATUS_FAIL") + 13)..].Trim()
-            : output;
-        var message = string.IsNullOrEmpty(reason) ? "Unknown failure." : reason;
-        Log.Error("Restore point failed: " + message);
-        return (false, message);
+        Log.Error("Restore point failed: " + result.Message);
+        return (false, result.Message);
+    }
+
+    private static bool IsLifted(RegistryRead read) =>
+        read.Value is not null && Convert.ToInt64(read.Value, System.Globalization.CultureInfo.InvariantCulture) == 0;
+
+    private static bool RollbackLift(IRegistryAttempt? attempt)
+    {
+        if (attempt is null)
+            return true;
+
+        try
+        {
+            return attempt.Rollback();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restoring the restore point frequency limit failed", ex);
+            return false;
+        }
+    }
+
+    /// <summary>Seam over the PowerShell child used by the scan, so a failed child is testable.</summary>
+    internal interface IRestorePointScanner
+    {
+        ProcessResult? Run(string script);
     }
 
     /// <summary>
     /// Lists the restore points and the shadow storage they occupy. Windows does not expose
     /// a per-point size, so the size shown is the total the snapshots use on the system drive.
     /// </summary>
-    public static RestorePointList Scan()
+    public static RestorePointList Scan() =>
+        Scan(new PowerShellRestorePointScanner());
+
+    internal static RestorePointList Scan(IRestorePointScanner scanner)
     {
         var script = """
             $ErrorActionPreference = 'Stop'
@@ -87,7 +181,35 @@ public static class RestorePointService
             }
             """;
 
-        var result = ProcessRunner.PowerShell(script, timeoutMs: 120_000);
+        ProcessResult? result;
+        try
+        {
+            result = scanner.Run(script);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restore point scan could not start", ex);
+            return new RestorePointList([], 0, 0, false, "The restore points could not be read: " + ex.Message);
+        }
+
+        // A child that never ran or exited non-zero must not be reported as "no restore
+        // points": that reads as a clean machine and hides a broken System Restore.
+        if (result is null)
+        {
+            Log.Warn("Restore point scan failed: the PowerShell process could not be started.");
+            return new RestorePointList([], 0, 0, false,
+                "The restore points could not be read because the query process did not start.");
+        }
+
+        if (!result.Success)
+        {
+            var detail = (result.StdErr + " " + result.StdOut).Trim();
+            Log.Warn($"Restore point scan failed with exit code {result.ExitCode}: {detail}");
+            return new RestorePointList([], 0, 0, false,
+                "The restore points could not be read"
+                + (string.IsNullOrWhiteSpace(detail) ? "." : ": " + detail));
+        }
+
         var output = (result.StdOut + result.StdErr).Replace("\r", "");
         var points = new List<RestorePointItem>();
         long used = 0;
@@ -171,5 +293,43 @@ public static class RestorePointService
         var message = string.IsNullOrEmpty(reason) ? "Unknown failure." : reason;
         Log.Warn($"Could not delete restore point {sequence}: {message}");
         return (false, message);
+    }
+
+    /// <summary>
+    /// Runs Checkpoint-Computer. The frequency limit is not touched here: the caller owns the
+    /// backed-up value and restores it even when this child is killed or times out.
+    /// </summary>
+    private sealed class PowerShellRestorePointCheckpoint : IRestorePointCheckpoint
+    {
+        public RestorePointCheckpoint Create()
+        {
+            var script = """
+                $ErrorActionPreference = 'Stop'
+                try {
+                  Enable-ComputerRestore -Drive "$env:SystemDrive\"
+                  Checkpoint-Computer -Description 'Stratus Optimizer' -RestorePointType MODIFY_SETTINGS
+                  'STRATUS_OK'
+                } catch {
+                  'STRATUS_FAIL: ' + $_.Exception.Message
+                }
+                """;
+
+            var result = ProcessRunner.PowerShell(script, timeoutMs: 180_000);
+            var output = (result.StdOut + result.StdErr).Trim();
+
+            if (output.Contains("STRATUS_OK"))
+                return new RestorePointCheckpoint(true, "Restore point created.", output);
+
+            var reason = output.Contains("STRATUS_FAIL")
+                ? output[(output.IndexOf("STRATUS_FAIL") + 13)..].Trim()
+                : output;
+            return new RestorePointCheckpoint(false,
+                string.IsNullOrEmpty(reason) ? "Unknown failure." : reason, output);
+        }
+    }
+
+    private sealed class PowerShellRestorePointScanner : IRestorePointScanner
+    {
+        public ProcessResult? Run(string script) => ProcessRunner.PowerShell(script, timeoutMs: 120_000);
     }
 }

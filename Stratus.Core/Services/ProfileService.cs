@@ -6,12 +6,26 @@ namespace Stratus.Core.Services;
 /// <summary>One row of the import preview: what a profile asks for and what would happen here.</summary>
 public sealed record ProfileAction(string Category, string Name, string Action, bool WillChange);
 
+/// <summary>Result of checking a profile's shape before it is previewed or applied.</summary>
+public sealed record ProfileValidation(bool Valid, string? Error)
+{
+    public static ProfileValidation Ok { get; } = new(true, null);
+
+    public static ProfileValidation Fail(string error) => new(false, error);
+}
+
+/// <summary>A profile that cannot be captured, previewed or applied. The message is ready for the UI.</summary>
+public sealed class ProfileValidationException : Exception
+{
+    public ProfileValidationException(string message) : base(message) { }
+}
+
 /// <summary>Outcome of applying a profile. Every failed item is listed, never swallowed.</summary>
 public sealed record ProfileApplyReport(int Applied, int Skipped, int Failed, IReadOnlyList<string> Messages)
 {
     public string Summary => Failed == 0
-        ? $"Applied {Applied} items, skipped {Skipped} that already matched."
-        : $"Applied {Applied} items, skipped {Skipped}, {Failed} failed. See the list below.";
+        ? $"Applied {Applied} items, skipped {Skipped}."
+        : $"Applied {Applied} items, skipped {Skipped}, {Failed} failed.";
 }
 
 /// <summary>
@@ -61,32 +75,47 @@ public sealed class ProfileService
     {
         var profile = new StratusProfile();
 
+        // A failed export looks like "no apps installed" and would write a profile that
+        // silently drops every app the user picked, so fail the capture instead.
+        HashSet<string> installed;
+        try
+        {
+            installed = await _winget.GetInstalledIdsAsync();
+        }
+        catch (WingetReadException ex)
+        {
+            Log.Warn("Profile capture stopped: " + ex.Message);
+            throw new ProfileValidationException(
+                "The installed app list could not be read, so the profile was not saved. "
+                + "It would be missing every app Stratus can install. " + ex.Message);
+        }
+
         foreach (var tweak in _engine.Tweaks)
         {
-            if (SafeApplied(tweak))
+            if (tweak.IsApplicable && tweak.IsApplied)
                 profile.Tweaks.Add(tweak.Id);
         }
 
-        profile.StartupDisabled.AddRange(_startup.Scan()
+        profile.StartupDisabled.AddRange(_startup.Scan(requireComplete: true)
             .Where(item => !item.IsEnabled)
             .Select(StartupService.TweakId));
 
-        profile.TasksDisabled.AddRange(_tasks.Scan()
+        profile.TasksDisabled.AddRange(_tasks.Scan(requireComplete: true)
             .Where(task => !task.IsEnabled)
             .Select(TaskKey));
 
-        profile.FeaturesEnabled.AddRange(_features.Scan()
+        profile.FeaturesEnabled.AddRange(_features.Scan(requireComplete: true)
             .Where(feature => feature.Kind == "Feature" && feature.IsInstalled)
             .Select(feature => feature.Name));
 
-        var installed = await _winget.GetInstalledIdsAsync();
         profile.Apps.AddRange(AppCatalog.Apps
             .Where(app => installed.Contains(app.Id))
             .Select(app => app.Id));
 
         profile.CleanupTargets.AddRange(ReadCleanupSelection());
 
-        profile.DnsProfile = _dns.GetActiveProfile()?.Id;
+        var dns = _dns.GetActiveProfile();
+        profile.DnsProfile = dns?.Id == "custom" ? null : dns?.Id;
 
         var plan = _power.GetActivePlan();
         if (plan is not null)
@@ -98,12 +127,17 @@ public sealed class ProfileService
                 profile.TcpSettings[item.Id] = item.CurrentValue;
         }
 
+        var check = Validate(profile);
+        if (!check.Valid)
+            throw new ProfileValidationException(check.Error ?? "The captured profile is not valid.");
+
         return profile;
     }
 
     /// <summary>Describes what applying the profile would do on this machine, without changing anything.</summary>
     public async Task<List<ProfileAction>> PreviewAsync(StratusProfile profile)
     {
+        RequireValid(profile);
         var plan = await BuildPlanAsync(profile);
         return plan.Select(step => new ProfileAction(step.Category, step.Name, step.Action, step.WillChange)).ToList();
     }
@@ -111,6 +145,7 @@ public sealed class ProfileService
     /// <summary>Applies the profile and reports every item that was applied, skipped or failed.</summary>
     public async Task<ProfileApplyReport> ApplyAsync(StratusProfile profile, IProgress<string>? progress = null)
     {
+        RequireValid(profile);
         var plan = await BuildPlanAsync(profile);
         var messages = new List<string>();
         var applied = 0;
@@ -171,7 +206,7 @@ public sealed class ProfileService
 
         foreach (var id in Distinct(profile.Tweaks))
         {
-            var tweak = _engine.Find(id);
+            var tweak = _engine.Tweaks.FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
             if (tweak is null)
             {
                 plan.Add(new Planned("Tweak", id, "Unknown to this version, skipped", false, null));
@@ -198,7 +233,7 @@ public sealed class ProfileService
             }));
         }
 
-        var startup = _startup.Scan()
+        var startup = (profile.StartupDisabled.Count == 0 ? [] : _startup.Scan(requireComplete: true))
             .GroupBy(StartupService.TweakId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (var id in Distinct(profile.StartupDisabled))
@@ -220,7 +255,7 @@ public sealed class ProfileService
                 () => Task.FromResult(FromResult(_startup.SetEnabled(target, false)))));
         }
 
-        var tasks = _tasks.Scan()
+        var tasks = (profile.TasksDisabled.Count == 0 ? [] : _tasks.Scan(requireComplete: true))
             .GroupBy(TaskKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (var path in Distinct(profile.TasksDisabled))
@@ -242,7 +277,7 @@ public sealed class ProfileService
                 () => Task.FromResult(FromResult(_tasks.SetEnabled(target, false)))));
         }
 
-        var features = _features.Scan()
+        var features = (profile.FeaturesEnabled.Count == 0 ? [] : _features.Scan(requireComplete: true))
             .GroupBy(feature => feature.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (var name in Distinct(profile.FeaturesEnabled))
@@ -267,9 +302,21 @@ public sealed class ProfileService
         // The winget export is slow (up to two minutes); skip it when the profile
         // wants no apps at all.
         var wantedApps = Distinct(profile.Apps).ToList();
-        var installedApps = wantedApps.Count == 0
-            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            : await _winget.GetInstalledIdsAsync();
+        HashSet<string> installedApps;
+        try
+        {
+            installedApps = !wantedApps.Any(id => AppCatalog.Apps.Any(app => string.Equals(app.Id, id, StringComparison.OrdinalIgnoreCase)))
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : await _winget.GetInstalledIdsAsync();
+        }
+        catch (WingetReadException ex)
+        {
+            // Without the installed set every app would look absent and be reinstalled.
+            Log.Warn("Profile plan stopped: " + ex.Message);
+            throw new ProfileValidationException(
+                "The installed app list could not be read, so the profile was not used. "
+                + "Every app would look missing and be installed again. " + ex.Message);
+        }
         foreach (var id in wantedApps)
         {
             var app = AppCatalog.Apps.FirstOrDefault(entry =>
@@ -332,7 +379,7 @@ public sealed class ProfileService
                     () => Task.FromResult(ApplyPowerPlan(saved))));
         }
 
-        var tcp = TcpSettingsService.Scan()
+        var tcp = (profile.TcpSettings.Count == 0 ? [] : TcpSettingsService.Scan())
             .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (var (id, value) in profile.TcpSettings)
@@ -340,6 +387,12 @@ public sealed class ProfileService
             if (!tcp.TryGetValue(id, out var item))
             {
                 plan.Add(new Planned("TCP", id, "Unknown setting, skipped", false, null));
+                continue;
+            }
+
+            if (!item.Values.Contains(value, StringComparer.OrdinalIgnoreCase))
+            {
+                plan.Add(new Planned("TCP", item.Name, "Unsupported value, skipped", false, null));
                 continue;
             }
 
@@ -354,39 +407,42 @@ public sealed class ProfileService
                 () => Task.FromResult(FromResult(TcpSettingsService.Apply(target, value)))));
         }
 
-        var wanted = string.Join(",", Distinct(profile.CleanupTargets));
-        var current = string.Join(",", ReadCleanupSelection());
-        if (string.Equals(current, wanted, StringComparison.OrdinalIgnoreCase))
+        var current = ReadCleanupSelection();
+        var combined = current.Concat(Distinct(profile.CleanupTargets))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (combined.Count == current.Distinct(StringComparer.OrdinalIgnoreCase).Count())
         {
             plan.Add(new Planned("Cleanup", "Cleanup selection", "Already matches", false, null));
         }
         else
         {
             plan.Add(new Planned("Cleanup", "Cleanup selection",
-                "Restore the ticked targets (nothing is deleted)", true, () =>
+                "Add the ticked targets (nothing is deleted)", true, () =>
                 {
-                    _settings.Set(CleanupSelectionKey, wanted);
-                    return Task.FromResult<(bool Ok, string? Error)>((true, null));
+                    var saved = _settings.TrySet(CleanupSelectionKey, string.Join(",", combined));
+                    return Task.FromResult<(bool Ok, string? Error)>((saved,
+                        saved ? null : "The cleanup selection could not be saved."));
                 }));
         }
 
         return plan;
     }
 
-    private (bool Ok, string? Error) ApplyPowerPlan(string value)
-    {
-        if (Guid.TryParse(value, out var guid) && _power.SetActive(guid))
-            return (true, null);
+    private (bool Ok, string? Error) ApplyPowerPlan(string value) =>
+        _power.SetActive(value)
+            ? (true, null)
+            : (false, "That power plan does not exist on this machine.");
 
-        if (_power.SetActive(value))
-            return (true, null);
-
-        return (false, "That power plan does not exist on this machine.");
-    }
-
-    private static IEnumerable<string> Distinct(IEnumerable<string> values) => values
+    private static IEnumerable<string> Distinct(IEnumerable<string>? values) => (values ?? [])
         .Where(value => !string.IsNullOrWhiteSpace(value))
         .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private static void RequireValid(StratusProfile? profile)
+    {
+        var check = Validate(profile);
+        if (!check.Valid)
+            throw new ProfileValidationException(check.Error ?? "That profile is not valid.");
+    }
 
     private static string TaskKey(ScheduledTaskItem task) => task.Folder + "\\" + task.Name;
 
@@ -397,11 +453,11 @@ public sealed class ProfileService
 
     private List<string> ReadCleanupSelection()
     {
-        var raw = _settings.Get(CleanupSelectionKey);
-        if (string.IsNullOrWhiteSpace(raw))
-            return new List<string>();
-
-        return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        // One parser for the persisted format, shared with the Cleanup page. A missing
+        // setting and an empty string both mean "nothing ticked" here: capture writes an
+        // empty list either way, and an import only ever adds targets.
+        var parsed = Coordination.CleanupSelection.Parse(_settings.Get(CleanupSelectionKey));
+        return parsed?.ToList() ?? [];
     }
 
     private static bool SafeApplied(Tweak tweak)
@@ -439,6 +495,58 @@ public sealed class ProfileService
 
     public static string Serialize(StratusProfile profile) => JsonSerializer.Serialize(profile, JsonOptions);
 
+    /// <summary>
+    /// Checks a profile's shape and version before anything reads its contents. A profile
+    /// read with an explicit JSON null for a list would otherwise count or plan against null.
+    /// </summary>
+    public static ProfileValidation Validate(StratusProfile? profile)
+    {
+        if (profile is null)
+            return ProfileValidation.Fail("The file does not contain a Stratus profile.");
+
+        if (profile.Version < 1)
+            return ProfileValidation.Fail(Invalid("the version is missing or not a positive number"));
+
+        if (profile.Version > StratusProfile.CurrentVersion)
+            return ProfileValidation.Fail("This profile was written by a newer Stratus (version "
+                + profile.Version + "). Update Stratus and try again.");
+
+        var listError =
+            CheckList(profile.Tweaks, "tweaks")
+            ?? CheckList(profile.StartupDisabled, "startupDisabled")
+            ?? CheckList(profile.TasksDisabled, "tasksDisabled")
+            ?? CheckList(profile.FeaturesEnabled, "featuresEnabled")
+            ?? CheckList(profile.Apps, "apps")
+            ?? CheckList(profile.CleanupTargets, "cleanupTargets");
+        if (listError is not null)
+            return ProfileValidation.Fail(listError);
+
+        if (profile.TcpSettings is null)
+            return ProfileValidation.Fail(Invalid("tcpSettings is null"));
+
+        foreach (var (key, value) in profile.TcpSettings)
+        {
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                return ProfileValidation.Fail(Invalid("tcpSettings contains a blank key or value"));
+        }
+
+        return ProfileValidation.Ok;
+    }
+
+    private static string? CheckList(List<string>? values, string name)
+    {
+        if (values is null)
+            return Invalid(name + " is null");
+
+        if (values.Any(string.IsNullOrWhiteSpace))
+            return Invalid(name + " contains a blank entry");
+
+        return null;
+    }
+
+    private static string Invalid(string detail) =>
+        "That file is not a valid Stratus profile: " + detail + ".";
+
     public static (StratusProfile? Profile, string? Error) Deserialize(string json)
     {
         try
@@ -447,9 +555,14 @@ public sealed class ProfileService
             if (profile is null)
                 return (null, "The file does not contain a Stratus profile.");
 
-            if (profile.Version > StratusProfile.CurrentVersion)
-                return (null, "This profile was written by a newer Stratus (version "
-                    + profile.Version + "). Update Stratus and try again.");
+            var check = Validate(profile);
+            if (!check.Valid)
+                return (null, check.Error);
+
+            // A null machine name is harmless but prints as an empty name in the preview.
+            profile.MachineName = string.IsNullOrWhiteSpace(profile.MachineName)
+                ? "unknown"
+                : profile.MachineName.Trim();
 
             return (profile, null);
         }

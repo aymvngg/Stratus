@@ -4,11 +4,6 @@ using Stratus.Core.Models;
 
 namespace Stratus.Core.Services;
 
-/// <summary>
-/// Renders the compiled tweak catalog as a markdown reference and as a JSON metadata
-/// export. The catalog stays the single source of truth; this only reads it, so the
-/// generated files can never drift from what the app actually applies.
-/// </summary>
 public static class DocGenerator
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -61,14 +56,12 @@ public static class DocGenerator
         return JsonSerializer.Serialize(entries, JsonOptions);
     }
 
-    /// <summary>Category in the enum's declared order, then name, so output is stable across runs.</summary>
     private static List<Tweak> Order(IEnumerable<Tweak> tweaks) => tweaks
         .OrderBy(t => (int)t.Category)
         .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
         .ThenBy(t => t.Id, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-    /// <summary>The markdown layout is line oriented, so a wrapped description would break it.</summary>
     private static string OneLine(string text) => text.Contains('\n') || text.Contains('\r')
         ? string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         : text;

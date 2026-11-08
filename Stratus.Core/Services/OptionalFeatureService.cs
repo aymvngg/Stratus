@@ -83,14 +83,14 @@ public sealed class OptionalFeatureService
 
     /// <summary>
     /// Returns the curated features (installed and missing, deduplicated by name)
-    /// plus the installed capabilities. Never throws.
+    /// plus the installed capabilities. Complete scans reject failed reads.
     /// </summary>
-    public List<OptionalFeatureItem> Scan()
+    public List<OptionalFeatureItem> Scan(bool requireComplete = false)
     {
         var items = new List<OptionalFeatureItem>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (name, state) in RunList(FeatureScript))
+        foreach (var (name, state) in RunList(FeatureScript, requireComplete))
         {
             if (!seen.Add(name))
                 continue;
@@ -102,7 +102,7 @@ public sealed class OptionalFeatureService
             items.Add(new OptionalFeatureItem(name, FriendlyName(name), "Feature", installed));
         }
 
-        foreach (var (name, state) in RunList(CapabilityScript))
+        foreach (var (name, state) in RunList(CapabilityScript, requireComplete))
         {
             if (!state.Equals("Installed", StringComparison.OrdinalIgnoreCase))
                 continue;
@@ -181,7 +181,7 @@ public sealed class OptionalFeatureService
         }
     }
 
-    private static List<(string Name, string State)> RunList(string script)
+    private static List<(string Name, string State)> RunList(string script, bool requireComplete)
     {
         var items = new List<(string Name, string State)>();
 
@@ -192,6 +192,8 @@ public sealed class OptionalFeatureService
             {
                 var error = string.IsNullOrWhiteSpace(result.StdErr) ? result.StdOut : result.StdErr;
                 Log.Warn("Optional feature list failed: " + Shorten(error.Trim()));
+                if (requireComplete)
+                    throw new InvalidOperationException("The Windows feature list could not be read. " + Shorten(error.Trim()));
                 return items;
             }
 
@@ -211,6 +213,8 @@ public sealed class OptionalFeatureService
         catch (Exception ex)
         {
             Log.Warn("Optional feature scan failed: " + ex.Message);
+            if (requireComplete)
+                throw;
         }
 
         return items;

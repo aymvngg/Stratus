@@ -6,6 +6,15 @@ namespace Stratus.Core.Services;
 public sealed record AppOperationResult(bool Success, string Message);
 
 /// <summary>
+/// The installed set could not be read. Callers must treat this as unknown state, never as
+/// "nothing is installed": an empty set would make every catalog app look absent.
+/// </summary>
+public sealed class WingetReadException : Exception
+{
+    public WingetReadException(string message) : base(message) { }
+}
+
+/// <summary>
 /// Installs, upgrades and removes apps through the winget CLI.
 ///
 /// winget prints localized text, so nothing here parses its human output for state.
@@ -16,6 +25,18 @@ public sealed class WingetService
     private const int QueryTimeoutMs = 120_000;
     private const int InstallTimeoutMs = 900_000;
     private const int UninstallTimeoutMs = 300_000;
+
+    private readonly Func<string, ProcessResult> _runExport;
+
+    public WingetService() : this(DefaultExport) { }
+
+    /// <summary>Test seam: replaces the winget process so every export outcome can be checked.</summary>
+    internal WingetService(Func<string, ProcessResult> runExport) => _runExport = runExport;
+
+    private static ProcessResult DefaultExport(string path) => ProcessRunner.Run(
+        "winget.exe",
+        $"export -o \"{path}\" --accept-source-agreements",
+        QueryTimeoutMs);
 
     /// <summary>winget version text, or null when winget is not installed.</summary>
     public string? Version()
@@ -34,7 +55,11 @@ public sealed class WingetService
 
     public bool IsAvailable() => Version() is { Length: > 0 };
 
-    /// <summary>Package identifiers installed on this machine, matched against the catalog later.</summary>
+    /// <summary>
+    /// Package identifiers installed on this machine, matched against the catalog later.
+    /// Throws <see cref="WingetReadException"/> when winget cannot produce a readable export,
+    /// so callers never mistake a failed read for an empty machine.
+    /// </summary>
     public Task<HashSet<string>> GetInstalledIdsAsync() => Task.Run(ExportInstalledIds);
 
     private HashSet<string> ExportInstalledIds()
@@ -43,52 +68,94 @@ public sealed class WingetService
         var path = Path.Combine(Path.GetTempPath(), "stratus-winget-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            var result = ProcessRunner.Run(
-                "winget.exe",
-                $"export -o \"{path}\" --accept-source-agreements",
-                QueryTimeoutMs);
+            var result = _runExport(path);
 
-            if (!result.Success || !File.Exists(path))
+            if (!result.Success)
             {
-                Log.Warn("Could not export the installed app list: " + FirstLine(result.StdErr, result.StdOut));
-                return ids;
+                var detail = FirstLine(result.StdErr, result.StdOut);
+                var message = "winget export failed" + (detail.Length == 0 ? "." : ": " + detail);
+                Log.Warn("Could not export the installed app list: " + message);
+                throw new WingetReadException(message);
+            }
+
+            if (!File.Exists(path))
+            {
+                var message = "winget reported success but wrote no export file.";
+                Log.Warn("Could not export the installed app list: " + message);
+                throw new WingetReadException(message);
             }
 
             using var document = JsonDocument.Parse(File.ReadAllText(path));
-            if (!document.RootElement.TryGetProperty("Sources", out var sources)
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("Sources", out var sources)
                 || sources.ValueKind != JsonValueKind.Array)
             {
-                return ids;
+                var message = "The winget export has no Sources list.";
+                Log.Warn("Could not read the installed app list: " + message);
+                throw new WingetReadException(message);
             }
 
+            // winget requires Packages on every source and PackageIdentifier on every package.
+            // A missing one is a truncated or foreign file; skipping it would drop installed
+            // apps without a trace.
+            var sourceIndex = 0;
             foreach (var source in sources.EnumerateArray())
             {
-                if (!source.TryGetProperty("Packages", out var packages)
-                    || packages.ValueKind != JsonValueKind.Array)
-                {
-                    continue;
-                }
+                if (source.ValueKind != JsonValueKind.Object)
+                    throw new WingetReadException($"Source {sourceIndex} of the winget export is not an object.");
 
+                if (!source.TryGetProperty("Packages", out var packages))
+                    throw new WingetReadException($"Source {sourceIndex} of the winget export has no Packages list.");
+
+                if (packages.ValueKind != JsonValueKind.Array)
+                    throw new WingetReadException($"Source {sourceIndex} of the winget export has a Packages entry that is not a list.");
+
+                var packageIndex = 0;
                 foreach (var package in packages.EnumerateArray())
                 {
-                    if (package.TryGetProperty("PackageIdentifier", out var id)
-                        && id.GetString() is { Length: > 0 } value)
+                    if (package.ValueKind != JsonValueKind.Object)
+                        throw new WingetReadException(
+                            $"Package {packageIndex} of source {sourceIndex} is not an object.");
+
+                    if (!package.TryGetProperty("PackageIdentifier", out var id))
+                        throw new WingetReadException(
+                            $"Package {packageIndex} of source {sourceIndex} has no PackageIdentifier.");
+
+                    if (id.ValueKind != JsonValueKind.String || id.GetString() is not { Length: > 0 } value
+                        || string.IsNullOrWhiteSpace(value))
                     {
-                        ids.Add(value);
+                        throw new WingetReadException(
+                            $"Package {packageIndex} of source {sourceIndex} has a blank PackageIdentifier.");
                     }
+
+                    ids.Add(value);
+                    packageIndex++;
                 }
+
+                sourceIndex++;
             }
+
+            return ids;
+        }
+        catch (WingetReadException)
+        {
+            throw;
+        }
+        catch (JsonException ex)
+        {
+            Log.Warn("Could not read the installed app list: " + ex.Message);
+            throw new WingetReadException("The winget export could not be parsed: " + ex.Message);
         }
         catch (Exception ex)
         {
             Log.Warn("Could not read the installed app list: " + ex.Message);
+            throw new WingetReadException("The winget export could not be read: " + ex.Message);
         }
         finally
         {
             try { File.Delete(path); } catch { /* best effort */ }
         }
-
-        return ids;
     }
 
     public Task<AppOperationResult> InstallAsync(AppEntry app) => Task.Run(() =>

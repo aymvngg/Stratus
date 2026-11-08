@@ -80,17 +80,23 @@
                                   Stroke="{x:Bind VM.ScoreBrush, Mode=OneWay}"/>
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="1">
                                 <StackPanel Orientation="Horizontal" Spacing="1" HorizontalAlignment="Center">
-                                    <TextBlock Text="{x:Bind VM.Score, Mode=OneWay}" FontSize="54"
+                                    <TextBlock Text="{x:Bind VM.ScoreValueText, Mode=OneWay}" FontSize="54"
                                                FontWeight="SemiBold" CharacterSpacing="-20"/>
                                     <TextBlock Text="/100" FontSize="13" VerticalAlignment="Bottom" Margin="0,0,0,11"
+                                               Visibility="{x:Bind vm:Conv.Vis(VM.HasScore), Mode=OneWay}"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                                 <TextBlock Text="{x:Bind VM.StatusText, Mode=OneWay}" FontSize="13" FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
-                                           Foreground="{x:Bind VM.ScoreBrush, Mode=OneWay}"/>
+                                           Foreground="{x:Bind VM.StatusBrush, Mode=OneWay}"/>
                                 <TextBlock Text="{x:Bind VM.AppliedText, Mode=OneWay}" FontSize="10"
                                            TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"
                                            HorizontalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                <TextBlock Text="{x:Bind VM.UnknownNoticeText, Mode=OneWay}" FontSize="9.5"
+                                           TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"
+                                           Margin="0,4,0,0"
+                                           Visibility="{x:Bind vm:Conv.Vis(VM.HasUnknownNotice), Mode=OneWay}"
                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                             </StackPanel>
                         </Grid>
@@ -200,7 +206,8 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button Content="Rescan" Click="OnRescan" Style="{StaticResource AccentButtonStyle}"/>
+                        <Button Content="Rescan" Click="OnRescan" Style="{StaticResource AccentButtonStyle}"
+                                IsEnabled="{x:Bind vm:Conv.Not(VM.IsBusy), Mode=OneWay}"/>
                         <Button Grid.Column="1" Content="{x:Bind VM.ApplyRecommendedButtonText, Mode=OneWay}"
                                 Click="OnApplyRecommended"
                                 IsEnabled="{x:Bind VM.CanApplyRecommended, Mode=OneWay}"/>

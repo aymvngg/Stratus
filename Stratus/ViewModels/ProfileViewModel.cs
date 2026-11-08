@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml.Controls;
+using Stratus.Core.Coordination;
 using Stratus.Core.Models;
 using Stratus.Core.Services;
 
@@ -37,17 +38,17 @@ public sealed class ProfileViewModel : ObservableObject
     private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
     private bool _statusOpen;
 
-    /// <summary>The profile file the user picked or typed. Changes re-enable the Apply button.</summary>
-    private StratusProfile? _pending;
+    /// <summary>
+    /// The loaded profile is the only thing Apply reads. It is replaced, never mutated, and
+    /// cleared only by the user, so a running apply always sees the profile it previewed.
+    /// </summary>
+    private StratusProfile? _loaded;
+    private string _loadedTitle = "";
 
     public string ProfilePath
     {
         get => _profilePath;
-        set
-        {
-            if (Set(ref _profilePath, value))
-                Raise(nameof(CanApply));
-        }
+        set => Set(ref _profilePath, value);
     }
 
     public string ExportPath
@@ -92,7 +93,7 @@ public sealed class ProfileViewModel : ObservableObject
         private set
         {
             if (Set(ref _isBusy, value))
-                Raise(nameof(CanInteract), nameof(CanApply));
+                Raise(nameof(CanInteract), nameof(CanApply), nameof(CanCancel));
         }
     }
 
@@ -104,7 +105,10 @@ public sealed class ProfileViewModel : ObservableObject
     public InfoBarSeverity StatusSeverity { get => _statusSeverity; private set => Set(ref _statusSeverity, value); }
     public bool StatusOpen { get => _statusOpen; set => Set(ref _statusOpen, value); }
 
-    public bool CanApply => _pending is not null && !IsBusy;
+    public bool CanApply => _loaded is not null && !IsBusy;
+
+    /// <summary>Cancel stays disabled during an apply: it must not clear the profile mid-run.</summary>
+    public bool CanCancel => !IsBusy;
 
     public void ShowStatus(string message, InfoBarSeverity severity)
     {
@@ -123,13 +127,10 @@ public sealed class ProfileViewModel : ObservableObject
         Raise(nameof(HasPreview));
     }
 
-    public async Task ExportAsync()
+    public async Task<OperationOutcome> ExportAsync()
     {
         if (IsBusy)
-        {
-            ShowStatus("Another action is still running.", InfoBarSeverity.Warning);
-            return;
-        }
+            return OperationOutcome.Warning("Another action is still running.");
 
         IsBusy = true;
         BusyText = "Reading the current setup...";
@@ -141,40 +142,36 @@ public sealed class ProfileViewModel : ObservableObject
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, json);
             ExportPath = path;
-            ShowStatus($"Saved {profile.ItemCount} items to {path}.", InfoBarSeverity.Success);
+            return OperationOutcome.Success($"Saved {profile.ItemCount} items to {path}.");
+        }
+        catch (ProfileValidationException ex)
+        {
+            // The capture was refused on purpose: a partial profile would look complete.
+            Log.Warn("The profile was not saved: " + ex.Message);
+            return OperationOutcome.Warning(ex.Message);
         }
         catch (Exception ex)
         {
             Log.Error("Could not save the profile", ex);
-            ShowStatus("Could not save the profile: " + ex.Message, InfoBarSeverity.Error);
+            return OperationOutcome.Error("Could not save the profile: " + ex.Message);
         }
         finally
         {
-            IsBusy = false;
-            BusyText = "";
+            EndBusy();
         }
     }
 
-    public async Task ImportAsync(string path)
+    public async Task<OperationOutcome> ImportAsync(string path)
     {
         path = path?.Trim() ?? "";
         if (path.Length == 0)
-        {
-            ShowStatus("Choose a profile file first.", InfoBarSeverity.Warning);
-            return;
-        }
+            return OperationOutcome.Warning("Choose a profile file first.");
 
         if (IsBusy)
-        {
-            ShowStatus("Another action is still running.", InfoBarSeverity.Warning);
-            return;
-        }
+            return OperationOutcome.Warning("Another action is still running.");
 
         if (!File.Exists(path))
-        {
-            ShowStatus("That file does not exist.", InfoBarSeverity.Warning);
-            return;
-        }
+            return OperationOutcome.Warning("That file does not exist.");
 
         IsBusy = true;
         BusyText = "Reading the profile...";
@@ -183,80 +180,107 @@ public sealed class ProfileViewModel : ObservableObject
             var json = await File.ReadAllTextAsync(path);
             var (profile, error) = ProfileService.Deserialize(json);
             if (profile is null)
-            {
-                ShowStatus(error ?? "That file is not a valid Stratus profile.", InfoBarSeverity.Error);
-                return;
-            }
+                return OperationOutcome.Error(error ?? "That file is not a valid Stratus profile.");
 
-            _pending = profile;
-            SetPreview(await Task.Run(() => AppServices.Profiles.PreviewAsync(profile)),
-                $"Preview for {profile.MachineName} ({profile.ExportedAtUtc.ToLocalTime():g})");
+            var title = $"Preview for {profile.MachineName} ({profile.ExportedAtUtc.ToLocalTime():g})";
+            var preview = await Task.Run(() => AppServices.Profiles.PreviewAsync(profile));
+
+            // Load the profile and its preview together: Apply can only ever see a pair.
+            _loaded = profile;
+            _loadedTitle = title;
+            SetPreview(preview, title);
             SummaryText = "";
-            ShowStatus("Review the list below, then choose Apply.", InfoBarSeverity.Informational);
+            Raise(nameof(CanApply));
+            return OperationOutcome.Info("Review the list below, then choose Apply.");
+        }
+        catch (ProfileValidationException ex)
+        {
+            Log.Warn("The profile could not be previewed: " + ex.Message);
+            return OperationOutcome.Warning(ex.Message);
         }
         catch (Exception ex)
         {
             Log.Error("Could not load the profile", ex);
-            ShowStatus("Could not load the profile: " + ex.Message, InfoBarSeverity.Error);
+            return OperationOutcome.Error("Could not load the profile: " + ex.Message);
         }
         finally
         {
-            IsBusy = false;
-            BusyText = "";
+            EndBusy();
         }
     }
 
-    public async Task ApplyAsync()
+    public async Task<OperationOutcome> ApplyAsync()
     {
-        if (_pending is null)
-        {
-            ShowStatus("Load a profile first.", InfoBarSeverity.Warning);
-            return;
-        }
+        var profile = _loaded;
+        if (profile is null)
+            return OperationOutcome.Warning("Load a profile first.");
 
         if (IsBusy)
-        {
-            ShowStatus("Another action is still running.", InfoBarSeverity.Warning);
-            return;
-        }
+            return OperationOutcome.Warning("Another action is still running.");
+
+        if (!AppServices.TweakWrites.TryEnter())
+            return OperationOutcome.Warning("The tweak list is being changed on another page.");
 
         IsBusy = true;
         BusyText = "Applying the profile...";
+        AppServices.StateRevision.Advance();
         try
         {
             var progress = new Progress<string>(step => BusyText = step);
-            var report = await Task.Run(() => AppServices.Profiles.ApplyAsync(_pending, progress));
-            await AppServices.RefreshFromEngineAsync();
-
+            var report = await Task.Run(() => AppServices.Profiles.ApplyAsync(profile, progress));
             SummaryText = report.Summary;
-            var firstFailure = report.Messages.FirstOrDefault(message =>
-                message.Contains("failed", StringComparison.OrdinalIgnoreCase));
-            var status = report.Summary + (firstFailure is null ? "" : " First failure: " + firstFailure);
-            ShowStatus(status, report.Failed == 0
-                ? InfoBarSeverity.Success
-                : report.Applied > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Error);
+            var status = report.Summary;
+            try
+            {
+                await AppServices.RefreshFromEngineAsync();
+                var preview = await Task.Run(() => AppServices.Profiles.PreviewAsync(profile));
+                if (ReferenceEquals(_loaded, profile))
+                    SetPreview(preview, _loadedTitle);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("The profile finished but its updated state could not be read", ex);
+                return OperationOutcome.Warning(status + " The updated state could not be read: " + ex.Message);
+            }
 
-            // Keep the loaded profile so a failed run can be retried; show what is left to do.
-            SetPreview(await Task.Run(() => AppServices.Profiles.PreviewAsync(_pending)), PreviewTitle);
+            return report.Failed == 0
+                ? OperationOutcome.Success(status)
+                : report.Applied > 0 ? OperationOutcome.Warning(status) : OperationOutcome.Error(status);
+        }
+        catch (ProfileValidationException ex)
+        {
+            Log.Warn("The profile was not applied: " + ex.Message);
+            return OperationOutcome.Warning(ex.Message);
         }
         catch (Exception ex)
         {
             Log.Error("Could not apply the profile", ex);
-            ShowStatus("Could not apply the profile: " + ex.Message, InfoBarSeverity.Error);
+            return OperationOutcome.Error("Could not apply the profile: " + ex.Message);
         }
         finally
         {
-            IsBusy = false;
-            BusyText = "";
+            EndBusy();
+            AppServices.TweakWrites.Exit();
         }
     }
 
+    /// <summary>Drops the loaded profile. Disabled in the UI while an apply runs.</summary>
     public void ClearPreview()
     {
-        _pending = null;
+        if (IsBusy)
+            return;
+
+        _loaded = null;
+        _loadedTitle = "";
         Preview.Clear();
         SummaryText = "";
         PreviewTitle = "";
         Raise(nameof(HasPreview), nameof(HasSummary), nameof(CanApply));
+    }
+
+    private void EndBusy()
+    {
+        IsBusy = false;
+        BusyText = "";
     }
 }

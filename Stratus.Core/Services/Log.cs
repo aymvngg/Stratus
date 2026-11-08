@@ -11,19 +11,15 @@ public static class Log
     /// <summary>Roll a single day to "file.log.1" once it passes this size, so one chatty day cannot fill the disk.</summary>
     private const long MaxBytesPerFile = 8L * 1024 * 1024;
     private static readonly object Gate = new();
-    private static string _dir = AppPaths.LogsDir;
+    private static readonly string _dir = AppPaths.LogsDir;
     private static bool _pruned;
 
-    /// <summary>Creates the log directory if needed and prunes old files. Call once at startup.</summary>
-    public static void Init(string? directory = null)
+    public static void Init()
     {
-        if (directory is not null)
-            _dir = directory;
         try { System.IO.Directory.CreateDirectory(_dir); } catch { }
         Prune();
     }
 
-    /// <summary>Folder the daily log files are written to.</summary>
     public static string LogDir => _dir;
 
     public static void Info(string message) => Write("INFO", message);

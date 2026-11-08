@@ -82,7 +82,7 @@ public static class TcpSettingsService
         var detail = (result.StdErr.Length > 0 ? result.StdErr : result.StdOut)
             .Replace("\r", "").Replace("\n", " ").Trim();
         if (detail.Length > 180)
-            detail = detail[..180] + "…";
+            detail = detail[..180] + "...";
         if (detail.Length == 0)
             detail = $"netsh exited with code {result.ExitCode}.";
 

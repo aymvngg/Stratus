@@ -27,18 +27,14 @@ public class CommandLineTests
     [Fact]
     public void Split_UnquotedExistingFileWithArgs_ResolvesFullExe()
     {
-        var exe = Path.Combine(Path.GetTempPath(), "stratus test exe.exe");
+        using var dir = TempDirectory.Create();
+        var exe = Path.Combine(dir.Path, "stratus test exe.exe");
         File.WriteAllText(exe, "x");
-        try
-        {
-            var (resolved, args) = CommandLine.Split(exe + " --quiet");
-            Assert.Equal(exe, resolved);
-            Assert.Equal("--quiet", args);
-        }
-        finally
-        {
-            File.Delete(exe);
-        }
+
+        var (resolved, args) = CommandLine.Split(exe + " --quiet");
+
+        Assert.Equal(exe, resolved);
+        Assert.Equal("--quiet", args);
     }
 
     [Fact]
@@ -58,21 +54,41 @@ public class CommandLineTests
     [Fact]
     public void ResolveExistingPath_ResolvesExistingFile()
     {
-        var exe = Path.Combine(Path.GetTempPath(), "stratus resolve.exe");
+        using var dir = TempDirectory.Create();
+        var exe = Path.Combine(dir.Path, "stratus resolve.exe");
         File.WriteAllText(exe, "x");
-        try
-        {
-            Assert.Equal(exe, CommandLine.ResolveExistingPath("\"" + exe + "\" --run"));
-        }
-        finally
-        {
-            File.Delete(exe);
-        }
+
+        Assert.Equal(exe, CommandLine.ResolveExistingPath("\"" + exe + "\" --run"));
     }
 
     [Fact]
     public void ResolveExistingPath_EmptyInput_ReturnsNull()
     {
         Assert.Null(CommandLine.ResolveExistingPath("  "));
+    }
+}
+
+/// <summary>
+/// A fresh folder per test. A fixed name under the shared temp folder lets a leftover file or
+/// a parallel run decide the result of the test.
+/// </summary>
+public sealed class TempDirectory : IDisposable
+{
+    private TempDirectory(string path) => Path = path;
+
+    public string Path { get; }
+
+    public static TempDirectory Create()
+    {
+        var path = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "stratus-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return new TempDirectory(path);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(Path, recursive: true); } catch { /* best effort */ }
     }
 }
