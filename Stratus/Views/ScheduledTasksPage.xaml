@@ -95,7 +95,9 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <CheckBox VerticalAlignment="Center"
+                                        <CheckBox MinWidth="0" MinHeight="0" Padding="0"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
                                                   IsChecked="{x:Bind IsChecked, Mode=TwoWay}"/>
 
                                         <StackPanel Grid.Column="1" Spacing="4">
