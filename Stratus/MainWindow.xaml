@@ -24,7 +24,7 @@
             x:Name="Nav"
             Grid.Row="1"
             IsBackButtonVisible="Collapsed"
-            IsSettingsVisible="False"
+            IsSettingsVisible="True"
             IsPaneToggleButtonVisible="False"
             PaneDisplayMode="Left"
             OpenPaneLength="232"
@@ -96,11 +96,6 @@
                 <NavigationViewItem Content="Tools" Tag="tools">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE90F;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Profile" Tag="profile">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE74E;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>

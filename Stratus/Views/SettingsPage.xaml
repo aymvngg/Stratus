@@ -1,0 +1,270 @@
+<Page
+    x:Class="Stratus.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Stratus.ViewModels">
+
+    <Grid Margin="32,24,32,32">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,2,0">
+            <StackPanel Spacing="14" MaxWidth="980" HorizontalAlignment="Stretch">
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Settings" Style="{StaticResource PageHeader}"/>
+                    <TextBlock Text="Stratus preferences, updates, your saved profile and the last-resort reset."
+                               Style="{StaticResource PageSubtitle}"/>
+                </StackPanel>
+
+                <InfoBar IsOpen="{x:Bind Profile.StatusOpen, Mode=TwoWay}"
+                         IsClosable="True"
+                         Message="{x:Bind Profile.StatusMessage, Mode=OneWay}"
+                         Severity="{x:Bind Profile.StatusSeverity, Mode=OneWay}"/>
+
+                <TextBlock Text="Profile" Style="{StaticResource SectionHeader}"/>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Glyph="&#xE74E;" Style="{StaticResource BadgeGlyph}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Save or load your setup" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="One JSON file describes the whole machine state Stratus manages."
+                                           Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                        HorizontalAlignment="Right">
+                                <ProgressRing IsActive="{x:Bind Profile.IsBusy, Mode=OneWay}"
+                                              Width="18" Height="18"
+                                              Visibility="{x:Bind vm:Conv.Vis(Profile.IsBusy), Mode=OneWay}"/>
+                                <TextBlock Text="{x:Bind Profile.BusyText, Mode=OneWay}" FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Spacing="8">
+                                <TextBlock Text="Save this setup" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock Text="Writes every selection Stratus knows about into one JSON file: applied tweaks, disabled startup entries and tasks, enabled Windows features, installed catalog apps, cleanup targets, DNS, power plan and TCP settings."
+                                           FontSize="11.5" TextWrapping="Wrap" LineHeight="16"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <Button Content="Save profile" Style="{StaticResource AccentButtonStyle}"
+                                        Click="OnExport" IsEnabled="{x:Bind Profile.CanInteract, Mode=OneWay}"/>
+                                <TextBlock Text="{x:Bind Profile.ExportPath, Mode=OneWay}"
+                                           FontSize="11.5" TextWrapping="Wrap"
+                                           IsTextSelectionEnabled="True"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                           Visibility="{x:Bind vm:Conv.Vis(Profile.HasExportPath), Mode=OneWay}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Spacing="8">
+                                <TextBlock Text="Load a setup" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock Text="Importing only adds. It applies missing tweaks, disables the listed entries, enables the listed features and installs the listed apps. It never reverts, re-enables or uninstalls anything."
+                                           FontSize="11.5" TextWrapping="Wrap" LineHeight="16"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBox PlaceholderText="Path to a profile JSON" Width="360"
+                                             Text="{x:Bind Profile.ProfilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Content="Browse" Click="OnBrowse"
+                                            IsEnabled="{x:Bind Profile.CanInteract, Mode=OneWay}"/>
+                                    <Button Content="Import" Click="OnImport"
+                                            IsEnabled="{x:Bind Profile.CanInteract, Mode=OneWay}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}"
+                        Visibility="{x:Bind vm:Conv.Vis(Profile.HasPreview), Mode=OneWay}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{x:Bind Profile.PreviewTitle, Mode=OneWay}" Style="{StaticResource CardTitle}"/>
+                        <ListView ItemsSource="{x:Bind Profile.Preview, Mode=OneWay}"
+                                  SelectionMode="None" IsItemClickEnabled="False"
+                                  Style="{StaticResource FlatItem}"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.HorizontalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollMode="Disabled">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProfileRow">
+                                    <Grid ColumnSpacing="10" Padding="2,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{x:Bind Category}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Bind Name}" FontSize="13.5"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ActionText}" FontSize="11.5"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Column="3" Text="{x:Bind ChangeText}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock Text="{x:Bind Profile.SummaryText, Mode=OneWay}" FontSize="12.5"
+                                   TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Visibility="{x:Bind vm:Conv.Vis(Profile.HasSummary), Mode=OneWay}"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Apply profile" Style="{StaticResource AccentButtonStyle}"
+                                    Click="OnApply" IsEnabled="{x:Bind Profile.CanApply, Mode=OneWay}"/>
+                            <Button Content="Cancel" Click="OnCancel"
+                                    IsEnabled="{x:Bind Profile.CanCancel, Mode=OneWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Updates" Style="{StaticResource SectionHeader}"/>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Glyph="&#xE895;" Style="{StaticResource BadgeGlyph}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Stratus updates" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="{x:Bind Tools.CurrentVersionText, Mode=OneWay}"
+                                           Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{x:Bind Tools.UpdateButtonText, Mode=OneWay}"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Click="OnUpdateAction"
+                                    IsEnabled="{x:Bind Tools.CanCheckForUpdates, Mode=OneWay}"/>
+                            <ProgressRing IsActive="{x:Bind Tools.IsDownloading, Mode=OneWay}"
+                                          Width="18" Height="18"
+                                          Visibility="{x:Bind vm:Conv.Vis(Tools.IsDownloading), Mode=OneWay}"/>
+                        </StackPanel>
+                        <ProgressBar Value="{x:Bind Tools.UpdateProgress, Mode=OneWay}"
+                                     Maximum="100" Height="4"
+                                     Visibility="{x:Bind vm:Conv.Vis(Tools.IsDownloading), Mode=OneWay}"/>
+                        <TextBlock Text="{x:Bind Tools.UpdateStatusText, Mode=OneWay}"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Expander HorizontalAlignment="Stretch"
+                                  Visibility="{x:Bind vm:Conv.Vis(Tools.HasUpdateNotes), Mode=OneWay}">
+                            <Expander.Header>
+                                <TextBlock Text="What's new" FontSize="12.5"/>
+                            </Expander.Header>
+                            <TextBox Text="{x:Bind Tools.UpdateNotesText, Mode=OneWay}"
+                                     IsReadOnly="True" TextWrapping="Wrap" Height="160"
+                                     AcceptsReturn="True"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas" FontSize="11" BorderThickness="0"
+                                     Background="Transparent"/>
+                        </Expander>
+                        <StackPanel Spacing="2">
+                            <ToggleSwitch Header="Check for updates automatically"
+                                          IsOn="{x:Bind Tools.AutoCheck, Mode=TwoWay}"
+                                          OnContent="On" OffContent="Off"/>
+                            <TextBlock Text="{x:Bind Tools.AutoCheckHint, Mode=OneWay}"
+                                       Style="{StaticResource PageSubtitle}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Preferences" Style="{StaticResource SectionHeader}"/>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Glyph="&#xE713;" Style="{StaticResource BadgeGlyph}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Appearance and behaviour" Style="{StaticResource CardTitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Theme" FontSize="13"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="ThemeBox" MinWidth="200"
+                                      HorizontalAlignment="Left" SelectionChanged="OnThemeChanged">
+                                <ComboBoxItem Content="Follow system"/>
+                                <ComboBoxItem Content="Dark"/>
+                                <ComboBoxItem Content="Light"/>
+                            </ComboBox>
+                            <ToggleSwitch Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                          x:Name="TrayToggle"
+                                          Header="Keep running in the tray when closed"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnTrayToggled"/>
+                        </Grid>
+                        <TextBlock Text="With tray mode on, closing the window hides Stratus in the notification area and the score keeps tracking. Use Exit in the tray menu to quit."
+                                   Style="{StaticResource PageSubtitle}"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Data" Style="{StaticResource SectionHeader}"/>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Style="{StaticResource IconBadge}">
+                                <FontIcon Glyph="&#xE8B7;" Style="{StaticResource BadgeGlyph}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Stratus data" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="Backups of every registry value Stratus touched and the log files live under ProgramData."
+                                           Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Open data folder" Click="OnOpenFolder"/>
+                            <Button Content="Open logs" Click="OnOpenLogs"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Danger zone" Style="{StaticResource SectionHeader}"/>
+
+                <Border Style="{StaticResource Card}" BorderBrush="#66C42B1C">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Style="{StaticResource IconBadge}" Background="#33C42B1C">
+                                <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="#FFF48B8B"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Reset everything" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="#FFF48B8B"/>
+                                <TextBlock Text="Last resort" Style="{StaticResource PageSubtitle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Text="Reverts every tweak detected as applied - including changes made by hand or by other tools - using the exact values backed up at change time."
+                                   FontSize="11.5" TextWrapping="Wrap" LineHeight="16"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Button Content="Revert all tweaks" Click="OnRevertAll"
+                                Background="#66C42B1C" Foreground="#FFF48B8B"
+                                IsEnabled="{x:Bind vm:Conv.Not(Tools.IsBusy), Mode=OneWay}"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

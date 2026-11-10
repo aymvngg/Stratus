@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.8.3
+
+### UI
+- The sidebar has a Settings entry at the bottom. It holds the profile save and load page, the updater, the theme and tray preferences, the data and logs shortcuts and the revert-everything action. The Profile page is gone.
+- The Tools page is grouped under section headers: Repair, Reset, Network, Maintenance, Performance, Fixes and Windows tools.
+- The Tweaks page has a State filter (all, applied, not applied). Tweaks whose state could not be read match neither applied nor not applied.
+- Startup entries show the executable's icon, with a glyph fallback when there is no readable file.
+- The Tasks page checkbox column no longer reserves a wide default area for a single checkbox.
+- The Install page groups apps under collapsible category sections. Each app shows a downloaded icon with a letter badge fallback; icons are cached under ProgramData and fetching pauses when GitHub rate limits the session.
+
 ## v1.8.2
 
 ### Maintenance

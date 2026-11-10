@@ -26,25 +26,11 @@ public sealed partial class ToolsPage : Page
             return;
         _loadedOnce = true;
 
-        // Reflect the persisted preferences (set after InitializeComponent so no mid-parse events fire).
-        ThemeBox.SelectedIndex = ThemeHelper.GetMode() switch { "dark" => 1, "light" => 2, _ => 0 };
-        TrayToggle.IsOn = ThemeHelper.GetCloseToTray();
-
         // The three cards below read their own state, so they load even when the main
         // plan/DNS load was skipped or failed.
         await VM.LoadAsync();
         await VM.LoadExtrasAsync();
     }
-
-    private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (ThemeBox.SelectedIndex < 0)
-            return;
-        ThemeHelper.SetMode(ThemeBox.SelectedIndex switch { 1 => "dark", 2 => "light", _ => "system" });
-    }
-
-    private void OnTrayToggled(object sender, RoutedEventArgs e) =>
-        ThemeHelper.SetCloseToTray(TrayToggle.IsOn);
 
     private async void OnReload(object sender, RoutedEventArgs e)
     {
@@ -158,78 +144,6 @@ public sealed partial class ToolsPage : Page
             return;
 
         var outcome = await VM.RunComponentCleanupAsync();
-        VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
-    }
-
-    private void OnOpenFolder(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = AppPaths.ProgramData,
-                UseShellExecute = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Could not open the data folder: " + ex.Message);
-            VM.ShowStatus($"Could not open the folder: {ex.Message}", InfoBarSeverity.Error);
-        }
-    }
-
-    private void OnOpenLogs(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = Log.LogDir,
-                UseShellExecute = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Could not open the logs folder: " + ex.Message);
-            VM.ShowStatus($"Could not open the logs folder: {ex.Message}", InfoBarSeverity.Error);
-        }
-    }
-
-    private async void OnRevertAll(object sender, RoutedEventArgs e)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = "Revert ALL tweaks?",
-            Content = new StackPanel
-            {
-                Spacing = 10,
-                MaxWidth = 420,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "Every tweak that is currently detected as applied will be returned to Windows defaults. This includes optimizations you enabled manually or with other tools.",
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    new TextBlock
-                    {
-                        Text = "Debloated apps and cleaned files are not restored by this action.",
-                        TextWrapping = TextWrapping.Wrap,
-                        Opacity = 0.75,
-                        FontSize = 12,
-                    },
-                },
-            },
-            PrimaryButtonText = "Revert everything",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            return;
-
-        var outcome = await VM.RevertAllAsync();
         VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
     }
 
@@ -401,43 +315,5 @@ public sealed partial class ToolsPage : Page
 
         var (ok, message) = VM.OpenWindowsTool(target);
         VM.ShowStatus(message, ok ? InfoBarSeverity.Success : InfoBarSeverity.Error);
-    }
-
-    // ================= v1.4: updates =================
-
-    private async void OnUpdateAction(object sender, RoutedEventArgs e)
-    {
-        if (!VM.IsUpdateReady)
-        {
-            var outcome = await VM.CheckForUpdatesAsync();
-            VM.ShowStatus(outcome.Message, outcome.Severity.ToInfoBarSeverity());
-            return;
-        }
-
-        var dialog = new ContentDialog
-        {
-            Title = "Restart to finish the update?",
-            Content = new TextBlock
-            {
-                Text = "Stratus closes, replaces its own files and starts the new version. Your tweaks and history are untouched.",
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "Restart",
-            CloseButtonText = "Later",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            return;
-
-        if (VM.RestartToUpdate(out var status))
-        {
-            VM.ShowStatus(status, InfoBarSeverity.Success);
-            App.Window?.ForceClose();
-            return;
-        }
-
-        VM.ShowStatus(status, InfoBarSeverity.Error);
     }
 }

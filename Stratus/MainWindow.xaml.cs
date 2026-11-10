@@ -82,6 +82,10 @@ public sealed partial class MainWindow : Window
         // Select Dashboard on first layout.
         Nav.Loaded += (_, _) =>
         {
+            // The built-in settings entry needs a tag so the selection switch can route it.
+            if (Nav.SettingsItem is NavigationViewItem settings)
+                settings.Tag = "settings";
+
             if (Nav.SelectedItem is null && Nav.MenuItems.Count > 0)
                 Nav.SelectedItem = Nav.MenuItems[0];
         };
@@ -208,7 +212,7 @@ public sealed partial class MainWindow : Window
             "cleanup" => typeof(CleanupPage),
             "history" => typeof(HistoryPage),
             "tools" => typeof(ToolsPage),
-            "profile" => typeof(ProfilePage),
+            "settings" => typeof(SettingsPage),
             _ => null,
         };
 
