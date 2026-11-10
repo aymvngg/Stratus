@@ -73,6 +73,26 @@ public sealed class InstallRow : ObservableObject
     public bool CanAct => !IsBusy;
     public bool CanUninstall => IsInstalled && !IsBusy;
 
+    private Microsoft.UI.Xaml.Media.ImageSource? _iconSource;
+
+    /// <summary>Downloaded app icon. Stays null while unknown or on failure, so the row
+    /// renders its letter badge instead.</summary>
+    public Microsoft.UI.Xaml.Media.ImageSource? IconSource
+    {
+        get => _iconSource;
+        set
+        {
+            if (Set(ref _iconSource, value))
+                Raise(nameof(HasIcon));
+        }
+    }
+
+    public bool HasIcon => IconSource is not null;
+
+    public string IconLetter => Name.Length > 0
+        ? char.ToUpperInvariant(Name[0]).ToString()
+        : "?";
+
     internal void MarkBusy(bool busy) => IsBusy = busy;
 
     internal void MarkInstalled(bool installed, string? version)
@@ -90,6 +110,9 @@ public sealed class InstallRow : ObservableObject
 public sealed class InstallViewModel : ObservableObject
 {
     public ObservableCollection<InstallRow> Rows { get; } = new();
+
+    /// <summary>The same filtered set as Rows, grouped by category in catalog order.</summary>
+    public ObservableCollection<InstallGroup> FilteredGroups { get; } = new();
 
     // Full catalog; Rows shows the filtered view.
     private readonly List<InstallRow> _all = new();
@@ -185,6 +208,9 @@ public sealed class InstallViewModel : ObservableObject
         var query = _searchText.Trim();
 
         Rows.Clear();
+        FilteredGroups.Clear();
+        InstallGroup? currentGroup = null;
+
         foreach (var row in _all)
         {
             if (_selectedCategory != "All" &&
@@ -202,10 +228,48 @@ public sealed class InstallViewModel : ObservableObject
             }
 
             Rows.Add(row);
+
+            // Rows arrive in catalog order, so a category change simply opens the next group.
+            if (currentGroup is null ||
+                !string.Equals(currentGroup.Title, row.Category, StringComparison.Ordinal))
+            {
+                currentGroup = new InstallGroup(row.Category);
+                FilteredGroups.Add(currentGroup);
+            }
+
+            currentGroup.Rows.Add(row);
         }
+
+        if (FilteredGroups.Count > 0)
+            FilteredGroups[0].IsExpanded = true;
 
         CountText = $"{Rows.Count} of {_all.Count} apps";
         Raise(nameof(IsEmpty));
+    }
+
+    /// <summary>Loads the catalog icons in the background. A failure is invisible: rows keep
+    /// their letter badge. Downloads stop early once GitHub rate limits the session.</summary>
+    private async Task LoadIconsAsync()
+    {
+        foreach (var row in _all)
+        {
+            if (row.IconSource is not null)
+                continue;
+
+            try
+            {
+                var path = await Stratus.Services.AppIconService.GetIconPathAsync(row.Id);
+                if (path is not null)
+                {
+                    // The await resumed on the UI thread, so creating the BitmapImage here is safe.
+                    row.IconSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(path));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not load the icon for " + row.Id + ": " + ex.Message);
+            }
+        }
     }
 
     public async Task RefreshAsync()
@@ -247,6 +311,7 @@ public sealed class InstallViewModel : ObservableObject
             }
 
             ApplyFilter();
+            _ = LoadIconsAsync();
             ShowStatus($"{installed.Count} installed apps detected.", InfoBarSeverity.Informational);
         }
         catch (Exception ex)
@@ -267,6 +332,7 @@ public sealed class InstallViewModel : ObservableObject
                     _all.Add(row);
                 }
                 ApplyFilter();
+                _ = LoadIconsAsync();
             }
         }
         finally
@@ -436,4 +502,19 @@ public sealed class InstallViewModel : ObservableObject
             BusyText = "";
         }
     }
+}
+
+/// <summary>One category section on the Install page.</summary>
+public sealed class InstallGroup
+{
+    public InstallGroup(string title) => Title = title;
+
+    public string Title { get; }
+
+    public ObservableCollection<InstallRow> Rows { get; } = new();
+
+    public string CountText => Format.Count(Rows.Count, "app");
+
+    /// <summary>Only the first section starts open; the rest are collapsed until chosen.</summary>
+    public bool IsExpanded { get; set; }
 }

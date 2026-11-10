@@ -78,54 +78,98 @@
 
         <ScrollViewer Grid.Row="4">
             <StackPanel Spacing="14">
-                <ListView ItemsSource="{x:Bind VM.Rows, Mode=OneWay}" SelectionMode="None"
+                <ListView ItemsSource="{x:Bind VM.FilteredGroups, Mode=OneWay}" SelectionMode="None"
                           ItemContainerStyle="{StaticResource FlatItem}"
                           ScrollViewer.HorizontalScrollMode="Disabled"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.VerticalScrollMode="Disabled"
                           ScrollViewer.VerticalScrollBarVisibility="Disabled">
                     <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="vm:InstallRow">
-                            <Grid ColumnSpacing="10" Padding="2,3">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Spacing="1" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"/>
-                                        <Border Style="{StaticResource CountChip}"
-                                                Visibility="{x:Bind vm:Conv.Vis(Recommended)}">
-                                            <TextBlock Text="Recommended" Style="{StaticResource ChipText}"
+                        <DataTemplate x:DataType="vm:InstallGroup">
+                            <Expander HorizontalAlignment="Stretch"
+                                      HorizontalContentAlignment="Stretch"
+                                      IsExpanded="{x:Bind IsExpanded, Mode=OneWay}"
+                                      Margin="0,0,0,10">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,2">
+                                        <TextBlock Text="{x:Bind Title}" FontSize="14" FontWeight="SemiBold"/>
+                                        <Border Style="{StaticResource CountChip}">
+                                            <TextBlock Text="{x:Bind CountText}" Style="{StaticResource ChipText}"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         </Border>
                                     </StackPanel>
-                                    <TextBlock Text="{x:Bind Category}" FontSize="10.5"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                    <TextBlock Text="{x:Bind StateText, Mode=OneWay}" FontSize="10.5"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    <TextBlock Text="{x:Bind Description}" FontSize="11.5" TextWrapping="Wrap"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    <TextBlock Text="{x:Bind Status, Mode=OneWay}" FontSize="11.5"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                               Visibility="{x:Bind vm:Conv.Vis(HasStatus), Mode=OneWay}"/>
-                                </StackPanel>
+                                </Expander.Header>
+                                <ListView ItemsSource="{x:Bind Rows, Mode=OneWay}" SelectionMode="None"
+                                          ItemContainerStyle="{StaticResource FlatItem}"
+                                          ScrollViewer.HorizontalScrollMode="Disabled"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.VerticalScrollMode="Disabled"
+                                          ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:InstallRow">
+                                            <Grid ColumnSpacing="12" Padding="2,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                                            VerticalAlignment="Center">
-                                    <Button Content="{x:Bind ActionText, Mode=OneWay}"
-                                            Click="OnInstall"
-                                            FontSize="11.5"
-                                            Style="{StaticResource AccentButtonStyle}"
-                                            IsEnabled="{x:Bind CanAct, Mode=OneWay}"/>
-                                    <Button Content="Remove"
-                                            Click="OnUninstall"
-                                            FontSize="11.5"
-                                            IsEnabled="{x:Bind CanUninstall, Mode=OneWay}"
-                                            Visibility="{x:Bind vm:Conv.Vis(CanUninstall), Mode=OneWay}"/>
-                                </StackPanel>
-                            </Grid>
+                                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6"
+                                                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        BorderThickness="1">
+                                                    <Grid>
+                                                        <Image Source="{x:Bind IconSource, Mode=OneWay}"
+                                                               Width="20" Height="20"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Visibility="{x:Bind vm:Conv.Vis(HasIcon), Mode=OneWay}"/>
+                                                        <Border CornerRadius="5"
+                                                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                Visibility="{x:Bind vm:Conv.NotVis(HasIcon), Mode=OneWay}">
+                                                            <TextBlock Text="{x:Bind IconLetter}" FontSize="13"
+                                                                       FontWeight="SemiBold" Margin="6,2"
+                                                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"/>
+                                                        <Border Style="{StaticResource CountChip}"
+                                                                Visibility="{x:Bind vm:Conv.Vis(Recommended)}">
+                                                            <TextBlock Text="Recommended" Style="{StaticResource ChipText}"
+                                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{x:Bind StateText, Mode=OneWay}" FontSize="10.5"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind Description}" FontSize="11.5" TextWrapping="Wrap"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind Status, Mode=OneWay}" FontSize="11.5"
+                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                               Visibility="{x:Bind vm:Conv.Vis(HasStatus), Mode=OneWay}"/>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                                                            VerticalAlignment="Center">
+                                                    <Button Content="{x:Bind ActionText, Mode=OneWay}"
+                                                            Click="OnInstall"
+                                                            FontSize="11.5"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            IsEnabled="{x:Bind CanAct, Mode=OneWay}"/>
+                                                    <Button Content="Remove"
+                                                            Click="OnUninstall"
+                                                            FontSize="11.5"
+                                                            IsEnabled="{x:Bind CanUninstall, Mode=OneWay}"
+                                                            Visibility="{x:Bind vm:Conv.Vis(CanUninstall), Mode=OneWay}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Expander>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
