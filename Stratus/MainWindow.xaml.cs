@@ -148,6 +148,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Hide();
         Log.Info("Window hidden to the tray (close to tray enabled).");
         _tray?.OnHiddenToTray();
+        MemoryTrim.OnWindowHidden();
     }
 
     /// <summary>Real exit: bypasses the hide-to-tray behavior from the tray menu.</summary>

@@ -4,6 +4,7 @@
 
 ### Maintenance
 - The tray icon uses the shell API directly, so the app process never loads Windows Forms; its assemblies drop out of memory and out of the publish layout.
+- Hiding the window to the tray now collects and trims the process working set, so the hidden app keeps a small physical footprint until it reopens.
 
 ## v1.8.1
 
