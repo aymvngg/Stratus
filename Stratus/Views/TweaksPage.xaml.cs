@@ -65,6 +65,14 @@ public sealed partial class TweaksPage : Page
         };
     }
 
+    private void OnStateChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (StateBox is null)
+            return;
+
+        VM.StateFilter = StateBox.SelectedIndex switch { 1 => 1, 2 => 2, _ => 0 };
+    }
+
     private async void OnApplyCategory(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: TweakGroup group } || !group.CanApplySafe)

@@ -24,6 +24,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="176"/>
                 <ColumnDefinition Width="176"/>
+                <ColumnDefinition Width="150"/>
             </Grid.ColumnDefinitions>
 
             <TextBox PlaceholderText="Search by name or description…"
@@ -44,6 +45,12 @@
                 <ComboBoxItem Content="Safe"/>
                 <ComboBoxItem Content="Recommended"/>
                 <ComboBoxItem Content="Advanced"/>
+            </ComboBox>
+            <ComboBox x:Name="StateBox" Grid.Column="3" Header="State"
+                      SelectionChanged="OnStateChanged" HorizontalAlignment="Stretch">
+                <ComboBoxItem Content="All states" IsSelected="True"/>
+                <ComboBoxItem Content="Applied"/>
+                <ComboBoxItem Content="Not applied"/>
             </ComboBox>
         </Grid>
 

@@ -142,6 +142,7 @@ public sealed class TweaksViewModel : ObservableObject
     private string _searchText = "";
     private TweakCategory? _category;
     private RiskLevel? _risk;
+    private int _stateFilter;
     private string _statusMessage = "";
     private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
     private bool _statusOpen;
@@ -168,6 +169,14 @@ public sealed class TweaksViewModel : ObservableObject
     {
         get => _risk;
         set { _risk = value; ApplyFilter(); }
+    }
+
+    /// <summary>0 = all states, 1 = applied, 2 = not applied. Rows whose state could not be
+    /// read match neither applied nor not applied: an unreadable row is never presented as off.</summary>
+    public int StateFilter
+    {
+        get => _stateFilter;
+        set { _stateFilter = value; ApplyFilter(); }
     }
 
     /// <summary>While a bulk apply runs, row toggles are disabled: one writer owns the catalog.</summary>
@@ -231,6 +240,10 @@ public sealed class TweaksViewModel : ObservableObject
             source = source.Where(i => i.T.Category == cat);
         if (_risk is { } risk)
             source = source.Where(i => i.T.Risk == risk);
+        if (_stateFilter == 1)
+            source = source.Where(i => i.IsApplied && !i.IsUnknown);
+        else if (_stateFilter == 2)
+            source = source.Where(i => !i.IsUnknown && !i.IsApplied);
         if (query.Length > 0)
             source = source.Where(i =>
                 i.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
