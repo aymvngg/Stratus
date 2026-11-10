@@ -49,6 +49,22 @@ public sealed class StartupRow : ObservableObject
     }
 
     public bool ToggleEnabled => !IsBusy;
+
+    private Microsoft.UI.Xaml.Media.ImageSource? _iconSource;
+
+    /// <summary>Extracted executable icon. Stays null when the entry has no readable file,
+    /// so the row falls back to a glyph.</summary>
+    public Microsoft.UI.Xaml.Media.ImageSource? IconSource
+    {
+        get => _iconSource;
+        set
+        {
+            if (Set(ref _iconSource, value))
+                Raise(nameof(HasIcon));
+        }
+    }
+
+    public bool HasIcon => IconSource is not null;
 }
 
 public sealed class StartupViewModel : ObservableObject
@@ -171,6 +187,27 @@ public sealed class StartupViewModel : ObservableObject
     }
 
     /// <summary>Loads the startup entries without claiming the busy state, for callers that already own it.</summary>
+    /// <summary>Extracts the row's executable icon off the UI thread and renders it on the
+    /// UI thread. A failure is logged and the row keeps its glyph fallback.</summary>
+    private async Task LoadIconAsync(StartupRow row)
+    {
+        var path = row.Item.ExecutablePath;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+
+        try
+        {
+            var extracted = await Task.Run(() => Stratus.Services.IconCache.ExtractIconPixels(path));
+
+            // The awaits resume on the UI thread, so building the image here is safe.
+            row.IconSource = await Stratus.Services.IconCache.CreateImageAsync(extracted);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not read the icon for " + row.Name + ": " + ex.Message);
+        }
+    }
+
     private async Task RefreshCoreAsync()
     {
         try
@@ -196,6 +233,10 @@ public sealed class StartupViewModel : ObservableObject
             HasItems = Rows.Count > 0;
             ApplyFilter();
             UpdateCount();
+
+            // Icons are display sugar: load them after the list is usable and never block the scan.
+            foreach (var row in Rows)
+                _ = LoadIconAsync(row);
         }
         catch (Exception ex)
         {
