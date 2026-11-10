@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.8.2
+
+### Maintenance
+- The tray icon uses the shell API directly, so the app process never loads Windows Forms; its assemblies drop out of memory and out of the publish layout.
+
 ## v1.8.1
 
 Release validation: the Release build has zero warnings and errors, and all 295
